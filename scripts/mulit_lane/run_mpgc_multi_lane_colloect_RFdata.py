@@ -1,5 +1,5 @@
 '''
-main_multi_lane_motorway_RL_RFdata.py
+run_mpgc_multi_lane_colloect_RFdata.py
 this version is for collecting RF train data
 multi-lane simulation
 test longer platoon
@@ -141,7 +141,7 @@ def loop(traci, st, vgvg, vcfunc, drdr, vch, vcjfunc, pfpf, lc_hv=False, lc_av=F
     return dic_follower_state, his_dic_platoon_size, dic_id_features
 
 if __name__ == '__main__':
-    # python main_multi_lane_motorway_RL_RFdata.py --nogui --st 30000
+    # python run_mpgc_multi_lane_colloect_RFdata.py --nogui --st 30000
     parser = argparse.ArgumentParser()
     # default True, add "--nogui" False
     parser.add_argument("--nogui", action="store_true", help="disable SUMO GUI")

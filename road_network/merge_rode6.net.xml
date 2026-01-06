@@ -4,14 +4,14 @@
 <configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/neteditConfiguration.xsd">
 
     <input>
-        <sumocfg-file value="/home/zzha/flow/tutorials/1My experiments/3non-RL models/NETFILES/merging_rode_1/merge_rode6.sumocfg"/>
+        <sumocfg-file value="/home/zzha/flow/tutorials/1My experiments/3non-RL rf_models/NETFILES/merging_rode_1/merge_rode6.sumocfg"/>
         <additional-files value=""/>
-        <route-files value="/home/zzha/flow/tutorials/1My experiments/3non-RL models/NETFILES/merging_rode_1/merge_rode6.rou.xml"/>
-        <sumo-net-file value="/home/zzha/flow/tutorials/1My experiments/3non-RL models/NETFILES/merging_rode_1/merge_rode6.net.xml"/>
+        <route-files value="/home/zzha/flow/tutorials/1My experiments/3non-RL rf_models/NETFILES/merging_rode_1/merge_rode6.rou.xml"/>
+        <sumo-net-file value="/home/zzha/flow/tutorials/1My experiments/3non-RL rf_models/NETFILES/merging_rode_1/merge_rode6.net.xml"/>
     </input>
 
     <output>
-        <output-file value="/home/zzha/flow/tutorials/1My experiments/3non-RL models/NETFILES/merging_rode_1/merge_rode6.net.xml"/>
+        <output-file value="/home/zzha/flow/tutorials/1My experiments/3non-RL rf_models/NETFILES/merging_rode_1/merge_rode6.net.xml"/>
     </output>
 
     <processing>

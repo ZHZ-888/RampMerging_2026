@@ -1,4 +1,4 @@
-# main_multi_lane_motorway_RL.py
+# run_mpgc_multi_lane.py
 '''
 multi-lane simulation
 test longer platoon

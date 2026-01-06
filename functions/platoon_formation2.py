@@ -21,12 +21,12 @@ class PlatoonForm:
         self.dic_id_features = {}  # {id:[f1, f2,..., ], ...}
         self.dic_follower_state = {}  # state of each followers
         self.dic_id_preState = {}
-        # follower_state prediction model
+        # follower_state_prediction prediction model
         # self.fs_model = joblib.load("/Models/follower_state_prediction_model_250501.pkl")
         # self.fs_model = joblib.load(
-        #     os.path.join(project_root, 'models', 'follower_state_prediction_model_250501.pkl'))
+        #     os.path.join(project_root, 'rf_models', 'follower_state_prediction_model_250501.pkl'))
         self.fs_model = joblib.load(
-            os.path.join(project_root, 'models', 'follower_state_prediction_model_251121_ndarray.pkl'))
+            os.path.join(project_root, 'rf_models', 'follower_state_prediction_model_251121_ndarray.pkl'))
         self.ls_leader_AV = []
         self.ls_follower_AV = []
         self.ls_upA_lastStep = []  # ls_upA (upstream AV) last Step

@@ -122,7 +122,7 @@ def loop(traci, st, vgvg, drdr, rmaf, ls_m_dpt=None, ls_r_dpt=None):
         id_all = traci.vehicle.getIDList()
 
         jam_mode = False
-        ls_vsj = drdr.get_average_speed(step, jam_mode, ls_veh_id)  # average_velocity of this step and its jam_state
+        ls_vsj = drdr.get_average_speed(step, ls_veh_id, jam_mode)  # average_velocity of this step and its jam_state
         ls_vsj_c.append(ls_vsj)  # collect into one list
 
         step += 1

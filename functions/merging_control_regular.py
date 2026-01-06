@@ -56,10 +56,10 @@ class MergingControlRegular:
         # self.mp_model2 = joblib.load("/home/zzha/PycharmProjects/RampMerging3/Models/mr_arrival_prediction_model241128.pkl")
 
         # self.mp_model2 = joblib.load(
-        #     os.path.join(project_root, 'models', 'mr_arrival_prediction_model241128.pkl'))
+        #     os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model241128.pkl'))
 
         self.mp_model2 = joblib.load(
-            os.path.join(project_root, 'models', 'mr_arrival_prediction_model241128_ndarray.pkl'))
+            os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model241128_ndarray.pkl'))
 
     def update_platoon_et(self, step, ls_leader_up, m=True, interval=70):
         '''

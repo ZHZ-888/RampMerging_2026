@@ -83,7 +83,7 @@ class MergingController:
             ls_r_veh_up,
             ls_r_leader_up
         )
-        jam_mode = True
+        # jam_mode = True
         # regular_mode = False
         # === 4. Apply corresponding control logic ===
         if jam_mode:
@@ -124,7 +124,7 @@ class MergingController:
             self.action_mgr.execute_action(step, dic_mavh_scAction, ls_mavh_scAct, ls_veh_id)
 
         # average_velocity of this step and its jam_state
-        step_speed = self.data_recorder.get_average_speed(step, jam_mode, ls_veh_id)
+        step_speed = self.data_recorder.get_average_speed(step, ls_veh_id, jam_mode)
         self.speed_log.append(step_speed)  # collect into one list
 
         # 240825

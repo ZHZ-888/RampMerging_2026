@@ -4,11 +4,11 @@
 <configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/neteditConfiguration.xsd">
 
     <input>
-        <sumo-net-file value="/home/zzha/flow/tutorials/1My experiments/3non-RL models/NETFILES/merging_rode_1/merge_rode12.net.xml"/>
+        <sumo-net-file value="/home/zzha/flow/tutorials/1My experiments/3non-RL rf_models/NETFILES/merging_rode_1/merge_rode12.net.xml"/>
     </input>
 
     <output>
-        <output-file value="/home/zzha/flow/tutorials/1My experiments/3non-RL models/NETFILES/merging_rode_1/merge_rode12.net.xml"/>
+        <output-file value="/home/zzha/flow/tutorials/1My experiments/3non-RL rf_models/NETFILES/merging_rode_1/merge_rode12.net.xml"/>
     </output>
 
     <processing>

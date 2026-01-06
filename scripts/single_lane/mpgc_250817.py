@@ -116,7 +116,7 @@ if __name__ == '__main__':
     p_autoFollow = 1  # auto follow proportion (percentage = proportion × 100%)
     loss_rate = 0 # 0, 0.05, 0.1, 0.15; packet loss rate
     seed = 1 # 4
-    gui = False
+    gui = True
     plot = False
     display = False
     start = time.time()

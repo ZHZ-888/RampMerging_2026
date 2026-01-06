@@ -396,15 +396,7 @@ class DataRecording:
                 self.counted_vehicles.add(vid)
         return self.throughput_count*3600/st
 
-    def record_vehSpeed(self, vehicle_ids): # discard
-        for vid in vehicle_ids:
-            if vid not in self.dic_id_speed:
-                self.dic_id_speed[vid] = []
-            speed = self.traci.vehicle.getSpeed(vid)
-            self.dic_id_speed[vid].append(speed)
-        return self.dic_id_speed
-
-    def get_average_speed(self, step, jam_mode, vehicle_ids):
+    def get_average_speed(self, step, vehicle_ids, jam_mode=None):
         """
         get average speed of all veh per seconds
         vehicle_ids: all vehicles in this step

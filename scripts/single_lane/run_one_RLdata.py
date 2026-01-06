@@ -3,7 +3,7 @@
 Run one simulation for RL training dataset generation.
 
 This script is designed to call the scripts simulation function
-(main_multi_lane_motorway_RL.py) with specific parameters
+(run_mpgc_multi_lane.py) with specific parameters
 (av_p, r_fr, seed, st), and save the resulting feature dataset
 with a parameter-specific file name.
 """
@@ -11,7 +11,7 @@ with a parameter-specific file name.
 import argparse
 import pandas as pd
 import functions.print_control as prc
-from scripts.mulit_lane.main_multi_lane_motorway_RL_RFdata import main
+from scripts.mulit_lane.run_mpgc_multi_lane_colloect_RFdata import main
 
 
 if __name__ == "__main__":

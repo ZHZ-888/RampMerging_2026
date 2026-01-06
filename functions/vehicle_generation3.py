@@ -856,7 +856,7 @@ def get_schedule_HVonly(simulation_time, flow_rate, seed=None):
     dep_dict = {t: 'h' for t in unique_departure_times}
     return dep_dict
 
-def get_schedule_motorway(st, p, fr, seed=None):
+def get_schedule_motorway(st, p, fr, seed=None): # generate_entry_arrivals_poisson
     """
     250209 random traffic on motorway
     every vehicle's departure time
