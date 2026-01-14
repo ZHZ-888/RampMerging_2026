@@ -4,6 +4,7 @@ multi-lane simulation
 '''
 import os
 import time
+from pathlib import Path
 
 from functions import vehicle_generation3 as vg
 from functions import data_recording as dr
@@ -12,21 +13,33 @@ from functions import calc_ttc_sd_exposure
 
 from comparsion_algo import ramp_metering_algo2 as rm
 
-def main(av_p, r_fr, m_fr, seed, r_platoon_p,
-         gui=False, plot=False, display=False, st=1000):
+def rm_main(av_p, r_fr, m_fr, seed,
+         gui=False, plot=False, display=False, st=1200):
+    # Project root directory
+    ROOT = Path(__file__).resolve().parents[2]
     # SUMO SETTING
-    path = '../../road_network/multi_lane_motorway/real/cfg_multi_lane_merge_rm.sumocfg'
-    sumo_config_path = path
+    # sumo_config_path = '../../road_network/multi_lane_motorway/real/cfg_multi_lane_merge_rm.sumocfg'
+    sumo_config_path = (
+            ROOT
+            / "road_network"
+            / "multi_lane_motorway"
+            / "real"
+            / "cfg_multi_lane_merge_rm.sumocfg"
+    )
     # Simulation step length
     sim_step = 0.1
     # Determine the SUMO binary based on whether GUI is needed
     sumo_bin = 'sumo-gui' if gui else 'sumo'
     # Construct the SUMO command and options
-    traj_dir = os.environ.get("TRAJ_DIR", "../../data/multi_lane/algo")  # default 'data/mpgc'
+    # traj_dir = os.environ.get("TRAJ_DIR", "../../data/multi_lane/algo")  # default 'data/mpgc'
+    traj_dir = Path(os.environ.get(
+        "TRAJ_DIR",
+        ROOT / "data" / "multi_lane" / "algo"
+    ))  # default 'data/mpgc'
     file_name = f'trj_{r_fr}_{av_p}_{seed}.xml'
     xml_path = os.path.join(traj_dir, file_name)
-    sumo_cmd = [sumo_bin, "-c", sumo_config_path,
-                "--fcd-output", xml_path, # save path
+    sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
+                "--fcd-output", str(xml_path), # save path
                 "--no-warnings"]  # , '-S' start auto, and quit auto
     sumo_options = ["--step-length", str(sim_step)]
 
@@ -119,33 +132,73 @@ def loop(traci, st, veh_gen, data_recorder, rm_algo,
         step += 1
     return (speed_log, tp)
 
+def main(args=None, root=None):
+    """
+    Unified entry point.
+    This function is called by run.py.
+    It parses command-line arguments and calls fifo_main().
+    """
+    import argparse
+    parser = argparse.ArgumentParser(description="RM multi-lane simulation")
 
-if __name__ == '__main__':
-    st = 1200  # 1200
+    # Algorithm parameters
+    # fixed params
     av_p = 0
-
-    r_fr = 900  # 540; 900
-    r_platoon_p = 1  # percentage of platoon vehicles
-
-    m_fr = 1500  # 1080; 1400
-    seed = 1  # 4
-
     prc.PRINT_ENABLED = False
-    gui = True
-    plot = True
-    display = True
+    plot = False
+    display = False
+    st = 1200
+
+    parser.add_argument("--r_fr", type=float, default=720, help="Ramp flow rate")
+    parser.add_argument("--m_fr", type=float, default=1500, help="Mainline flow rate")
+    parser.add_argument("--seed", type=int, default=1, help="Random seed")
+    # Optional flags
+    parser.add_argument("--gui", action="store_true", help="Enable SUMO GUI") # default False
+
+    # Parse arguments passed from run.py
+    parsed_args = parser.parse_args(args=args)
 
     start = time.time()
-    (speed_log, tp, xml_path) \
-        = main(av_p, r_fr, m_fr, seed, r_platoon_p, gui, plot, display, st)
+    # Call the original algorithm
+    speed_log, tp, xml_path = rm_main(
+                                        av_p=av_p,
+                                        r_fr=parsed_args.r_fr,
+                                        m_fr=parsed_args.m_fr,
+                                        seed=parsed_args.seed,
+                                        gui=parsed_args.gui
+                                    )
     end = time.time()
+    runtime = end - start
+    get_indicator(speed_log, tp, xml_path, runtime)
 
+def get_indicator(speed_log, tp, xml_path, runtime):
     # Performance indicators
     ttc_ratio, avg_speed_std = calc_ttc_sd_exposure.calc_ttc_and_speed_std(xml_path)
     avg_speeds = [item[1] for item in speed_log]
     clean_avg_speeds = [v for v in avg_speeds if v is not None]
     average_v = sum(clean_avg_speeds) / len(clean_avg_speeds)
+    print("\n           ---performance indicators---")
     print(f'tp: {tp} veh/h, average_v:{average_v} m/s, '
           f'ttc_ratio: {ttc_ratio}, avg_speed_std: {avg_speed_std}, '
-          f'execution_time:{end - start:.1f} s')
+          f'execution_time:{runtime:.1f} s')
 
+if __name__ == '__main__':
+    r_fr = 900  # 540; 900
+    m_fr = 1500  # 1080; 1400
+    seed = 1  # 4
+
+    st = 1200  # 1200
+    av_p = 0
+
+    prc.PRINT_ENABLED = False
+    gui = False
+    plot = True
+    display = True
+
+    start = time.time()
+    (speed_log, tp, xml_path) \
+        = rm_main(av_p, r_fr, m_fr, seed, gui, plot, display, st)
+    end = time.time()
+
+    runtime = end - start
+    get_indicator(speed_log, tp, xml_path, runtime)

@@ -5,6 +5,7 @@ multi-lane simulation
 import os
 import time
 from pathlib import Path
+import csv
 
 from functions import vehicle_generation3 as vg
 from functions import print_control as prc  # the shared fuction of print control
@@ -130,19 +131,60 @@ def main(args=None, root=None):
     parser.add_argument("--seed", type=int, default=1, help="Random seed")
     # Optional flags
     parser.add_argument("--gui", action="store_true", help="Enable SUMO GUI") # default False
+    parser.add_argument("--out_csv", type=str, default=None, help="Write KPIs to this CSV file")
 
     # Parse arguments passed from run.py
     parsed_args = parser.parse_args(args=args)
 
+    start = time.time()
     # Call the original algorithm
-    fifo_main(
+    speed_log, tp, xml_path = fifo_main(
         av_p=av_p,
         r_fr=parsed_args.r_fr,
         m_fr=parsed_args.m_fr,
         seed=parsed_args.seed,
         gui=parsed_args.gui
     )
+    end = time.time()
+    runtime = end - start
+    tp, average_v, ttc_ratio, avg_speed_std, runtime = (
+        get_indicator(speed_log, tp, xml_path, runtime))
+    # write indicator into csv
+    if parsed_args.out_csv:
+        row = {
+            "algo": "fifo_multi_lane",
+            "ramp_demand": parsed_args.r_fr,
+            "mainline_demand": parsed_args.m_fr,
+            "seed": parsed_args.seed,
+            "throughput": tp,
+            "avg_speed": average_v,
+            "ttc_ratio": ttc_ratio,
+            "avg_speed_std": avg_speed_std,
+            "runtime": runtime
+        }
+        write_one_row_csv(parsed_args.out_csv, row)
 
+def get_indicator(speed_log, tp, xml_path, runtime):
+    # Performance indicators
+    ttc_ratio, avg_speed_std = calc_ttc_sd_exposure.calc_ttc_and_speed_std(xml_path)
+    avg_speeds = [item[1] for item in speed_log]
+    clean_avg_speeds = [v for v in avg_speeds if v is not None]
+    average_v = sum(clean_avg_speeds) / len(clean_avg_speeds)
+    print("\n           ---performance indicators---")
+    print(f'tp: {tp} veh/h, average_v:{average_v} m/s, '
+          f'ttc_ratio: {ttc_ratio}, avg_speed_std: {avg_speed_std}, '
+          f'execution_time:{runtime:.1f} s')
+    return tp, average_v, ttc_ratio, avg_speed_std, runtime
+
+def write_one_row_csv(path: str, row: dict):
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    file_exists = p.exists()
+    with open(p, "a", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=row.keys())
+        if not file_exists:
+            w.writeheader()
+        w.writerow(row)
 
 if __name__ == '__main__':
     r_fr = 720  # 540
@@ -162,12 +204,7 @@ if __name__ == '__main__':
         = fifo_main(av_p, r_fr, m_fr, seed, gui, plot, display, st)
     end = time.time()
 
-    # Performance indicators
-    ttc_ratio, avg_speed_std = calc_ttc_sd_exposure.calc_ttc_and_speed_std(xml_path)
-    avg_speeds = [item[1] for item in speed_log]
-    clean_avg_speeds = [v for v in avg_speeds if v is not None]
-    average_v = sum(clean_avg_speeds) / len(clean_avg_speeds)
-    print(f'tp: {tp} veh/h, average_v:{average_v} m/s, '
-          f'ttc_ratio: {ttc_ratio}, avg_speed_std: {avg_speed_std}, '
-          f'execution_time:{end - start:.1f} s')
+    runtime = end - start
+    get_indicator(speed_log, tp, xml_path, runtime)
+
 
