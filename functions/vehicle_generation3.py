@@ -60,7 +60,7 @@ def vdp(p):
         raise ValueError("Unsupported AV penetration rate.")
     return r
 
-def generate_type_num4(av_percentage, flow_rate, simulation_time, platoon_percentage, seed=None, tries=7):
+def _generate_type_num4(av_percentage, flow_rate, simulation_time, platoon_percentage, seed=None, tries=7):
     '''
     Generate platoon types based on Poisson distribution.
     Each platoon is led by an AV, with up to 11 followers.
@@ -368,141 +368,6 @@ def recombine(dic_dpt_type, n=3):
     dic_dpt_type2[start_time] = temp_team
     return dic_dpt_type2
 
-def plot_departure_times2(dic, p, fr, st, seed, display=False, interval_per_vehicle=1):
-    """
-    updated241203, add interval text note
-    Plot the departure times of platoons and their types,
-    and visualize the distribution of fleet types with sorted x-axis.
-    Includes head-to-tail intervals between platoons.
-
-    Parameters:
-        dic (dict): A dictionary where keys are departure times and values are platoon types.
-        interval_per_vehicle (int): Time interval (in seconds) between vehicles in a platoon.
-    """
-    # define plot length according to av_p
-    if p == 0.3:
-        plot_length = 24
-    elif p == 0.2:
-        plot_length = 19
-    elif p == 0.1:
-        plot_length = 14
-
-    # Extract keys and values from the dictionary
-    times = list(dic.keys())
-    types = list(dic.values())
-
-    # get real vehicle number and real av_p from dic
-    av_count = sum(v.count('A') for v in types if v != 'h')  # *updated for 'h'*
-    hv_count = sum(v.count('H') for v in types if v != 'h') + types.count('h')  # *updated for 'h'*
-    av_number = int(av_count)
-    veh_number = av_number + hv_count
-    av_p = av_number/veh_number
-    # targe veh number and av_p
-    target_number = int((fr*st)/3600)
-    target_av_number = int(p*target_number)
-    target_av_p = p
-
-    # Calculate the number of platoons
-    n = len(dic)
-    # Generate y-coordinates
-    y = list(range(1, n + 1))
-
-    # Calculate head-to-tail intervals
-    intervals = []
-    for i in range(len(times)):
-        if type[i] == 'h':
-            intervals.append("h")
-        elif i == 0:
-            intervals.append("N/A")  # First platoon has no previous platoon
-        else:
-            prev_time = times[i - 1]
-            prev_length = len(types[i - 1])  # Length of the previous platoon
-            current_time = times[i]
-            intervals.append(current_time - (prev_time + (prev_length - 1) * interval_per_vehicle))
-
-    # Set the figure size for the whole plot
-    fig, ax1 = plt.subplots(figsize=(8, plot_length), dpi=300)
-
-    # Create the first plot (scatter plot of departure times)
-    # ax1.scatter(y, times, marker='_', color='blue', alpha=0.7)
-
-    # Add labels for each point
-    for i, (t, tp, interval) in enumerate(zip(times, types, intervals)):
-        if tp == 'h':  # *free_HV green point*
-            ax1.scatter(y[i], t, marker='o', color='green', s=5)  # *added*
-            ax1.text(y[i]+0.8, t, f"h ({t})", fontsize=3, ha='left', va='center', color='green')  # *added*
-        else:
-            ax1.scatter(y[i], t, marker='_', color='blue', s=80)
-            ax1.text(y[i], t, f"{tp} ({t}, {interval})", fontsize=9, ha='left', va='center')
-
-    # Add labels and title
-    ax1.set_xlabel('Groups')
-    ax1.set_ylabel('Departure time (s)')
-    ax1.set_title('Platoon Groups and Departure Times with Head-Tail Intervals')
-    ax1.grid(True)
-
-    # -----------ax2-----------
-    # Now create the inset for the second plot (bar chart of fleet type distribution)
-    ax2 = ax1.inset_axes([0.19, 0.67, 0.28, 0.28])  # [left, bottom, width, height] - relative to ax1
-    # Count occurrences of each type
-    type_counts = Counter(types)
-    # Sort the platoon types in ascending order
-    # sorted_types = sorted(type_counts.keys())
-    sorted_types = dict(sorted(type_counts.items(), key=lambda x: len(x[0])))
-    indices_sorted_types = range(len(sorted_types))
-    sorted_counts = [type_counts[t] for t in sorted_types]
-    # Plot the bar chart in the inset with swapped axes
-    bars = ax2.barh(indices_sorted_types, sorted_counts, color='blue', alpha=0.7, edgecolor='black')
-    ax2.set_yticks(indices_sorted_types)
-    ax2.set_yticklabels(sorted_types)
-    # Add labels and title to the inset
-    ax2.set_xlabel('Count')
-    ax2.set_ylabel('Fleet Type')
-    ax2.set_title('Distribution of Fleet Types')
-    # Add numbers on top of the bars
-    for bar in bars:
-        xval = bar.get_width()
-        ax2.text(xval + 0.2, bar.get_y() + bar.get_height() / 2, str(int(xval)), ha='left', va='center', fontsize=10)
-
-    # -----------ax3-----------
-    # Initialize result dictionary
-    converted = defaultdict(int)
-    for platoon, count in sorted_types.items():
-        if platoon == 'h':
-            converted['freeHV_num'] += count
-        elif platoon == 'A':
-            converted['1 lead 0'] += count
-        elif platoon in ['AH', 'AA']:
-            converted['1 lead 1'] += count
-        else:
-            # All others assumed to start with 1 AV and len-1 followers
-            lead_key = f"1 lead {len(platoon) - 1}"
-            converted[lead_key] += count
-    # Convert defaultdict to regular dict
-    converted = dict(converted)
-    y = range(len(converted))
-    x = list(converted.values())
-    ax3 = ax1.inset_axes([0.65, 0.85, 0.14, 0.14])
-    bars = ax3.barh(y, x, color='red', alpha=0.7, edgecolor='black')
-    ax3.set_yticks(y)
-    ax3.set_yticklabels(converted.keys())
-    # Add labels and title to the inset
-    ax3.set_xlabel('Count')
-    ax3.set_title('Distribution of Fleet Types2')
-
-    # Adjust layout and display the plot
-    plt.tight_layout()
-    plt.title(f'Info: avp:{p}, flow_rate:{fr}, seed:{seed}')
-
-    custom_text = f"Target: {target_av_number}/{target_number} ({target_av_p:.2f})\nResult: {av_number}/{veh_number} ({av_p:.2f})"
-    plt.text(max(y) - max(y)/3, min(times) + 2, custom_text, fontsize=12, color='blue',
-             bbox=dict(facecolor='white', alpha=0.5))
-    if display:
-        plt.show()
-    else:
-        plt.savefig(f"/home/zzha/PycharmProjects/RampMerging3/picture&video/platoons_generation/{p, fr, st, seed}.png",
-                    dpi=150, bbox_inches='tight')
-
 def plot_departure_times3(dic, p, fr, st, seed, display=False, interval_per_vehicle=1):
     """
     Plot departure times of platoons and free HVs, with fleet type distributions.
@@ -624,7 +489,6 @@ def plot_departure_times3(dic, p, fr, st, seed, display=False, interval_per_vehi
             dpi=150, bbox_inches='tight'
         )
     plt.close(fig)
-
 
 def assign_followerAV(dic_dpt_type2, followerAV_num, seed=None):
     """
@@ -772,7 +636,7 @@ def get_schedule2(st, av_p, fr, platoon_p=1, max_attempts=5, plot=False, seed=No
     """
     if fr == 0:
         return {}
-    dic_tn, followerAV_num, freeHV_num = generate_type_num4(av_percentage=av_p, flow_rate=fr, simulation_time=st,
+    dic_tn, followerAV_num, freeHV_num = _generate_type_num4(av_percentage=av_p, flow_rate=fr, simulation_time=st,
                                                             platoon_percentage=platoon_p, seed=seed)
     max_interval = find_max_interval2(st, dic_tn)
     dp_times_dict, dp_times = find_optimse_schedule2(dic_tn, st, max_interval, \
@@ -802,7 +666,7 @@ def get_schedule_dynamic(st, change_t, av_p, fr, platoon_p=1, max_attempts=5,
     :return:
     '''
     real_st = st - change_t # the total time for vehicle generation
-    dic_tn, followerAV_num, freeHV_num = generate_type_num4(av_percentage=av_p, flow_rate=fr,
+    dic_tn, followerAV_num, freeHV_num = _generate_type_num4(av_percentage=av_p, flow_rate=fr,
                                                             simulation_time=real_st,
                                                             platoon_percentage=platoon_p,
                                                             seed=seed)
@@ -818,74 +682,112 @@ def get_schedule_dynamic(st, change_t, av_p, fr, platoon_p=1, max_attempts=5,
     print(f'new_dic_dpt_type:{updated_result}')
     return updated_result
 
-def get_schedule_HVonly(simulation_time, flow_rate, seed=None):
+def generate_entry_arrivals_shifted_exp(st, p, fr, seed=None):
     """
-    Generate a dictionary of unique departure times for free HVs based on flow rate.
+    Generate vehicle arrival schedule with:
+      - hard constraint: headway >= min_interval (seconds)
+      - long-run mean flow approximately equals fr (veh/h)
+      - stochasticity: shifted exponential headways
+
+    Returns
+    -------
+    dict: dic of departure_time and fleet_type
+        {arrival_time (rounded to 1 decimal): vehicle_type}
+        {1.6: 'HV', 2.6: 'HV', 4.2: 'HV', 5.2: 'HV', 7.5: 'HV'...}
+    """
+    min_interval = 1.0
+
+    if seed is not None:
+        np.random.seed(seed)
+        random.seed(seed)
+
+    lam = fr / 3600.0  # veh/s
+    if lam <= 0:
+        return {}
+
+    mean_headway_target = 1.0 / lam  # seconds
+    if min_interval >= mean_headway_target:
+        raise ValueError(
+            f"Infeasible: min_interval ({min_interval}) must be < target mean headway ({mean_headway_target:.4f}). "
+            f"Otherwise you cannot achieve fr={fr} veh/h."
+        )
+
+    # Calibrate exponential part
+    lam2 = 1.0 / (mean_headway_target - min_interval)
+
+    result = {}
+    t = 0.0
+    while True:
+        extra = np.random.exponential(scale=1.0 / lam2)
+        headway = min_interval + extra   # strictly >= min_interval
+        t += headway
+        if t >= st:
+            break
+
+        t_key = round(t, 1)  # keep your original output style
+        veh_type = "AV" if (np.random.rand() < p) else "HV"
+        result[t_key] = veh_type
+
+    # print info
+    sh = st / 3600  # simulation time (s) => simulation hour (h)
+    expect_veh_num = int(fr * sh)
+    expect_av_num = int(fr * sh * p)
+    gen_veh_num = len(result)
+    gen_av_num = sum(v == 'AV' for v in result.values())
+    gen_demands = int(gen_veh_num/sh)
+
+    print('           ---generation overview---')
+    print(f'expect_demands: {fr} veh/h, gen_demands: {gen_demands} veh/h')
+    print(f'expect_veh_num: {expect_veh_num}, gen_veh_num: {gen_veh_num}, diff: {expect_veh_num - gen_veh_num}')
+    print(f'expect_av_num: {expect_av_num}, gen_av_num: {gen_av_num}, diff: {expect_av_num - gen_av_num}')
+    print(f"Target av_p: {expect_av_num / expect_veh_num:.2f}, av_p: {gen_av_num / gen_veh_num:.2f}")
+
+    return result
+
+def generate_depature_time(simulation_time, flow_rate, seed=None):
+    """
+    Calculate a list of random departure times for vehicles based on the given flow rate.
 
     Parameters:
-    simulation_time (int): Total simulation time in seconds.
-    flow_rate (float): Vehicle flow rate in vehicles per hour.
-    seed (int): Optional random seed for reproducibility.
+    flow_rate (float): The vehicle flow rate per hour.
+    fixed_simulation_time (int): The fixed simulation time in seconds, default is 3600 seconds.
+    seed (int): Optional seed for the random number generator to ensure reproducibility.
 
     Returns:
-    dict: A dictionary in the form {time: 'h', ...}, where time is in seconds.
+    list: A list of random departure times for each vehicle (in seconds), with unique times.
     """
+    # Set the random seed if provided
     if seed is not None:
         np.random.seed(seed)
 
+    # Calculate the total number of vehicles to be generated
     total_vehicles = int(flow_rate * (simulation_time / 3600))
 
-    # Generate inter-arrival times using exponential distribution
+    # Generate exponential distribution for the time intervals between vehicle departures
     intervals = np.random.exponential(scale=(3600 / flow_rate), size=total_vehicles)
-    intervals += np.random.uniform(0, 0.1, size=total_vehicles)  # Small perturbation
 
+    # Add small random perturbation to ensure uniqueness
+    perturbation = np.random.uniform(0, 0.1, size=total_vehicles)  # Small perturbation
+    intervals += perturbation
+
+    # Calculate cumulative sum of the intervals to get the departure times
     departure_times = np.cumsum(intervals)
+
+    # Round departure times to the nearest integer
     departure_times = np.round(departure_times).astype(int)
+
+    # Ensure departure times do not exceed the fixed simulation time
     departure_times = departure_times[departure_times < simulation_time]
 
-    # Ensure unique times
+    # Ensure unique departure times by adding 1 second to duplicates
     unique_departure_times = []
     last_time = -1
-    for t in departure_times:
-        if t <= last_time:
-            t = last_time + 1
-        unique_departure_times.append(t)
-        last_time = t
-
-    # Build dictionary {time: 'h'}
-    dep_dict = {t: 'h' for t in unique_departure_times}
-    return dep_dict
-
-def get_schedule_motorway(st, p, fr, seed=None): # generate_entry_arrivals_poisson
-    """
-    250209 random traffic on motorway
-    every vehicle's departure time
-    :param st: simulation time (seconds)
-    :param p: av_p
-    :param fr: flow rate (veh/h)
-    :param seed: random seed
-    :return: dic of departure_time and fleet_type
-        {1.6: 'HV', 2.6: 'HV', 4.2: 'HV', 5.2: 'HV', 7.5: 'HV'...}
-    """
-    if seed is not None:
-        np.random.seed(seed)  # Ensure reproducibility for NumPy
-        random.seed(seed)
-    lam = fr / 3600  # lam=>λ; Calculate the arrival rate (vehicles per second)
-    min_interval = 1 # the min time headway between vehicles
-    av_ratio = p
-    result = {}
-    t = 0
-    while t < st:
-        inter_arrival = np.random.exponential(1 / lam)  # Exponential inter-arrival times (Poisson process)
-        # Apply the minimum interval constraint
-        inter_arrival = max(inter_arrival, min_interval)  # Ensure that vehicles arrive at least 'min_interval' seconds apart
-        t += inter_arrival
-        # Round the arrival time to one decimal place
-        t = round(t, 1)
-        if t < st:
-            vehicle_type = np.random.choice(["AV", "HV"], p=[av_ratio, 1 - av_ratio])
-            result[t] = vehicle_type
-    return result
+    for time in departure_times:
+        if time <= last_time:
+            time = last_time + 1
+        unique_departure_times.append(time)
+        last_time = time
+    return unique_departure_times
 
 class VehGen:
     """
@@ -894,154 +796,21 @@ class VehGen:
     def __init__(self, traci):
         self.traci = traci
 
-    def add_vehicle_ml(self, vehicle_id, route_id, dp_v, dp_lane, type_id="idm"):
-        '''
-        ml: multi-lane
-        :param vehicle_id:
-        :param route_id:
-        :param dp_v: depature speed (velocity)
-        :param dp_lane:
-        :param type_id:
-        :return:
-        '''
+    def add_vehicle(self, vehicle_id, route_id, dp_v, type_id="idm", dp_lane='0'):
         self.traci.vehicle.add(vehID=vehicle_id, routeID=route_id, typeID=type_id, \
                                departSpeed=dp_v, departLane=dp_lane)
-        self.traci.vehicle.setSpeedMode(vehicle_id, 0b010111)
-
-    def add_vehicle(self, vehicle_id, route_id, dp_v, type_id="idm"):
-        self.traci.vehicle.add(vehID=vehicle_id, routeID=route_id, typeID=type_id, \
-                               departSpeed=dp_v)
         if route_id == 'route1': # mainline vehicles
-            # Set moderate cooperation level (won't actively give way, but avoids collisions)
-            self.traci.vehicle.setParameter(vehicle_id, "lcCooperative", "0.2")
-            # High assertiveness: vehicle keeps its lane unless strongly motivated to change
-            self.traci.vehicle.setParameter(vehicle_id, "lcAssertive", "0.9")
-            # self.traci.vehicle.setSpeedMode(vehicle_id, 0b10110011 & ~(1 << 3))  # 即 bit3 = 0
-
+            # Willingness for cooperative lane changing, lower value => reduced cooperation
+            # self.traci.vehicle.setParameter(vehicle_id, "lcCooperative", "0.2") # default:1
+            # Willingness to accept lower front and rear gaps on the target lane
+            # self.traci.vehicle.setParameter(vehicle_id, "lcAssertive", "0.9") # default: 1; range >=1
+            pass
         else: # ramp vehicles
             pass
         # set speedmode
         self.traci.vehicle.setSpeedMode(vehicle_id, 0b010111)  # ingnore the right of way
         # self.traci.vehicle.setSpeedMode(vehicle_id, 0b000111)  # ingnore brake before red, the right of way
         # self.traci.vehicle.setSpeedMode(vehicle_id, 0b011111) # default, consider all inspection
-
-    # step = 0,1,2,3,4,5
-    # r_step = 0,0.1,0.2,0.3...
-    # veh_route = 'route2' or 'route1'
-    # id_prefix = 'r' or 'm'
-    def veh_gen5(self, step, dp_times_dict, id_prefix, \
-                 veh_route, dp_v, vType='idm'):
-        '''
-        240616: delete data recording as these can get from the departure information
-        240614: new input format, dic =  {1: 'AHA', 31: 'AH', 48: 'AHA', 79: 'AA', 107: 'AH', 121: 'AHA'}
-        240609: update from dic_rpav_type to dic_av_type
-        generate veh at cooresponding step
-
-        Parameters
-        ----------
-        dp_times_dict : dic
-            departure times of each fleet type.
-            {4: 'AHHHH', 29: 'AHHHH', 45: 'AHHHHHH', 61: 'AHHHH', 73: 'AHH}
-        id_prefix : TYPE
-            DESCRIPTION.
-        veh_route : TYPE
-            DESCRIPTION.
-        dp_v : TYPE
-            departSpeed.
-        vType: default idm
-            vehicle type: IDM; Krauss; Krauss0.2; Krauss0.8 ...
-
-        Returns
-        -------
-        None.
-
-        '''
-        for dt, type in dp_times_dict.items():
-            r_step = step/10 # r_step = time
-            veh_num = len(type) # the veh number of this platoon
-            # type = 'AHA'
-            for i, veh in enumerate(type):
-                dt_v = dt+i # departure time of this veh
-                if dt_v == r_step:
-                    if i==0:
-                        id_body = 'avh' # head AV => avh
-                    else:
-                        id_body = 'av' if veh == 'A' else 'hv'
-                    vehicle_type = 'av' if veh=='A' else vType
-                    id_suffix = id_prefix + id_body
-                    id = f"{id_suffix}{step}"
-                    if id == 'rhv4030':
-                        pass
-                    self.add_vehicle(id, veh_route, dp_v, vehicle_type)
-
-    def veh_gen_hv(self, step, dp_times_dict, id_prefix, \
-                 veh_route, dp_v):
-        '''
-        all hv
-        Parameters
-        ----------
-        dp_times_dict : dic
-            departure times of each fleet type.
-            {'1 lead 0' : [603], '1 lead 1' : [68, 831, ...]}
-        dic_av_type : dic
-            {av_id : vehicle number}.
-        dic_dep : dic
-            {av_id : departure times of each av}.
-        id_prefix : TYPE
-            DESCRIPTION.
-        veh_route : TYPE
-            DESCRIPTION.
-        dp_v : TYPE
-            departSpeed.
-
-        Returns
-        -------
-        None.
-
-        '''
-        for dt, type in dp_times_dict.items():
-            r_step = step/10 # r_step = time
-            veh_num = len(type) # the veh number of this platoon
-            # type = 'AHA'
-            for i, veh in enumerate(type):
-                dt_v = dt+i # departure time of this veh
-                if dt_v == r_step:
-                    if i==0:
-                        id_body = 'avh' # head AV => avh
-                    else:
-                        id_body = 'av' if veh == 'A' else 'hv'
-                    vehicle_type = 'idm' if veh=='A' else 'idm'
-                    id_suffix = id_prefix + id_body
-                    id = f"{id_suffix}{step}"
-                    if id == 'rhv4030':
-                        pass
-                    self.add_vehicle(id, veh_route, dp_v, vehicle_type)
-
-    def veh_gen_special(self, step, dp_times_dict, veh_route='route1', dp_v=24.5):
-        '''
-        all hv
-        Parameters
-        ----------
-        dp_times_dict : dic
-            departure times of each veh type.
-            {4: 'idm_nosigam', 29: 'idm_sigma', 45: 'krauss', 61: 'krauss_sigma', 73: 'idm'}
-        veh_route : TYPE
-            DESCRIPTION.
-        dp_v : TYPE
-            departSpeed.
-
-        Returns
-        -------
-        None.
-
-        '''
-        for dt, type in dp_times_dict.items():
-            r_step = step/10 # r_step = time
-            # type = 'idm' or 'krauss'
-            if dt == r_step:
-                vehicle_type = type
-                id = f"{type}{step}"
-                self.add_vehicle(id, veh_route, dp_v, vehicle_type)
 
     def veh_gen_heter(self, step, dp_times_dict, id_prefix, p_auto):
         '''
@@ -1220,12 +989,12 @@ class VehGen:
                     id_suffix = f"{id_prefix}{id_body}{step}"
                     self.add_vehicle(id_suffix, veh_route, dp_v, vehicle_type)
 
-    def veh_gen_ml(self, step, dp_times_dict, id_prefix, \
+    def veh_gen_homo(self, step, dp_times_dict, id_prefix, \
                    veh_route, dp_v, dp_lane='0'):
         '''
-        ml: multi-lane
+        ml: multi-lane; homo: homogeneous
         2450209: new input format, dic =  {1: 'HV', 31: 'AV', ...,}
-        generate veh at coorresponding step
+        generate veh at corresponding step
 
         Parameters
         ----------
@@ -1240,24 +1009,83 @@ class VehGen:
             departSpeed.
         dp_lane:
             departure lane
-
-        Returns
-        -------
-        None.
-
         '''
         c_ts = step/10 # r_step = time
         if c_ts in dp_times_dict:
-            type = dp_times_dict[c_ts]
             vehicle_type = 'av' if dp_times_dict[c_ts] == 'AV' else 'hv'
             mode = 'av' if dp_times_dict[c_ts] == 'AV' else 'idm'
             if dp_lane == '1':
                 id = f"{id_prefix}b{vehicle_type}{step}" # use b indicate lane_1
             else:
                 id = f"{id_prefix}{vehicle_type}{step}"
-            if id == 'mhv18':
-                pass
-            self.add_vehicle_ml(id, veh_route, dp_v, dp_lane, mode)
+            self.add_vehicle(id, veh_route, dp_v, mode, dp_lane)
+
+    def veh_gen_hetero(self, step, dp_times_dict, id_prefix, \
+                       veh_route, dp_v, dp_lane='0'):
+        '''
+        hetero: heterogeneous
+        2450209: new input format, dic =  {1: 'HV', 31: 'AV', ...,}
+        generate veh at corresponding step
+
+        Parameters
+        ----------
+        dp_times_dict : dic
+            departure times of each veh.
+            {1: 'HV', 31: 'AV', ...,}
+        id_prefix : r or m
+            DESCRIPTION.
+        veh_route : route1, route2
+            DESCRIPTION.
+        dp_v : 10 or 27.5 m/s (100 km/h)
+            departSpeed.
+        dp_lane: 0 or 1 or 2
+            departure lane
+        '''
+        dic_prob = {'hv_cons': 0.51, 'hv_avg': 0.32, 'hv_agg': 0.17}  # probability
+        c_ts = step / 10  # r_step = time
+        if c_ts in dp_times_dict:
+            if dp_times_dict[c_ts] == 'AV':
+                vehicle_type = 'av'
+            else:
+                vehicle_type = random.choices(
+                    population=list(dic_prob.keys()),  # List of HV types
+                    weights=list(dic_prob.values()),  # Corresponding probabilities
+                    k=1  # Number of samples to draw
+                )[0]  # hv_cons, hv_avg, hv_agg
+
+            if dp_lane == '1':
+                id = f"{id_prefix}b_{vehicle_type}{step}"  # use b indicate lane_1
+            else:
+                id = f"{id_prefix}_{vehicle_type}{step}"
+            self.add_vehicle(id, veh_route, dp_v, vehicle_type, dp_lane)
+
+    def veh_gen_hv2(self, step, ls_departure_time, id_prefix, veh_route, dp_speed):
+        '''
+        introduce HV hetergenity
+        :param step:
+        :param ls_departure_time: [3, 9, 10, 11, ...]
+        :param id_prefix:
+        :param veh_route:
+        :param dp_speed:
+        :return:
+        '''
+        dic_prob = {'hv_cons': 0.51, 'hv_avg': 0.32, 'hv_agg': 0.17}  # probability
+        for d_t in ls_departure_time:  # d_t, departure time
+            st = step / 10
+            if st == d_t:  # st, simulation time
+                # Randomly choose one HV type based on the given probability distribution
+                hv_type = random.choices(
+                    population=list(dic_prob.keys()),  # List of HV types
+                    weights=list(dic_prob.values()),  # Corresponding probabilities
+                    k=1  # Number of samples to draw
+                )[0]
+
+                # Generate a unique vehicle ID by adding HV type as a suffix
+                veh_id = f"{id_prefix}{int(st)}_{hv_type}"
+
+                # Add the vehicle to the simulation
+                # Note: Ensure that add_vehicle() supports 'veh_type' as a parameter
+                self.add_vehicle(veh_id, veh_route, dp_speed, hv_type)
 
     def get_avhid_ptype(self, m_dpt_type=None, r_dpt_type=None):
         '''
@@ -1291,9 +1119,6 @@ if __name__ == '__main__':
     dic_dpt_type = get_schedule2(st, av_p, fr, platoon_p, max_attempts, plot=plot, seed=seed, display=True)
 
 
-    # start_t = 600
-    # new_fr = 1080
-    # new_dic = get_schedule_startT(start_t, p, fr, max_attempts, plot=True, seed=1)
 
 
 

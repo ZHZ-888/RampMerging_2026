@@ -4,14 +4,14 @@ multi-lane simulation
 '''
 import os
 import time
-import pandas as pd
+
 from functions import vehicle_generation3 as vg
 from functions import print_control as prc  # the shared fuction of print control
 from functions import calc_ttc_sd_exposure
 from functions import data_recording as dr
 
 
-def main(av_p, r_fr, m_fr, seed, r_autoFollow_p, r_platoon_p,
+def main(av_p, r_fr, m_fr, seed, r_platoon_p,
          gui=False, plot=False, display=False, st=1000):
     # SUMO SETTING
     path = '../../road_network/multi_lane_motorway/real/cfg_multi_lane_merge.sumocfg'
@@ -45,23 +45,24 @@ def main(av_p, r_fr, m_fr, seed, r_autoFollow_p, r_platoon_p,
         max_attempts = 7
         av_p0 = av_p
         av_p1 = av_p
-        m0_dpt_type = vg.get_schedule_motorway(st, av_p0, m_fr, seed)
-        m1_dpt_type = vg.get_schedule_motorway(st, av_p1, m_fr, 100 - seed)
+        m0_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p0, m_fr, seed)
+        m1_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p1, m_fr, 100 - seed)
 
-        r_dpt_type = vg.get_schedule2(st, av_p, r_fr, r_platoon_p, max_attempts, plot, seed, display)
+        # r_dpt_type = vg.get_schedule2(st, av_p, r_fr, r_platoon_p, max_attempts, plot, seed, display)
+        r_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p, r_fr, seed)
         # ramp road veh depature schedule
         vgvg = vg.VehGen(traci)  # function related to veh generation
-        data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
+        # data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
         speed_log, tp = \
             loop(traci, st, vgvg, data_recorder,
-                 r_autoFollow_p, m0_dpt_type, m1_dpt_type, r_dpt_type)
+                 m0_dpt_type, m1_dpt_type, r_dpt_type)
     finally:
         traci.close()
     return (speed_log, tp, xml_path)
 
 
-def loop(traci, st, vgvg, data_recorder, r_autoFollow_p,
+def loop(traci, st, vgvg, data_recorder,
          m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None):
     # START SIMULATION
     step = 0
@@ -77,10 +78,14 @@ def loop(traci, st, vgvg, data_recorder, r_autoFollow_p,
             prc.print_message(f'************current_time, step:{c_ts, step}************')
 
         # vehicle generation
-        vgvg.veh_gen_ml(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
-        vgvg.veh_gen_ml(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
+        vgvg.veh_gen_hetero(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+        vgvg.veh_gen_hetero(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
         # ramp vehicle generation
-        vgvg.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
+        # vgvg.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
+        vgvg.veh_gen_hetero(step, r_dpt_type, 'r', 'route2', 10, '0')
+
+        # for veh_id in traci.vehicle.getIDList():
+        #     traci.vehicle.setLaneChangeMode(veh_id, 0)
 
         # performance indicator
         dic_vehinfo = data_recorder.record_vehinfo()
@@ -97,23 +102,22 @@ def loop(traci, st, vgvg, data_recorder, r_autoFollow_p,
 
 if __name__ == '__main__':
     st = 1200  # 1200
-    av_p = 0.1
+    av_p = 0
 
-    r_fr = 360  # 540
+    r_fr = 720  # 540
     r_platoon_p = 1  # percentage of platoon vehicles
-    r_autoFollow_p = 1  # auto follow proportion
 
-    m_fr = 990  # 1080
+    m_fr = 1500  # 1080
     seed = 1  # 4
 
+    prc.PRINT_ENABLED = False
     gui = True
     plot = False
     display = True
-    prc.PRINT_ENABLED = False
 
     start = time.time()
     (speed_log, tp, xml_path) \
-        = main(av_p, r_fr, m_fr, seed, r_autoFollow_p, r_platoon_p, gui, plot, display, st)
+        = main(av_p, r_fr, m_fr, seed, r_platoon_p, gui, plot, display, st)
     end = time.time()
 
     # Performance indicators

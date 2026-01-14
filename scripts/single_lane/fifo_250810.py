@@ -4,8 +4,7 @@ import pandas as pd
 import os
 import time
 
-from functions import vehicle_generation2 as vg
-from functions import vehicle_generation_hv as vgh
+from functions import vehicle_generation3 as vg
 from functions import data_recording as dr
 from functions import calc_ttc_sd_exposure
 
@@ -43,19 +42,19 @@ def main(av_p, r_fr, m_fr, seed, gui=False, plot=False, st=1000):
         # generate departure sequence and corresponding fleet types
         # scripts road veh depature schedule
         max_attempts = 8
-        m_dpt_type = vgh.get_depature_timels(st, m_fr, seed)
+        m_dpt_type = vg.generate_depature_time(st, m_fr, seed)
         # ramp road veh depature schedule
-        r_dpt_type = vgh.get_depature_timels(st, r_fr, seed)
+        r_dpt_type = vg.generate_depature_time(st, r_fr, seed)
         drdr = dr.DataRecording(traci, sim_step)
-        vgvg = vg.VehGen(traci) # function related to veh generation
+        veh_gen = vg.VehGen(traci) # function related to veh generation
         # get dic_avhid_ptype
-        speed_log, tp = loop(traci, st, vgvg, drdr, m_dpt_type, r_dpt_type)
+        speed_log, tp = loop(traci, st, veh_gen, drdr, m_dpt_type, r_dpt_type)
     finally:
         traci.close() # Ensure SUMO simulation is properly closed to release memory and system resources
     return speed_log, tp, xml_path
 
 
-def loop(traci, st, vgvg, drdr, m_dpt_type=None, r_dpt_type=None):
+def loop(traci, st, veh_gen, drdr, m_dpt_type=None, r_dpt_type=None):
     # START SIMULATION
     step = 0
     speed_log = []
@@ -69,8 +68,8 @@ def loop(traci, st, vgvg, drdr, m_dpt_type=None, r_dpt_type=None):
         traci.simulationStep()  # start simulation
         c_ts = traci.simulation.getTime()  # current_timestep
         # vehicle generation
-        vgvg.veh_gen_hv2(step, m_dpt_type, 'm', 'route1', 24.5)
-        vgvg.veh_gen_hv2(step, r_dpt_type, 'r', 'route2', 10)
+        veh_gen.veh_gen_hv2(step, m_dpt_type, 'm', 'route1', 24.5)
+        veh_gen.veh_gen_hv2(step, r_dpt_type, 'r', 'route2', 10)
 
         # performance indicator
         dic_vehinfo = drdr.record_vehinfo()
@@ -88,10 +87,10 @@ def loop(traci, st, vgvg, drdr, m_dpt_type=None, r_dpt_type=None):
 if __name__ == '__main__':
     st = 1200
     av_p = 0
-    r_fr = 720
+    r_fr = 810
     m_fr = 1080
     seed = 1
-    gui = True
+    gui = False
     plot = False
     start = time.time()
     speed_log, tp, xml_path = main(av_p, r_fr, m_fr, seed, gui, plot, st)

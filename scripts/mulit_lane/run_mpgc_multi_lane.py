@@ -52,12 +52,12 @@ def main(av_p, r_fr, m_fr, seed, r_autoFollow_p, r_platoon_p, loss_rate=0,
         max_attempts = 7
         av_p0 = av_p
         av_p1 = av_p
-        m0_dpt_type = vg.get_schedule_motorway(st, av_p0, m_fr, seed)
-        m1_dpt_type = vg.get_schedule_motorway(st, av_p1, m_fr, 100 - seed)
+        m0_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p0, m_fr, seed)
+        m1_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p1, m_fr, 100 - seed)
 
         r_dpt_type = vg.get_schedule2(st, av_p, r_fr, r_platoon_p, max_attempts, plot, seed, display)
         # ramp road veh depature schedule
-        vgvg = vg.VehGen(traci)  # function related to veh generation
+        veh_gen = vg.VehGen(traci)  # function related to veh generation
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
         formation_controller = fc.FormationController(data_recorder, traci)
@@ -65,7 +65,7 @@ def main(av_p, r_fr, m_fr, seed, r_autoFollow_p, r_platoon_p, loss_rate=0,
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
          tp, speed_log, queue_log) = \
-            loop(traci, st, vgvg, formation_controller, merging_controller, lc,
+            loop(traci, st, veh_gen, formation_controller, merging_controller, lc,
                  r_autoFollow_p, m0_dpt_type, m1_dpt_type, r_dpt_type)
     finally:
         traci.close()
@@ -73,7 +73,7 @@ def main(av_p, r_fr, m_fr, seed, r_autoFollow_p, r_platoon_p, loss_rate=0,
             tp, speed_log, queue_log, xml_path)
 
 
-def loop(traci, st, vgvg, formation_controller, merging_controller, lc, r_autoFollow_p,
+def loop(traci, st, veh_gen, formation_controller, merging_controller, lc, r_autoFollow_p,
          m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None):
     # START SIMULATION
     step = 0
@@ -99,10 +99,10 @@ def loop(traci, st, vgvg, formation_controller, merging_controller, lc, r_autoFo
             r_dpt_type.update(new_r_dpt_type)  # merge together
 
         # vehicle generation
-        vgvg.veh_gen_ml(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
-        vgvg.veh_gen_ml(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
+        veh_gen.veh_gen_ml(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+        veh_gen.veh_gen_ml(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
         # ramp vehicle generation
-        vgvg.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
+        veh_gen.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
          dic_final_platoon_info) = formation_controller.step(st, step, lc)

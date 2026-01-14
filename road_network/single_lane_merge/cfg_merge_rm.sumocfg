@@ -7,7 +7,7 @@
 
     <input>
         <net-file value="net_merge_rm.net.xml"/>
-        <route-files value="rou_merge_rm.rou.xml"/>
+        <route-files value="rou_merge.rou.xml"/>
         <gui-settings-file value="color.xml"/>
     </input>
 

@@ -1,5 +1,4 @@
-import math
-
+# ramp_metering_algo2.py
 class Func:
     def __init__(self, traci):
         self.traci = traci
