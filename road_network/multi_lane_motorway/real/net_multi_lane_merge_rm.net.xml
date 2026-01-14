@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2026-01-12 14:31:01 by Eclipse SUMO netedit Version 1.23.1
+<!-- generated on 2026-01-15 11:45:35 by Eclipse SUMO netedit Version 1.23.1
 <neteditConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/neteditConfiguration.xsd">
 
     <input>
-        <sumocfg-file value="../../road_network/multi_lane_motorway/real/cfg_multi_lane_merge_rm.sumocfg"/>
-        <additional-files value="../../road_network/multi_lane_motorway/real/cfg_multi_lane_merge.add.xml"/>
-        <route-files value="../../road_network/multi_lane_motorway/real/rou_merge.rou.xml"/>
-        <sumo-net-file value="../../road_network/multi_lane_motorway/real/net_multi_lane_merge_rm.net.xml"/>
+        <sumocfg-file value="/home/zzha/PycharmProjects/RampMerging_2026/road_network/multi_lane_motorway/real/cfg_multi_lane_merge_rm.sumocfg"/>
+        <additional-files value="/home/zzha/PycharmProjects/RampMerging_2026/road_network/multi_lane_motorway/real/cfg_multi_lane_merge.add.xml"/>
+        <route-files value="/home/zzha/PycharmProjects/RampMerging_2026/road_network/multi_lane_motorway/real/rou_merge.rou.xml"/>
+        <sumo-net-file value="/home/zzha/PycharmProjects/RampMerging_2026/road_network/multi_lane_motorway/real/net_multi_lane_merge_rm.net.xml"/>
     </input>
 
     <output>
-        <output-file value="../../road_network/multi_lane_motorway/real/net_multi_lane_merge_rm.net.xml"/>
+        <output-file value="/home/zzha/PycharmProjects/RampMerging_2026/road_network/multi_lane_motorway/real/net_multi_lane_merge_rm.net.xml"/>
     </output>
 
     <processing>
@@ -97,9 +97,9 @@
     </edge>
 
     <tlLogic id="center" type="static" programID="0" offset="0">
-        <phase duration="39" state="GOO"/>
-        <phase duration="6"  state="yOO"/>
-        <phase duration="45" state="rOO"/>
+        <phase duration="3"  state="GOO"/>
+        <phase duration="1"  state="yOO"/>
+        <phase duration="2"  state="rOO"/>
     </tlLogic>
 
     <junction id="1844870512" type="dead_end" x="94.23" y="110.06" incLanes="" intLanes="" shape="94.23,110.06"/>
@@ -118,8 +118,8 @@
     <junction id="r" type="dead_end" x="2118.60" y="1523.22" incLanes="" intLanes="" shape="2117.91,1524.66 2119.29,1521.78"/>
     <junction id="up" type="dead_end" x="3469.21" y="2454.05" incLanes="" intLanes="" shape="3467.20,2456.54 3471.22,2451.56"/>
 
-    <connection from="inflow_highway" to="ws" fromLane="0" toLane="1" via=":c1_1_0" dir="s" state="O"/>
-    <connection from="inflow_highway" to="ws" fromLane="1" toLane="2" via=":c1_1_1" dir="s" state="O"/>
+    <connection from="inflow_highway" to="ws" fromLane="0" toLane="1" uncontrolled="1" via=":c1_1_0" dir="s" state="M"/>
+    <connection from="inflow_highway" to="ws" fromLane="1" toLane="2" uncontrolled="1" via=":c1_1_1" dir="s" state="M"/>
     <connection from="inflow_merge" to="ws" fromLane="0" toLane="0" via=":c1_0_0" tl="center" linkIndex="0" dir="s" state="O"/>
     <connection from="ws" to="center" fromLane="0" toLane="0" keepClear="0" via=":c2_0_0" dir="s" state="m"/>
     <connection from="ws" to="center" fromLane="1" toLane="0" keepClear="0" via=":c2_0_1" dir="s" state="M"/>

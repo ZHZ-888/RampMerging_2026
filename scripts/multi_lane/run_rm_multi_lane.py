@@ -211,14 +211,14 @@ def write_one_row_csv(path: str, row: dict):
         w.writerow(row)
 
 if __name__ == '__main__':
-    r_fr = 900  # 540; 900
+    r_fr = 700  # 540; 900
     m_fr = 1500  # 1080; 1400
     seed = 1  # 4
 
     st = 1200  # 1200
     av_p = 0
 
-    prc.PRINT_ENABLED = False
+    prc.PRINT_ENABLED = True
     gui = False
     plot = True
     display = True

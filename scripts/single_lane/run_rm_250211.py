@@ -123,7 +123,7 @@ if __name__ == '__main__':
     seed = 1
 
     prc.PRINT_ENABLED = True
-    gui = False
+    gui = True
     plot = False
 
     start = time.time()

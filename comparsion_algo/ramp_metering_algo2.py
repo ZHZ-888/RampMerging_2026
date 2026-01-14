@@ -15,7 +15,7 @@ class Func:
 
         # signal timing
         self.cycle_time = 20          # s
-        self.yellow_time = 3          # s
+        self.yellow_time = 0          # s
         self.sat_flow = 1900.0        # veh/h-of-green on ramp
         self.min_green = 1.0          # s
         self.min_red   = 2.0          # s

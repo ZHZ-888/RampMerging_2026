@@ -195,7 +195,7 @@ if __name__ == '__main__':
     av_p = 0
 
     prc.PRINT_ENABLED = False
-    gui = False
+    gui = True
     plot = False
     display = True
 
