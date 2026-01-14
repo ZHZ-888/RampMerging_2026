@@ -4,28 +4,38 @@ multi-lane simulation
 '''
 import os
 import time
+from pathlib import Path
 
 from functions import vehicle_generation3 as vg
 from functions import print_control as prc  # the shared fuction of print control
 from functions import calc_ttc_sd_exposure
 from functions import data_recording as dr
 
-
-def main(av_p, r_fr, m_fr, seed, r_platoon_p,
-         gui=False, plot=False, display=False, st=1000):
+def fifo_main(av_p, r_fr, m_fr, seed,
+         gui=False, plot=False, display=False, st=1200):
+    # Project root directory
+    ROOT = Path(__file__).resolve().parents[2]
     # SUMO SETTING
-    path = '../../road_network/multi_lane_motorway/real/cfg_multi_lane_merge.sumocfg'
-    sumo_config_path = path
+    sumo_config_path = (
+            ROOT
+            / "road_network"
+            / "multi_lane_motorway"
+            / "real"
+            / "cfg_multi_lane_merge.sumocfg"
+    )
     # Simulation step length
     sim_step = 0.1
     # Determine the SUMO binary based on whether GUI is needed
     sumo_bin = 'sumo-gui' if gui else 'sumo'
     # Construct the SUMO command and options
-    traj_dir = os.environ.get("TRAJ_DIR", "../../data/multi_lane/algo")  # default 'data/mpgc'
+    traj_dir = Path(os.environ.get(
+                "TRAJ_DIR",
+                ROOT / "data" / "multi_lane" / "algo"
+                 )) # default 'data/mpgc'
     file_name = f'trj_{r_fr}_{av_p}_{seed}.xml'
     xml_path = os.path.join(traj_dir, file_name)
-    sumo_cmd = [sumo_bin, "-c", sumo_config_path,
-                "--fcd-output", xml_path, # save path
+    sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
+                "--fcd-output", str(xml_path), # save path
                 "--no-warnings"]  # , '-S' start auto, and quit auto
     sumo_options = ["--step-length", str(sim_step)]
 
@@ -48,7 +58,6 @@ def main(av_p, r_fr, m_fr, seed, r_platoon_p,
         m0_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p0, m_fr, seed)
         m1_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p1, m_fr, 100 - seed)
 
-        # r_dpt_type = vg.get_schedule2(st, av_p, r_fr, r_platoon_p, max_attempts, plot, seed, display)
         r_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p, r_fr, seed)
         # ramp road veh depature schedule
         vgvg = vg.VehGen(traci)  # function related to veh generation
@@ -99,25 +108,58 @@ def loop(traci, st, vgvg, data_recorder,
         step += 1
     return (speed_log, tp)
 
+def main(args=None, root=None):
+    """
+    Unified entry point.
+    This function is called by run.py.
+    It parses command-line arguments and calls fifo_main().
+    """
+    import argparse
+    parser = argparse.ArgumentParser(description="FIFO multi-lane simulation")
+
+    # Algorithm parameters
+    # fixed params
+    av_p = 0
+    prc.PRINT_ENABLED = False
+    plot = False
+    display = False
+    st = 1200
+
+    parser.add_argument("--r_fr", type=float, default=720, help="Ramp flow rate")
+    parser.add_argument("--m_fr", type=float, default=1500, help="Mainline flow rate")
+    parser.add_argument("--seed", type=int, default=1, help="Random seed")
+    # Optional flags
+    parser.add_argument("--gui", action="store_true", help="Enable SUMO GUI") # default False
+
+    # Parse arguments passed from run.py
+    parsed_args = parser.parse_args(args=args)
+
+    # Call the original algorithm
+    fifo_main(
+        av_p=av_p,
+        r_fr=parsed_args.r_fr,
+        m_fr=parsed_args.m_fr,
+        seed=parsed_args.seed,
+        gui=parsed_args.gui
+    )
+
 
 if __name__ == '__main__':
-    st = 1200  # 1200
-    av_p = 0
-
     r_fr = 720  # 540
-    r_platoon_p = 1  # percentage of platoon vehicles
-
     m_fr = 1500  # 1080
     seed = 1  # 4
 
+    st = 1200  # 1200
+    av_p = 0
+
     prc.PRINT_ENABLED = False
-    gui = True
+    gui = False
     plot = False
     display = True
 
     start = time.time()
     (speed_log, tp, xml_path) \
-        = main(av_p, r_fr, m_fr, seed, r_platoon_p, gui, plot, display, st)
+        = fifo_main(av_p, r_fr, m_fr, seed, gui, plot, display, st)
     end = time.time()
 
     # Performance indicators
