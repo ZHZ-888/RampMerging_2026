@@ -5,6 +5,7 @@ multi-lane simulation
 import os
 import time
 from pathlib import Path
+import csv
 
 from functions import vehicle_generation3 as vg
 from functions import data_recording as dr
@@ -169,7 +170,22 @@ def main(args=None, root=None):
                                     )
     end = time.time()
     runtime = end - start
-    get_indicator(speed_log, tp, xml_path, runtime)
+    tp, average_v, ttc_ratio, avg_speed_std, runtime = (
+        get_indicator(speed_log, tp, xml_path, runtime))
+    # write indicator into csv
+    if parsed_args.out_csv:
+        row = {
+            "algo": "rm_multi_lane",
+            "ramp_demand": parsed_args.r_fr,
+            "mainline_demand": parsed_args.m_fr,
+            "seed": parsed_args.seed,
+            "throughput": tp,
+            "avg_speed": average_v,
+            "ttc_ratio": ttc_ratio,
+            "avg_speed_std": avg_speed_std,
+            "runtime": runtime
+        }
+        write_one_row_csv(parsed_args.out_csv, row)
 
 def get_indicator(speed_log, tp, xml_path, runtime):
     # Performance indicators
@@ -181,6 +197,17 @@ def get_indicator(speed_log, tp, xml_path, runtime):
     print(f'tp: {tp} veh/h, average_v:{average_v} m/s, '
           f'ttc_ratio: {ttc_ratio}, avg_speed_std: {avg_speed_std}, '
           f'execution_time:{runtime:.1f} s')
+    return tp, average_v, ttc_ratio, avg_speed_std, runtime
+
+def write_one_row_csv(path: str, row: dict):
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    file_exists = p.exists()
+    with open(p, "a", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=row.keys())
+        if not file_exists:
+            w.writeheader()
+        w.writerow(row)
 
 if __name__ == '__main__':
     r_fr = 900  # 540; 900
