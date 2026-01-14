@@ -155,6 +155,7 @@ def main(args=None, root=None):
     parser.add_argument("--seed", type=int, default=1, help="Random seed")
     # Optional flags
     parser.add_argument("--gui", action="store_true", help="Enable SUMO GUI") # default False
+    parser.add_argument("--out_csv", type=str, default=None, help="Write KPIs to this CSV file")
 
     # Parse arguments passed from run.py
     parsed_args = parser.parse_args(args=args)
