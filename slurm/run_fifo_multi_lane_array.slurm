@@ -31,7 +31,7 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # Experiment parameter grid
 # ================================
 MAINLINE=1500                             # Mainline demand (veh/h)
-RAMPS=(200 300 400 500 600 700 800 900 1000 1100)  # Ramp demands
+RAMPS=(200 300 400 500 600 700 800 900 1000 1100 1200 1300 1400)  # Ramp demands
 SEEDS=(1 2 3 4 5)                         # Random seeds
 
 NR=${#RAMPS[@]}                           # Number of ramp demand levels

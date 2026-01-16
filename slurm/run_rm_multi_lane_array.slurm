@@ -34,7 +34,7 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # Experiment parameter grid
 # ================================
 MAINLINE=1500
-RAMPS=(200 300 400 500 600 700 800 900 1000 1100)
+RAMPS=(200 300 400 500 600 700 800 900 1000 1100 1200 1300 1400)
 SEEDS=(1 2 3 4 5)
 
 NR=${#RAMPS[@]}
