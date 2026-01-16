@@ -4,6 +4,7 @@ multi-lane simulation
 '''
 import os
 import time
+from datetime import datetime
 from pathlib import Path
 import csv
 
@@ -33,7 +34,7 @@ def fifo_main(av_p, r_fr, m_fr, seed,
                 "TRAJ_DIR",
                 ROOT / "data" / "multi_lane" / "algo"
                  )) # default 'data/mpgc'
-    file_name = f'trj_{r_fr}_{av_p}_{seed}.xml'
+    file_name = f"trj_fifo_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     xml_path = os.path.join(traj_dir, file_name)
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
                 "--fcd-output", str(xml_path), # save path
@@ -122,7 +123,7 @@ def main(args=None, root=None):
     # fixed params
     av_p = 0
     prc.PRINT_ENABLED = False
-    plot = False
+    plot = True
     display = False
     st = 1200
 
@@ -187,7 +188,7 @@ def write_one_row_csv(path: str, row: dict):
         w.writerow(row)
 
 if __name__ == '__main__':
-    r_fr = 720  # 540
+    r_fr = 1100  # 540
     m_fr = 1500  # 1080
     seed = 1  # 4
 
@@ -195,7 +196,7 @@ if __name__ == '__main__':
     av_p = 0
 
     prc.PRINT_ENABLED = False
-    gui = True
+    gui = False
     plot = False
     display = True
 

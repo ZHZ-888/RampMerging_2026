@@ -90,7 +90,7 @@ if __name__ == '__main__':
     r_fr = 810
     m_fr = 1080
     seed = 1
-    gui = False
+    gui = True
     plot = False
     start = time.time()
     speed_log, tp, xml_path = main(av_p, r_fr, m_fr, seed, gui, plot, st)
