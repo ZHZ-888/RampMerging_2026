@@ -46,19 +46,19 @@ class MergingController:
                 self.ls_r_dep_times.extend(range(key, key + len(value)))
 
         # === 1. Unpack veh info ===
-        dic_vehinfo = (
+        dic_vid_groups = (
             self.data_recorder.record_multi_lane_info()
             if self.pf
             else self.data_recorder.record_vehinfo()
         )
-        ls_veh_id = dic_vehinfo['ls_vehid']
-        ls_r_veh_net_asc = dic_vehinfo['ls_r_veh_net_asc']
-        ls_r_veh_net_last_asc = dic_vehinfo['ls_r_veh_net_last_asc']
-        ls_r_leader_up = dic_vehinfo['ls_r_leader_up']
-        ls_r_leader_up_asc = dic_vehinfo['ls_r_leader_up_asc']  # min => max
-        ls_r_veh_up = dic_vehinfo['ls_r_veh_up']
-        ls_m_leader_up_asc = dic_vehinfo['ls_m_leader_up_asc']  # min => max
-        ls_m_veh_up = dic_vehinfo['ls_m_veh_up']
+        ls_veh_id = dic_vid_groups['ls_vehid']
+        ls_r_veh_net_asc = dic_vid_groups['ls_r_veh_net_asc']
+        ls_r_veh_net_last_asc = dic_vid_groups['ls_r_veh_net_last_asc']
+        ls_r_leader_up = dic_vid_groups['ls_r_leader_up']
+        ls_r_leader_up_asc = dic_vid_groups['ls_r_leader_up_asc']  # min => max
+        ls_r_veh_up = dic_vid_groups['ls_r_veh_up']
+        ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']  # min => max
+        ls_m_veh_up = dic_vid_groups['ls_m_veh_up']
 
         # === 2. Platoon info (scripts + ramp) ===
         dic_platoon_info = self.merge_regular.get_platoon_info2(
@@ -94,7 +94,7 @@ class MergingController:
                 ls_m_leader_up_asc,
                 ls_m_veh_up,
                 dic_mplatoon_et,
-                dic_vehinfo,
+                dic_vid_groups,
                 self.ls_r_dep_times,
                 self.mpc_interval,
                 self.delta_t
@@ -109,19 +109,18 @@ class MergingController:
             if c_ts % 1 == 0: prc.print_message('**in regular mode**')
 
             # find head rav; if can be ingored
-            ravh_id = self.merge_regular.find_ravh(ls_r_veh_net_asc, ls_r_veh_net_last_asc)
+            r_leader = self.merge_regular.find_r_leader(ls_r_veh_net_asc, ls_r_veh_net_last_asc)
 
             # get action information
-            (dic_ravh_mavh,
-             dic_avh_action, ls_avh_act,
-             dic_mavh_scAction, ls_mavh_scAct) = self.action_mgr.get_action_info(
+            (dic_rm_leader_map,
+             dic_leader_action, ls_action_leader,
+             dic_m_leader_followup_action, ls_m_leaders_followup) = self.action_mgr.get_action_info(
                                                                            step,
                                                                            interval=self.mpc_interval
                                                                           )
-
             # execute actions
-            self.action_mgr.execute_action(step, dic_avh_action, ls_avh_act, ls_veh_id)
-            self.action_mgr.execute_action(step, dic_mavh_scAction, ls_mavh_scAct, ls_veh_id)
+            self.action_mgr.execute_action(step, dic_leader_action, ls_action_leader, ls_veh_id)
+            self.action_mgr.execute_action(step, dic_m_leader_followup_action, ls_m_leaders_followup, ls_veh_id)
 
         # average_velocity of this step and its jam_state
         step_speed = self.data_recorder.get_average_speed(step, ls_veh_id, jam_mode)

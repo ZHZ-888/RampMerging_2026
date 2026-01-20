@@ -70,7 +70,7 @@ def loop(traci, st, vgvg, merging_controller, p_autoFollow, m_dpt_type=None, r_d
     # scripts loop
 
     while step < st*10:
-        if step > 40:
+        if step > 69:
             pass
         if step == 4039:
             pass
@@ -110,7 +110,7 @@ if __name__ == '__main__':
 
     st = 1200 # 1000
     av_p = 0.1 # 0.3
-    r_fr = 990 # 990 # 540, 360
+    r_fr = 540 # 990 # 540, 360
     m_fr = 1080 # 132
     platoon_p = 1 # percentage of platoon vehicles
     p_autoFollow = 1  # auto follow proportion (percentage = proportion × 100%)

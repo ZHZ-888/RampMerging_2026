@@ -4,7 +4,7 @@ Unified entry point for the project.
 
 Features:
 - Always runs from the project root
-- Stabilizes import paths (IDE / terminal / HPC behave the same)
+- Stabilises import paths (IDE / terminal / HPC behave the same)
 - Automatically discovers all scripts named run_*.py under scripts/
 - Supports arbitrary subfolder depth inside scripts/
 """

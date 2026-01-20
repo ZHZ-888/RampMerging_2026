@@ -1,7 +1,4 @@
-'''
-updated from vehicle_control_during_jam2_sp.py
-sp => single parameter
-'''
+# merging_control_jam.py
 
 from functions import print_control as prc
 from functions import v2x_disturbance as v2x
@@ -12,7 +9,7 @@ class MergingControlJam:
         self.data_recorder = instance_dr
         self.vcfunc = instance_vcfunc
         self.ml = ml # multi-lane?
-        self.dic_vehinfo = {}
+        self.dic_vid_groups = {}
         self.dic_id_speed = self.data_recorder.dic_speed
         self.first_stop_recorded = [] # ramp av only stop once
         self.first_resume_recorded = []  # ramp av only resume once
@@ -45,15 +42,15 @@ class MergingControlJam:
         self.dic_mplatoon_et = {} # dic_mplatoon_et: {m_leader:[platoon_type, ts_head, ts_tail, c_ts]}
 
     def jam_control(self, step, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up,
-                          dic_mplatoon_et, dic_vehinfo, ls_r_dep_times, mpc_interval, delta_t):
+                          dic_mplatoon_et, dic_vid_groups, ls_r_dep_times, mpc_interval, delta_t):
         disturb = self.loss_rate != 0
         self.dic_mplatoon_et = dic_mplatoon_et
         if disturb:
             return self._jam_control_disturbed(step, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up,
-                          dic_vehinfo, ls_r_dep_times, mpc_interval, delta_t)
+                          dic_vid_groups, ls_r_dep_times, mpc_interval, delta_t)
         else:
             return self._jam_control_clean(step, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up,
-                          dic_vehinfo, ls_r_dep_times, mpc_interval, delta_t)
+                          dic_vid_groups, ls_r_dep_times, mpc_interval, delta_t)
 
     def _monitor_vehicle_stop(self, veh_id):
         """
@@ -83,7 +80,7 @@ class MergingControlJam:
             ls_r_leader_proper(ls_ravhb_acc)//
             ls_ravhb_acc_r//['ravh1050', 'ravh920', 'ravh680', 'ravh440', 'ravh200', 'ravh70']
         '''
-        ls_r_leader_up = self.dic_vehinfo["ls_r_leader_up"]  # ['ravh200', 'ravh70']
+        ls_r_leader_up = self.dic_vid_groups["ls_r_leader_up"]  # ['ravh200', 'ravh70']
         self.ls_r_leader_proper = []
         if self.ml:
             self.ls_r_leader_proper = ls_r_leader_up
@@ -100,7 +97,7 @@ class MergingControlJam:
         get ls of ramp veh on RAMP_PROPER (section before acc lane)
         :return: self.ls_rvb_acc => self.ls_r_proper
         '''
-        ls_r_veh_up = self.dic_vehinfo["ls_r_veh_up"]
+        ls_r_veh_up = self.dic_vid_groups["ls_r_veh_up"]
         self.ls_r_proper = []
         if self.ml:
             self.ls_r_proper = ls_r_veh_up
@@ -177,12 +174,12 @@ class MergingControlJam:
         :param type: 'leader', if its leader, max speed is faster
         :return: re_t (remaining time), dis (remaining dis)
         '''
-        veh_info = self.vcfunc.get_veh_info(id)
+        veh_info = self.vcfunc.get_vid_states(id)
         dis = veh_info['dis']
         v = veh_info['v']
         v = 0.0000001 if v == 0 else v
         if type == 'leader':
-            re_t = self.vcfunc.get_ts_a(v, dis)
+            re_t = self.vcfunc.estimate_travel_time(v, dis)
         else:
             re_t = dis / v
         return re_t, dis
@@ -196,13 +193,13 @@ class MergingControlJam:
         :return: re_t (remaining time), dis (remaining dis)
         '''
         c_ts = self.traci.simulation.getTime()
-        veh_info = self.vcfunc.get_veh_info(id)
+        veh_info = self.vcfunc.get_vid_states(id)
         dis = veh_info['dis']
         v = veh_info['v']
         v = 0.0000001 if v== 0 else v
 
         if type == 'leader':
-            re_t2 = self.vcfunc.get_ts_a(v, dis)
+            re_t2 = self.vcfunc.estimate_travel_time(v, dis)
         else:
             # use prediction model
             # get its leader id
@@ -228,7 +225,7 @@ class MergingControlJam:
         # t_merge = 11 # 200m acc
         # self.length_ih = self.traci.lane.getLength('inflow_highway_0')
         c_ts = self.traci.simulation.getTime()
-        ls_veh_onih = self.dic_vehinfo.get('ls_m_veh_up', None)  # ['mhv700', 'mhv690', 'mavh680'] all veh on inflow_highway
+        ls_veh_onih = self.dic_vid_groups.get('ls_m_veh_up', None)  # ['mhv700', 'mhv690', 'mavh680'] all veh on inflow_highway
         ls_vonih_v = [self.dic_id_speed[id] for id in ls_veh_onih] if ls_veh_onih else None  # velocity of every veh
         self.timing = False
         # S1
@@ -364,7 +361,7 @@ class MergingControlJam:
             # case 2: between the first platoon and the weaving section
             headway_diff_1 = headway_differences.copy()
             if first_avhid == first_veh:
-                pos = self.vcfunc.get_veh_info(first_avhid)['pos']
+                pos = self.vcfunc.get_vid_states(first_avhid)['pos']
                 first_veh_info = self.dic_mplatoon_et.get(first_avhid, [None, None]) # first vehicle arrival time
                 arrive_time = first_veh_info[1]
                 # Calculate real headway using a ternary expression
@@ -377,7 +374,7 @@ class MergingControlJam:
         # case 3: between the last platoon and the start point inflow_highway
         if ls_m_veh_up:
             last_mvb = ls_m_veh_up[0]
-            veh_info = self.vcfunc.get_veh_info(last_mvb)
+            veh_info = self.vcfunc.get_vid_states(last_mvb)
             pos = veh_info['pos']  # how far from the start point
             thw = pos / 24.5
             if thw > max_thw:
@@ -395,7 +392,7 @@ class MergingControlJam:
         5. get ramp fleet travel time, from stop to pass intersection
         :return: {'ravh880': ['AHHHHH', 'rhv930', 15.3], 'ravh680': ['AHH', 'rhv700', 8.8]}
         """
-        # ls_ravhb = self.dic_vehinfo['ls_ravhb']
+        # ls_ravhb = self.dic_vid_groups['ls_ravhb']
         ls_r_leader_proper = self._get_r_leader_proper()
         dic_ramp_platoon_info = \
             {ramp_avhid: dic_platoon_info[ramp_avhid] for ramp_avhid in ls_r_leader_proper if
@@ -541,13 +538,13 @@ class MergingControlJam:
         if not self.stop_state or pv_lane != 'inflow_highway_0':
             return self.dic_m_leader_action_params
 
-        dic_vehinfo = self.data_recorder.record_vehinfo()
-        ls_m_veh_up = dic_vehinfo.get('ls_m_veh_up', [])
+        dic_vid_groups = self.data_recorder.record_vehinfo()
+        ls_m_veh_up = dic_vid_groups.get('ls_m_veh_up', [])
         has_zero_speed = any(self.data_recorder.dic_speed[veh_id] == 0 for veh_id in ls_m_veh_up)
 
         r_leader_waiting_dur = c_ts - self.stop_times[r_leader_f]
         diff = rp_pass_dur - max_interval
-        dic_m_leader_info = self.vcfunc.get_veh_info(m_leader)
+        dic_m_leader_info = self.vcfunc.get_vid_states(m_leader)
         m_dis = dic_m_leader_info['dis']  # what's the difference between m_dis and mavh_dis
         m_v0 = dic_m_leader_info['v']
 
@@ -595,20 +592,20 @@ class MergingControlJam:
         :return: the list of action_m_leader
         '''
         # apply action
-        ls_m_leader_up = self.dic_vehinfo.get('ls_m_leader_up', None)
+        ls_m_leader_up = self.dic_vid_groups.get('ls_m_leader_up', None)
         action_m_leader = next(iter(dic_m_leader_action_params or {}), None)
         self.mavh_acting = False # should be mavh_acting
         if (action_m_leader in self.mavh_action_dic
                 and action_m_leader in ls_m_leader_up):
             # apply action
-            self.vcfunc.apply_avh_action(dic_m_leader_action_params)
+            self.vcfunc.apply_leader_action(dic_m_leader_action_params)
             # flash
-            self.vcfunc.flashing2(step, [action_m_leader])
+            self.vcfunc.flashing_merging(step, [action_m_leader])
             self.mavh_acting = True
         return action_m_leader
 
     def _jam_control_clean(self, step, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up,
-                           dic_vehinfo, ls_r_dep_times, mpc_interval, delta_t):
+                           dic_vid_groups, ls_r_dep_times, mpc_interval, delta_t):
         '''
         update 25.1.30
         :param step:
@@ -621,12 +618,12 @@ class MergingControlJam:
                             'mhv1580', 'mhv1570']
         :param dic_mplatoon_et: {'mavh40': ['AHHHHHHHHH', 44.57387499999983, 64.42628849831135],
                         'mavh310': ['AHHHHHHHHHHH', 63.3397847329901, 87.53000000000002, 63.1]}
-        :param dic_vehinfo: all veh info
+        :param dic_vid_groups: all veh info
         :param dic_id_speed: {id1 : [speed1, speed2, ...], id2: [speed1, speed2, ...]}
         :param ls_r_dep_times: [4, 5, 6, ....]
         :return:
         '''
-        self.dic_vehinfo = dic_vehinfo
+        self.dic_vid_groups = dic_vid_groups
         prc.print_message('**in jam mode**')
         # Stop r_leader (the first one)
         r_leader_f = self._stop_ramp_fleet3()  # first r_leader id
@@ -675,7 +672,7 @@ class MergingControlJam:
         return update_queue.maybe_release(step)
 
     def _jam_control_disturbed(self, step, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up,
-                     dic_vehinfo, ls_r_dep_times, mpc_interval, delta_t):
+                     dic_vid_groups, ls_r_dep_times, mpc_interval, delta_t):
         '''
         add v2x disturbance
         update 25.1.30
@@ -683,13 +680,13 @@ class MergingControlJam:
         :param dic_platoon_info:
         :param ls_m_leader_up_asc: dic_m_leader_action_params
         :param ls_m_veh_up:
-        :param dic_vehinfo:
+        :param dic_vid_groups:
         :param dic_id_speed:
         :param ls_r_dep_times:
         :param mpc_interval:
         :return:
         '''
-        self.dic_vehinfo = dic_vehinfo
+        self.dic_vid_groups = dic_vid_groups
         prc.print_message('**in jam mode**')
         # Stop r_leader (the first one)
         r_leader_f = self._stop_ramp_fleet3()  # first r_leader id

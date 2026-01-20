@@ -63,8 +63,8 @@ def main(av_p, r_fr, m_fr, seed, r_autoFollow_p, r_platoon_p, loss_rate=0,
         formation_controller = fc.FormationController(data_recorder, traci)
         merging_controller = mc.MergingController(data_recorder, traci, av_p, platoon_formation=True, ml=True)
 
-        (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
-         tp, speed_log, queue_log) = \
+        (dic_score_reward, dic_follower_state, his_dic_platoon_size,
+         dic_id_features, tp, speed_log, queue_log) = \
             loop(traci, st, veh_gen, formation_controller, merging_controller, lc,
                  r_autoFollow_p, m0_dpt_type, m1_dpt_type, r_dpt_type)
     finally:
@@ -99,8 +99,8 @@ def loop(traci, st, veh_gen, formation_controller, merging_controller, lc, r_aut
             r_dpt_type.update(new_r_dpt_type)  # merge together
 
         # vehicle generation
-        veh_gen.veh_gen_ml(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
-        veh_gen.veh_gen_ml(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
+        veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
         # ramp vehicle generation
         veh_gen.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
 
@@ -121,12 +121,12 @@ if __name__ == '__main__':
     r_platoon_p = 1  # percentage of platoon vehicles
     r_autoFollow_p = 1  # auto follow proportion
 
-    m_fr = 1080  # 1080
+    m_fr = 1500  # 1080
     seed = 1  # 4
     loss_rate = 0.1
     gui = True
     plot = False
-    display = True
+    display = False
     prc.PRINT_ENABLED = False
     lc = False  # if consider HV lane-changing
 

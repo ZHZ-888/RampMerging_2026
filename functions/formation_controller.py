@@ -59,7 +59,7 @@ class FormationController:
                                                  dic_current_oversizedP, dic_current_upBav,
                                                  ls_ihA, gating_value=0.6)  # SPLIT_INSERT
 
-        self.merge_regular.flashing_lc(step, dic_insertedAV, ls_ihB)
+        self.merge_regular.flashing_lane_changing(step, dic_insertedAV, ls_ihB)
         dic_score_reward = self.rl_agent.update_reward(step, st, dic_platoon_members)
         # ahah.plot_scores(step, st)
         # ahah.plot_loss(step, st)

@@ -22,8 +22,8 @@ class DataRecording:
             self.length_ramp = self.traci.lane.getLength('ramp_0')
             self.length_ih = self.traci.lane.getLength('upstream_0')
 
-        self.dic_vehinfo = {}
-        self.dic_avhid_ptype = {} # platoon type => {avhid:"AHH", ...}
+        self.dic_vid_groups = {} # ori: dic_vehinfo
+        self.dic_leader_ptype = {} # platoon type => {avhid:"AHH", ...}
         self.dic_veh_hinfo = {}
 
         # ["vid", "time", "dis", "speed"]
@@ -45,6 +45,7 @@ class DataRecording:
                      'veh_2': ['veh_2', 'veh_4']}
         '''
         self.dic_member_to_leader = {} # only multi-lane scenario have this dic; leader => members
+        self.merge_control_length = 800  # the length of merging control section
 
 
     def record_vehinfo(self): # for single_lane scenario
@@ -108,22 +109,22 @@ class DataRecording:
         # update ls_vehid_last_step
         self.ls_vehid_last_step = ls_vehid
 
-        # vehicle info for merging control
-        self.dic_vehinfo['ls_vehid'] = ls_vehid
-        self.dic_vehinfo['ls_m_leader_net'] = ls_m_leader_net  # small => big
-        self.dic_vehinfo['ls_m_leader_up'] = ls_m_leader_up  # big => small
-        self.dic_vehinfo['ls_m_leader_up_asc'] = ls_m_leader_up_asc
-        self.dic_vehinfo['ls_m_veh_up'] = ls_m_veh_up
+        # vehicle info for control
+        self.dic_vid_groups['ls_vehid'] = ls_vehid
+        self.dic_vid_groups['ls_m_leader_net'] = ls_m_leader_net  # small => big
+        self.dic_vid_groups['ls_m_leader_up'] = ls_m_leader_up  # big => small
+        self.dic_vid_groups['ls_m_leader_up_asc'] = ls_m_leader_up_asc
+        self.dic_vid_groups['ls_m_veh_up'] = ls_m_veh_up
 
-        self.dic_vehinfo['ls_r_leader_net'] = ls_r_leader_net
-        self.dic_vehinfo['ls_r_leader_up'] = ls_r_leader_up
-        self.dic_vehinfo['ls_r_leader_up_asc'] = ls_r_leader_up_asc
-        self.dic_vehinfo['ls_r_veh_up'] = ls_r_veh_up  # ramp veh before merging
+        self.dic_vid_groups['ls_r_leader_net'] = ls_r_leader_net
+        self.dic_vid_groups['ls_r_leader_up'] = ls_r_leader_up
+        self.dic_vid_groups['ls_r_leader_up_asc'] = ls_r_leader_up_asc
+        self.dic_vid_groups['ls_r_veh_up'] = ls_r_veh_up  # ramp veh before merging
 
-        self.dic_vehinfo['ls_r_veh_net_asc'] = ls_r_veh_net_asc
-        self.dic_vehinfo['ls_r_veh_net_last_asc'] = ls_r_veh_net_last_asc
-        self.dic_vehinfo['ls_mr_leader_up'] = ls_mr_leader_up
-        return self.dic_vehinfo
+        self.dic_vid_groups['ls_r_veh_net_asc'] = ls_r_veh_net_asc
+        self.dic_vid_groups['ls_r_veh_net_last_asc'] = ls_r_veh_net_last_asc
+        self.dic_vid_groups['ls_mr_leader_up'] = ls_mr_leader_up
+        return self.dic_vid_groups
 
     def record_multi_lane_info(self, length_ms=800):
         '''
@@ -287,51 +288,51 @@ class DataRecording:
         self.ls_vehid_last_step = ls_vehid
 
         # vehicle info for merging control
-        self.dic_vehinfo['ls_vehid'] = ls_vehid
-        self.dic_vehinfo['ls_m_leader_net'] = ls_ms_leader_net  # small => big
-        self.dic_vehinfo['ls_m_leader_up'] = ls_ms_leader_up  # big => small
-        self.dic_vehinfo['ls_m_leader_up_asc'] = ls_ms_leader_up_asc
-        self.dic_vehinfo['ls_m_veh_up'] = ls_ms_veh_up
+        self.dic_vid_groups['ls_vehid'] = ls_vehid
+        self.dic_vid_groups['ls_m_leader_net'] = ls_ms_leader_net  # small => big
+        self.dic_vid_groups['ls_m_leader_up'] = ls_ms_leader_up  # big => small
+        self.dic_vid_groups['ls_m_leader_up_asc'] = ls_ms_leader_up_asc
+        self.dic_vid_groups['ls_m_veh_up'] = ls_ms_veh_up
 
-        self.dic_vehinfo['ls_r_leader_net'] = ls_r_leader_net
-        self.dic_vehinfo['ls_r_leader_up'] = ls_r_leader_up
-        self.dic_vehinfo['ls_r_leader_up_asc'] = ls_r_leader_up_asc
-        self.dic_vehinfo['ls_r_veh_up'] = ls_r_veh_up  # ramp veh before merging
+        self.dic_vid_groups['ls_r_leader_net'] = ls_r_leader_net
+        self.dic_vid_groups['ls_r_leader_up'] = ls_r_leader_up
+        self.dic_vid_groups['ls_r_leader_up_asc'] = ls_r_leader_up_asc
+        self.dic_vid_groups['ls_r_veh_up'] = ls_r_veh_up  # ramp veh before merging
 
-        self.dic_vehinfo['ls_r_veh_net_asc'] = ls_r_veh_net_asc
-        self.dic_vehinfo['ls_r_veh_net_last_asc'] = ls_r_veh_net_last_asc
+        self.dic_vid_groups['ls_r_veh_net_asc'] = ls_r_veh_net_asc
+        self.dic_vid_groups['ls_r_veh_net_last_asc'] = ls_r_veh_net_last_asc
         # max => min (ls_mr_leader_up = ls_ms_leader_up+ls_r_leader_up)
-        self.dic_vehinfo['ls_mr_leader_up'] = ls_mr_leader_up
+        self.dic_vid_groups['ls_mr_leader_up'] = ls_mr_leader_up
 
         # veh on inflow_highway_0
-        self.dic_vehinfo['ls_ihA'] = ls_ihA  # decrease
-        self.dic_vehinfo['ls_ihA_av'] = ls_ihA_av
-        self.dic_vehinfo['ls_ihA_hv'] = ls_ihA_hv
-        self.dic_vehinfo['ls_ihA_ms'] = ls_ihA_ms
-        self.dic_vehinfo['ls_ihA_av_ms'] = ls_ihA_av_ms  # ms => merging section
-        self.dic_vehinfo['ls_ihB'] = ls_ihB
-        self.dic_vehinfo['ls_ihB_av'] = ls_ihB_av
-        self.dic_vehinfo['ls_ihB_hv'] = ls_ihB_hv
-        self.dic_vehinfo['ls_ihAB_av'] = ls_ihAB_av
-        self.dic_vehinfo['ls_ihAB_hv'] = ls_ihAB_hv
+        self.dic_vid_groups['ls_ihA'] = ls_ihA  # decrease
+        self.dic_vid_groups['ls_ihA_av'] = ls_ihA_av
+        self.dic_vid_groups['ls_ihA_hv'] = ls_ihA_hv
+        self.dic_vid_groups['ls_ihA_ms'] = ls_ihA_ms
+        self.dic_vid_groups['ls_ihA_av_ms'] = ls_ihA_av_ms  # ms => merging section
+        self.dic_vid_groups['ls_ihB'] = ls_ihB
+        self.dic_vid_groups['ls_ihB_av'] = ls_ihB_av
+        self.dic_vid_groups['ls_ihB_hv'] = ls_ihB_hv
+        self.dic_vid_groups['ls_ihAB_av'] = ls_ihAB_av
+        self.dic_vid_groups['ls_ihAB_hv'] = ls_ihAB_hv
 
         # veh on upstream_A and upstream_B
-        self.dic_vehinfo['ls_upA'] = ls_upA
-        self.dic_vehinfo['ls_upA_av'] = ls_upA_av
-        self.dic_vehinfo['ls_upA_hv'] = ls_upA_hv
-        self.dic_vehinfo['ls_upB'] = ls_upB
-        self.dic_vehinfo['ls_upB_av'] = ls_upB_av
+        self.dic_vid_groups['ls_upA'] = ls_upA
+        self.dic_vid_groups['ls_upA_av'] = ls_upA_av
+        self.dic_vid_groups['ls_upA_hv'] = ls_upA_hv
+        self.dic_vid_groups['ls_upB'] = ls_upB
+        self.dic_vid_groups['ls_upB_av'] = ls_upB_av
 
         # veh on weaving section (ws)
-        self.dic_vehinfo['ls_wsB_hv'] = ls_wsB_hv
-        self.dic_vehinfo['ls_wsC_hv'] = ls_wsC_hv
-        self.dic_vehinfo['ls_wsBC_hv'] = ls_wsBC_hv
+        self.dic_vid_groups['ls_wsB_hv'] = ls_wsB_hv
+        self.dic_vid_groups['ls_wsC_hv'] = ls_wsC_hv
+        self.dic_vid_groups['ls_wsBC_hv'] = ls_wsBC_hv
 
         # veh on center
-        self.dic_vehinfo['ls_centerA_av'] = ls_centerA_av
-        self.dic_vehinfo['ls_centerA_hv'] = ls_centerA_hv
-        self.dic_vehinfo['ls_centerB_av'] = ls_centerB_av
-        return self.dic_vehinfo
+        self.dic_vid_groups['ls_centerA_av'] = ls_centerA_av
+        self.dic_vid_groups['ls_centerA_hv'] = ls_centerA_hv
+        self.dic_vid_groups['ls_centerB_av'] = ls_centerB_av
+        return self.dic_vid_groups
 
     def get_hv_leader(self, hv_id, m=True):
         '''
@@ -368,14 +369,14 @@ class DataRecording:
         if m_dpt_type:
             for key, value in m_dpt_type.items():
                 if isinstance(key, str):
-                    self.dic_avhid_ptype[key] = value
+                    self.dic_leader_ptype[key] = value
                 else:
                     id1 = 'mavh' + str(key*10)
-                    self.dic_avhid_ptype[id1] = value
+                    self.dic_leader_ptype[id1] = value
         if r_dpt_type:
             for key, value in r_dpt_type.items():
                 id2 = 'ravh' + str(key*10)
-                self.dic_avhid_ptype[id2] = value
+                self.dic_leader_ptype[id2] = value
         return
 
     def transform_ls_df(self, ls, ls_column):
