@@ -39,7 +39,7 @@ class MergingController:
 
         :return:
         '''
-        c_ts = step*0.1
+        c_ts = step*0.1 + 0.1
 
         if not self.ls_r_dep_times:
             for key, value in r_dpt_type.items():
@@ -62,6 +62,7 @@ class MergingController:
 
         # === 2. Platoon info (scripts + ramp) ===
         dic_platoon_info = self.merge_regular.get_platoon_info2(
+            step,
             m_dpt_type=m_dpt_type,
             r_dpt_type=r_dpt_type
         )

@@ -1,4 +1,7 @@
-# merging_control_jam.py
+'''
+merging_control_jam.py
+TODO: call traci to get time many times, maybe once is enough
+'''
 
 from functions import print_control as prc
 from functions import v2x_disturbance as v2x
@@ -174,7 +177,7 @@ class MergingControlJam:
         :param type: 'leader', if its leader, max speed is faster
         :return: re_t (remaining time), dis (remaining dis)
         '''
-        veh_info = self.vcfunc.get_vid_states(id)
+        veh_info = self.data_recorder.get_vid_states(id)
         dis = veh_info['dis']
         v = veh_info['v']
         v = 0.0000001 if v == 0 else v
@@ -193,7 +196,7 @@ class MergingControlJam:
         :return: re_t (remaining time), dis (remaining dis)
         '''
         c_ts = self.traci.simulation.getTime()
-        veh_info = self.vcfunc.get_vid_states(id)
+        veh_info = self.data_recorder.get_vid_states(id)
         dis = veh_info['dis']
         v = veh_info['v']
         v = 0.0000001 if v== 0 else v
@@ -361,7 +364,7 @@ class MergingControlJam:
             # case 2: between the first platoon and the weaving section
             headway_diff_1 = headway_differences.copy()
             if first_avhid == first_veh:
-                pos = self.vcfunc.get_vid_states(first_avhid)['pos']
+                pos = self.data_recorder.get_vid_states(first_avhid)['pos']
                 first_veh_info = self.dic_mplatoon_et.get(first_avhid, [None, None]) # first vehicle arrival time
                 arrive_time = first_veh_info[1]
                 # Calculate real headway using a ternary expression
@@ -374,7 +377,7 @@ class MergingControlJam:
         # case 3: between the last platoon and the start point inflow_highway
         if ls_m_veh_up:
             last_mvb = ls_m_veh_up[0]
-            veh_info = self.vcfunc.get_vid_states(last_mvb)
+            veh_info = self.data_recorder.get_vid_states(last_mvb)
             pos = veh_info['pos']  # how far from the start point
             thw = pos / 24.5
             if thw > max_thw:
@@ -544,7 +547,7 @@ class MergingControlJam:
 
         r_leader_waiting_dur = c_ts - self.stop_times[r_leader_f]
         diff = rp_pass_dur - max_interval
-        dic_m_leader_info = self.vcfunc.get_vid_states(m_leader)
+        dic_m_leader_info = self.data_recorder.get_vid_states(m_leader)
         m_dis = dic_m_leader_info['dis']  # what's the difference between m_dis and mavh_dis
         m_v0 = dic_m_leader_info['v']
 

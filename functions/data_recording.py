@@ -1,5 +1,6 @@
 import pandas as pd
 import re
+from collections import defaultdict
 
 '''
 ascending (asc) or 
@@ -27,26 +28,31 @@ class DataRecording:
         self.dic_veh_hinfo = {}
 
         # ["vid", "time", "dis", "speed"]
-        self.data_vehinfo = [] # record vid and its speed and corresponding time
-        self.ls_hinfo = [] # headway info
         self.throughput_count = 0
         self.counted_vehicles = set()  # To record vehicles that have already been counted
 
         self.queue_log = [] # [[step, queue_length], []]
-
         self.dic_pos = {} # {id1: pos1, id2: pos2}
         self.dic_dis = {}
         self.dic_speed = {}
         self.dic_lane = {}
+        self.ls_tail_ids = []
 
         '''
-        dic_platoon_members = 
+        dic_member_to_leader = 
                     {'mav19': ['mav19', 'mhv46', 'mhv64', 'mhv74', 'mhv86'], 
                      'veh_2': ['veh_2', 'veh_4']}
         '''
         self.dic_member_to_leader = {} # only multi-lane scenario have this dic; leader => members
         self.merge_control_length = 800  # the length of merging control section
 
+        # multi-lane scenario => (27.78 m/s => 100 km/h)
+        self.max_speed = 27.78 if self.length_ih > 1500 else 25
+
+        self.ls_features = []
+        self.leader_record_counter = defaultdict(int)
+        self.dic_tail_arrived_ws = {} # {tail_id: arrival_ts}
+        self.dic_platoon_info = {} # {vid:[type, tail_id, length1, length2...]}
 
     def record_vehinfo(self): # for single_lane scenario
         '''
@@ -341,21 +347,25 @@ class DataRecording:
         :param m:
         :return:
         '''
-        if self.dic_member_to_leader:
-            if hv_id == 'mhv83':
-                pass
+        if hv_id == 'rhv1000':
+            pass
+        if hv_id in self.dic_member_to_leader:
             leader_id = self.dic_member_to_leader[hv_id]
             return leader_id
         if 'avh' in hv_id:
             leader_id = hv_id
         else:
-            hv_time = int(hv_id[3:])
+            hv_time = self._get_vid_digit(hv_id)
+            vid_digit = self._get_vid_digit
             if m:
-                leader_id = max((car for car in self.ls_m_leader_net_his_desc if int(car[4:]) < hv_time),
-                           key=lambda x: int(x[4:]), default=None)
+                # max(iterable, key=func)
+                leader_id = max((vid for vid in self.ls_m_leader_net_his_desc if vid_digit(vid) < hv_time),
+                                key=vid_digit, default=None)
+                if leader_id is None:
+                    pass
             else:
-                leader_id = max((car for car in self.ls_r_leader_net_his_desc if int(car[4:]) < hv_time),
-                               key=lambda x: int(x[4:]), default=None)
+                leader_id = max((vid for vid in self.ls_r_leader_net_his_desc if vid_digit(vid) < hv_time),
+                                key=vid_digit, default=None)
         return leader_id
 
     def get_avhid_ptype(self, m_dpt_type=None, r_dpt_type=None):
@@ -432,12 +442,89 @@ class DataRecording:
             self.queue_log.append((step, queue_length))
         return self.queue_log
 
+    def get_vid_states(self, vid):
+        """
+        get speed, lane, position, distance of this ID
+        """
+        dic_vid_states = {}
+        ls_veh = self.traci.vehicle.getIDList()
+        # v = self.traci.vehicle.getSpeed(vid)
+        if vid == None or vid not in ls_veh:
+            dic_vid_states['v'] = None
+            dic_vid_states['lane'] = None
+            dic_vid_states['pos'] = None
+            dic_vid_states['dis'] = None
+            return dic_vid_states
+        v = self.dic_speed[vid]
+        pos = self.traci.vehicle.getLanePosition(vid)
+        lane_id = self.traci.vehicle.getLaneID(vid)
+        lane_length = self.traci.lane.getLength(lane_id)
+
+        dic_vid_states['v'] = v
+        dic_vid_states['lane'] = lane_id
+        dic_vid_states['pos'] = pos
+        dic_vid_states['dis'] = lane_length-pos
+        return dic_vid_states # v, lane, pos, dis
+
+    def record_rf_at_features(self, leader_id, features, c_ts):
+        '''
+        record features
+        two Random Forest model
+        RF_ArrivalTime (RF_AT) & RF_FollowerStates (RF_FS)
+        Returns
+
+        features: [leader_id, record_index, prediction_ts
+                    platoon_type, dis_to_pv, speed_leader, remain_dis_leader, m (1 or 0)]
+        & targets
+        -------
+        '''
+        self.leader_record_counter[leader_id] += 1
+        record_index = self.leader_record_counter[leader_id]
+        record = [leader_id, record_index, c_ts] + features
+        self.ls_features.append(record)
+        return self.ls_features
+
+    def record_tail_arrival(self, step):
+        '''
+        call self._record_rf_at_target
+        '''
+        ls_vehid = self.dic_vid_groups['ls_vehid']
+        ls_tail_ids_net = [vid for vid in self.ls_tail_ids if vid in ls_vehid]
+        for tail_id in ls_tail_ids_net:
+            self._record_rf_at_target(step, tail_id)
+
+    def disable_all_lane_changes(self):
+        '''
+        Disable lane-changing behavior for all currently active vehicles.
+        '''
+        for vid in self.traci.vehicle.getIDList():
+            self.traci.vehicle.setLaneChangeMode(vid, 0)
+
+    def _record_rf_at_target(self, step, tail_id):
+        '''
+        record platoon tail arrival time
+        enters WS for the first time
+        dic_targets = {leader_id: [tail_id, arrival_time]}
+        '''
+        if tail_id == 'rhv1000' or 'mhv188':
+            pass
+        if tail_id.startswith('m'):
+            leader_id = self.get_hv_leader(tail_id)
+        else:
+            leader_id = self.get_hv_leader(tail_id, m=False)
+        dic_vid_states = self.get_vid_states(tail_id)
+        lane = dic_vid_states['lane']
+        c_ts = step/10 + 0.1 # getTime() = c_ts + 0.1
+        if lane in ('ws_0', 'ws_1', 'ws_2') and leader_id not in self.dic_tail_arrived_ws:
+            # record only the first time
+            self.dic_tail_arrived_ws[leader_id] = [tail_id, c_ts]
+        return self.dic_tail_arrived_ws
+
     def _build_step_cache(self, ls_vehid):
         """
            Cache per-step TraCI queries to reduce IPC overhead.
            all vehicle on traffic network
         """
-
         for vid in ls_vehid:
             # These TraCI calls are expensive; cache them once per step.
             self.dic_pos[vid] = self.traci.vehicle.getLanePosition(vid)
@@ -445,6 +532,16 @@ class DataRecording:
             self.dic_speed[vid] = self.traci.vehicle.getSpeed(vid)
             self.dic_lane[vid] = self.traci.vehicle.getLaneID(vid)
         return
+
+    def _get_vid_digit(self, vid):
+        '''
+        Return the trailing number from a vehicle ID string
+        '''
+        i = len(vid) - 1
+        while i >= 0 and vid[i].isdigit():
+            i -= 1
+        return int(vid[i + 1:])
+
 
 
 

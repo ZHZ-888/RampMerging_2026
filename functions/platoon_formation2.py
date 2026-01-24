@@ -11,12 +11,13 @@ class PlatoonForm:
     def __init__(self, traci, data_recorder):
         self.traci = traci
         self.data_recorder = data_recorder
+        self.max_speed = self.data_recorder.max_speed
         self.dec_av = []
         self.dic_tags = {}
         self.max_team_size = 0
         self.dic_leaderAV_targetID = {}  # target_platoon and target_veh
         self.recover_time_map = {}  # record av speed setting recover time
-        self.ls_restore = []  # av_id that speed restore back to max(30m/s)
+        self.ls_speed_ok = []  # av_id that speed restore back to max(30m/s)
         self.leader_AV = set()  # all leader_AV
         self.dic_id_features = {}  # {id:[f1, f2,..., ], ...}
         self.dic_follower_state = {}  # state of each followers
@@ -273,12 +274,18 @@ class PlatoonForm:
         :param ls_vehid: order is not important
         :return:
         '''
-        max_speed = 27.78
+        # max_speed = 27.78
         for vid in ls_centerA_av:
+            if vid == 'ravh40':
+                pass
+            if vid in self.ls_speed_ok:
+                continue
             current_max = self.traci.vehicle.getMaxSpeed(vid)
-            if vid not in self.ls_restore and current_max < max_speed:
-                self.traci.vehicle.setMaxSpeed(vid, max_speed)  # restore to 27.78 m/s
-                self.ls_restore.append(vid)
+            if current_max >= self.max_speed:
+                self.ls_speed_ok.append(vid)
+                continue
+            self.traci.vehicle.setMaxSpeed(vid, self.max_speed)  # restore to 27.78 m/s
+            
 
     def restrict_lane_changeBase(self, veh_id):
         self.traci.vehicle.setParameter(veh_id, "laneChangeModel.lcStrategic", "0.0")
@@ -590,7 +597,6 @@ class PlatoonForm:
         """
         if not ls_ihA_hv:
             return
-
         for veh_id in ls_ihA_hv:
             if veh_id in self.encourage_change_mark:
                 continue
@@ -602,17 +608,13 @@ class PlatoonForm:
                 dis_to_weaving = length_ih - lane_pos  # distance to the weaving section
             except Exception:
                 continue  # vehicle might have left the network
-
             # only apply within upstream distance (e.g. 200 m before ramp)
             if dis_to_weaving > weaving_influence_range:
                 continue
-
             self.encourage_change_mark.add(veh_id)
-
             # random tendency: some HVs will change, some not
             if random.random() > p_to_inner:
                 continue
-
             try:
                 # lane 1 = inner lane (away from ramp)
                 self.traci.vehicle.changeLane(veh_id, 1, 3)
@@ -638,8 +640,9 @@ class PlatoonForm:
         """
         Adaptive lane-changing control near ramp.
         """
-        if not lc:  # if lc (lane_changing) = False, just skip
+        if not lc:  # if lc (lane_changing) is False, just skip
             return
+        # if lc is True
         self._disable_keepRight_in_weaving(ls_ihAB_hv, ls_wsBC_hv)
         self._encourage_outer_to_inner(ls_ihAB_hv, length_ih, p_to_inner, weaving_influence_range)
         self._cancel_pending_changes_on_center()
@@ -683,7 +686,7 @@ class PlatoonForm:
         # 5. Save result
         self.dic_final_platoon_info[step//10] = platoon_string
         # update to dic_avhid_ptype
-        self.data_recorder.get_avhid_ptype(m_dpt_type={leader_id:platoon_string})
+        self.data_recorder.get_avhid_ptype(m_dpt_type={leader_id: platoon_string})
 
     def _disable_keepRight_in_weaving(self, ls_ihAB_hv, ls_wsBC_hv):
         "'_' for internal use within a class or module and not part of the public API."

@@ -100,7 +100,8 @@ class ActionManager:
         :param ls_m_leaders_followup: action list of
         :return:
         '''
-        dic_vid_groups = self.data_recorder.record_vehinfo()
+        # dic_vid_groups = self.data_recorder.record_vehinfo()
+        dic_vid_groups = self.data_recorder.dic_vid_groups
         ls_mr_leader_up = dic_vid_groups["ls_mr_leader_up"] # all avh before merging
         ls_m_leader_up = dic_vid_groups["ls_m_leader_up"] # all mavh before merging
         action_dic = {key: value for key, value in dic_rm_leader_actor.items() if value in ls_mr_leader_up}

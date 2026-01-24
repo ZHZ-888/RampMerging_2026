@@ -112,9 +112,9 @@ if __name__ == '__main__':
     av_p = 0.1 # 0.3
     r_fr = 540 # 990 # 540, 360
     m_fr = 1080 # 132
-    platoon_p = 1 # percentage of platoon vehicles
-    p_autoFollow = 1  # auto follow proportion (percentage = proportion × 100%)
-    loss_rate = 0 # 0, 0.05, 0.1, 0.15; packet loss rate
+    platoon_p = 0.8 # percentage of platoon vehicles; default 1
+    p_autoFollow = 0.8  # auto follow proportion (percentage = proportion × 100%); default 1
+    loss_rate = 0.1 # 0 (default), 0.05, 0.1, 0.15; packet loss rate
     seed = 1 # 4
     gui = False
     plot = False

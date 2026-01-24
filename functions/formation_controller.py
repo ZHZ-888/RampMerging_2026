@@ -26,18 +26,23 @@ class FormationController:
             dic_final_platoon_info: {66: 'AHHHHHHHHHH', 90: 'AHHHHH', 138: 'AHHHHHHHHH', 174: 'AH', 177: 'AHH'}
         '''
         # === Unpack veh info ===
-        # dic_vehinfo = self.data_recorder.record_vehinfo()
-        dic_vehinfo = self.data_recorder.record_multi_lane_info()
-        ls_vehid = dic_vehinfo['ls_vehid']  # tuple, all vehicle in this step
+        # dic_vid_groups = self.data_recorder.record_vehinfo()
+        dic_vid_groups = (
+            self.data_recorder.dic_vid_groups
+            if self.data_recorder.dic_vid_groups
+            else self.data_recorder.record_multi_lane_info()
+        )
 
-        ls_ihA = dic_vehinfo['ls_ihA']  # all veh on inflow_highway, big => small
-        ls_ihAB_av = dic_vehinfo['ls_ihAB_av']
-        ls_ihB = dic_vehinfo['ls_ihB']
-        ls_ihB_av = dic_vehinfo['ls_ihB_av']
+        ls_vehid = dic_vid_groups['ls_vehid']  # tuple, all vehicle in this step
 
-        ls_ihAB_hv = dic_vehinfo['ls_ihAB_hv']
-        ls_wsBC_hv = dic_vehinfo['ls_wsBC_hv']
-        ls_centerA_av = dic_vehinfo['ls_centerA_av']
+        ls_ihA = dic_vid_groups['ls_ihA']  # all veh on inflow_highway, big => small
+        ls_ihAB_av = dic_vid_groups['ls_ihAB_av']
+        ls_ihB = dic_vid_groups['ls_ihB']
+        ls_ihB_av = dic_vid_groups['ls_ihB_av']
+
+        ls_ihAB_hv = dic_vid_groups['ls_ihAB_hv']
+        ls_wsBC_hv = dic_vid_groups['ls_wsBC_hv']
+        ls_centerA_av = dic_vid_groups['ls_centerA_av']
         length_ih = self.data_recorder.length_ih  # obtain the length of inflow_highway
 
         # SC1: find oversized platoon

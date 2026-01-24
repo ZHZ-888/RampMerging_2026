@@ -28,19 +28,18 @@ fomula2 = 'v0*t + 0.5*a*(t-t1)**2 - D'  # 先匀后减
 class MergingControlRegular:
     def __init__(self, traci, instance_dr, optimizer=True):
         self.traci = traci
-        self.amax = 2.6
-        self.max_speed = 25  # ??? 23
-        self.ls_v0 = []
-        self.ls_teR = []
-        self.optimizer = optimizer
-
-        self.data_recorder = instance_dr # Data_Recording
+        self.data_recorder = instance_dr  # Data_Recording
         self.sim_step = self.data_recorder.sim_step
         self.dic_id_speed = self.data_recorder.dic_speed
         self.merge_control_length = self.data_recorder.merge_control_length
 
-        self.dic_platoon_info = {} # {vid:[type, tail_id, length1, length2...]}
+        self.amax = 2.6
+        self.max_speed = self.data_recorder.max_speed  # ??? 23
+        self.ls_v0 = []
+        self.ls_teR = []
+        self.optimizer = optimizer
 
+        self.dic_platoon_info = {} # {vid:[type, tail_id, length1, length2...]}
         self.dic_rm_leader_map = {} # the cor mavh of ravh
         self.dic_leader_action = {} # {leader: ls_action, ..., }
         self.dic_rm_leader_actor = {} # actor: selected r_leader or m_leader to take action, {(r_leader: m_leader): r_leader, ...}
@@ -50,24 +49,26 @@ class MergingControlRegular:
 
         self.dic_rplatoon_et = {}  # ramp platoon estimate time// {leader_id : [platoon_type, ts_head, ts_tail, update_time]}
         self.dic_mplatoon_et = {}  # mainline platoon estimate time//
-
-        self.mp_model2 = joblib.load(
+        # random forest arrival time prediction model
+        self.rf_at_model = joblib.load(
             os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model241128_ndarray.pkl'))
 
     def update_platoon_et(self, step, ls_leader_up, m=True, interval=70):
         '''
+        calls self._get_features()
+              self.rf_at_model
         update the estimate arrival time of platoon leader and tail
         ls_leader_up: list of pre merging (upstream) ramp av leader or mainlane av leader
         :return:
             dic_mplatoon_et ={m_vid, [platoon_type, ts_head, ts_tail, c_ts]}
         '''
         if step % interval == 0:
-            c_ts = self.traci.simulation.getTime()
+            c_ts = step/10 # c_ts = self.traci.simulation.getTime()
             for leader in ls_leader_up:
                 platoon_type = self.data_recorder.dic_leader_ptype.get(leader, "A")
                 if platoon_type is None:
                     continue  # pass
-                dic_id_info = self.get_vid_states(leader)
+                dic_id_info = self.data_recorder.get_vid_states(leader)
                 remain_dis_leader = dic_id_info['dis'] # remaining dis of this leader
                 speed_leader = dic_id_info['v'] # speed of this leader
                 # ts_head, the reaching timestamp of leader
@@ -83,8 +84,9 @@ class MergingControlRegular:
                     indices = [3, 2, 4, 0, 7]  # the indices of selected features
                     sel_features = [ls_features[i] for i in indices] # selected features
                     sel_features_c = sel_features.copy()
+                    self.data_recorder.record_rf_at_features(leader, sel_features, c_ts)
                     sel_features_c[0] = len(sel_features[0])  # organise type 'AH' to length 2
-                    travel_time = self.mp_model2.predict([sel_features_c])[0]
+                    travel_time = self.rf_at_model.predict([sel_features_c])[0]
                     ts_tail = travel_time + c_ts
                 if m:
                     self.dic_mplatoon_et[leader] = [platoon_type, ts_head, ts_tail, c_ts]
@@ -111,31 +113,31 @@ class MergingControlRegular:
             r_leader = None
         return r_leader
 
-    def get_vid_states(self, vid):
-        """
-        get speed, lane, position, distance of this ID
-        """
-        dic_vid_states = {}
-        ls_veh = self.traci.vehicle.getIDList()
-        # v = self.traci.vehicle.getSpeed(vid)
-        if vid == None or vid not in ls_veh:
-            dic_vid_states['v'] = None
-            dic_vid_states['lane'] = None
-            dic_vid_states['pos'] = None
-            dic_vid_states['dis'] = None
-            return dic_vid_states
-        v = self.dic_id_speed[vid]
-        pos = self.traci.vehicle.getLanePosition(vid)
-        lane_id = self.traci.vehicle.getLaneID(vid)
-        lane_length = self.traci.lane.getLength(lane_id)
+    # def get_vid_states(self, vid):
+    #     """
+    #     get speed, lane, position, distance of this ID
+    #     """
+    #     dic_vid_states = {}
+    #     ls_veh = self.traci.vehicle.getIDList()
+    #     # v = self.traci.vehicle.getSpeed(vid)
+    #     if vid == None or vid not in ls_veh:
+    #         dic_vid_states['v'] = None
+    #         dic_vid_states['lane'] = None
+    #         dic_vid_states['pos'] = None
+    #         dic_vid_states['dis'] = None
+    #         return dic_vid_states
+    #     v = self.dic_id_speed[vid]
+    #     pos = self.traci.vehicle.getLanePosition(vid)
+    #     lane_id = self.traci.vehicle.getLaneID(vid)
+    #     lane_length = self.traci.lane.getLength(lane_id)
+    #
+    #     dic_vid_states['v'] = v
+    #     dic_vid_states['lane'] = lane_id
+    #     dic_vid_states['pos'] = pos
+    #     dic_vid_states['dis'] = lane_length-pos
+    #     return dic_vid_states # v, lane, pos, dis
 
-        dic_vid_states['v'] = v
-        dic_vid_states['lane'] = lane_id
-        dic_vid_states['pos'] = pos
-        dic_vid_states['dis'] = lane_length-pos
-        return dic_vid_states # v, lane, pos, dis
-
-    def get_platoon_info2(self, m_dpt_type={}, r_dpt_type={}):
+    def get_platoon_info2(self, step, m_dpt_type={}, r_dpt_type={}):
         """
         IMPORTANT: recording platoon information
         240929update: fixed length of platoon info
@@ -153,27 +155,19 @@ class MergingControlRegular:
         ls_r_leader_up = dic_vid_groups['ls_r_leader_up']
         ls_mr_leader_up = ls_m_leader_up_asc + ls_r_leader_up
         for vid in ls_mr_leader_up:
-            dp_step = ''.join(filter(str.isdigit, vid))  # departure time
             platoon_type = self.data_recorder.dic_leader_ptype.get(vid)
             if platoon_type is None:
                 continue  # jump
-
-            # get platoon type
-            # dpt is step, should transfer to time, int(step)/10
-            # dpt = int(int(dp_step)/10)
-            # platoon_type = m_dpt_type[dpt] if 'm' in vid else r_dpt_type[dpt]
-
             veh_num = len(platoon_type)
             # special situation, type 'A', no tail vehicle, no platoon length
             if veh_num == 1:
                 self.dic_platoon_info[vid] = [[platoon_type, None], None]
-            # get tail vid
-            tail_dp_step = int(dp_step) + (veh_num-1)*10 # departure step
-            tail_id_suffix = 'hv'+ str(tail_dp_step) if platoon_type[-1] == 'H' else 'av' + str(tail_dp_step)
-            tail_id = 'm'+tail_id_suffix if 'm' in vid else 'r'+tail_id_suffix
+            tail_id = self._get_tail_id(dic_vid_groups, platoon_type, vid)
             if tail_id in dic_vid_groups['ls_vehid']:
-                dic_head_states = self.get_vid_states(vid)
-                dic_tail_states = self.get_vid_states(tail_id)
+                if tail_id not in self.data_recorder.ls_tail_ids:
+                    self.data_recorder.ls_tail_ids.append(tail_id)
+                dic_head_states = self.data_recorder.get_vid_states(vid)
+                dic_tail_states = self.data_recorder.get_vid_states(tail_id)
                 pos_head = dic_head_states['pos']
                 pos_tail = dic_tail_states['pos']
                 platoon_length = pos_head-pos_tail
@@ -183,6 +177,7 @@ class MergingControlRegular:
                     dq_info_partB = deque(maxlen=10)  # fixed length is 10
                     self.dic_platoon_info[vid] = [ls_info_partA, dq_info_partB]
                 self.dic_platoon_info[vid][1].append(platoon_length)
+        self.data_recorder.dic_platoon_info = self.dic_platoon_info
         return self.dic_platoon_info
 
     def find_rm_leader_map(self):
@@ -300,7 +295,7 @@ class MergingControlRegular:
 
     def get_leader_action(self, gap=2):
         """
-        This function calls 'self.get_action_params()'
+        calls 'self.get_action_params()'
         both R_LEADER and M_LEADER may take action.
         Note: there may have special situation, one value with multiple keys
         :param gap:
@@ -334,7 +329,7 @@ class MergingControlRegular:
             if 'm' in action_leader:
                 # if m_leader take action, then estimate r platoon
                 r_ts_tail = self.dic_rplatoon_et[r_leader][2] # ts_tail of r_leader
-                m_leader_states = self.get_vid_states(m_leader)
+                m_leader_states = self.data_recorder.get_vid_states(m_leader)
                 dis_m = m_leader_states['dis'] # remaining distance before the merging point
                 v_m = m_leader_states['v'] # current speed of m_leader
                 # 240624update: get tc according to platoon number
@@ -349,7 +344,7 @@ class MergingControlRegular:
                 self._update_info(m_leader, m_ts_head_adj)
             else: # 'r' in action_leader
                 m_ts_tail = self.dic_mplatoon_et[m_leader][2]
-                r_leader_info = self.get_vid_states(r_leader)
+                r_leader_info = self.data_recorder.get_vid_states(r_leader)
                 dis_r = r_leader_info['dis']
                 v_r = r_leader_info['v']
                 # find the best speed curve of m_leader
@@ -395,8 +390,8 @@ class MergingControlRegular:
             # get new tail time of r_leader
             r_ts_tail = self.dic_rplatoon_et[r_leader][2]
             # get m_leader_next info
-            dis = self.get_vid_states(m_leader_next)['dis']
-            v = self.get_vid_states(m_leader_next)['v']
+            dis = self.data_recorder.get_vid_states(m_leader_next)['dis']
+            v = self.data_recorder.get_vid_states(m_leader_next)['v']
             # through into optimiser
             ls_acc_profile = self.get_action_params(r_ts_tail-c_ts+gap, dis, v)
             ls_acc_profile.append(c_ts)
@@ -484,6 +479,22 @@ class MergingControlRegular:
             travel_time = t_uni+t_acc
         return travel_time
 
+    def _get_tail_id(self, dic_vid_groups, platoon_type, leader_id):
+        '''
+        get platoon tail id
+        '''
+        if leader_id == 'mav40':
+            pass
+        if leader_id.startswith('m'):
+            ls_veh_up = dic_vid_groups['ls_m_veh_up']
+        else:
+            ls_veh_up = dic_vid_groups['ls_r_veh_up']
+        idx_leader = ls_veh_up.index(leader_id)
+        dev_idx = len(platoon_type) - 1
+        idx_tail = idx_leader - dev_idx
+        tail_id = ls_veh_up[idx_tail] if idx_tail >= 0 else None
+        return tail_id
+
     def _apply_acceleration(self, vid, acc, smooth=False):
         if acc is not None:
             this_vel = self.traci.vehicle.getSpeed(vid)
@@ -526,7 +537,7 @@ class MergingControlRegular:
         else:
             dis_to_pv = self.merge_control_length # equal to the length of merging control section
         # 3. speed of platoon leader AV
-        dic_head_states = self.get_vid_states(vid)
+        dic_head_states = self.data_recorder.get_vid_states(vid)
         speed_leader = dic_head_states['v'] # this_speed
         # 4. remain dis of platoon leader AV
         remain_dis_leader = dic_head_states['dis'] # this_remain_dis
@@ -535,7 +546,7 @@ class MergingControlRegular:
             tail_id = self.dic_platoon_info[vid][0][1]
             if tail_id == None:
                 pass
-            dic_tail_states = self.get_vid_states(tail_id)
+            dic_tail_states = self.data_recorder.get_vid_states(tail_id)
             speed_tail = dic_tail_states['v']
         # 6. dis of tail vid
             remaining_dis_tail = dic_tail_states['dis']
