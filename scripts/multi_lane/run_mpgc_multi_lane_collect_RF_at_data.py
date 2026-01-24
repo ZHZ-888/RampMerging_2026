@@ -122,8 +122,6 @@ def main(args=None, root=None):
 
     # 1. Parse Args (HPC/CLI Mode)
     parser = hpc_utils.standard_arg_parser()
-    # Parse arguments passed from run.py
-    parser.add_argument('--av_p', type=float, default=0.1, help='AV Penetration Rate')
     parsed_args = parser.parse_args(args=args)
 
     # 2. Run simulation

@@ -21,6 +21,7 @@ def standard_arg_parser():
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--gui", action="store_true")
     parser.add_argument("--out_csv", type=str, default=None)
+    parser.add_argument('--av_p', type=float, default=0, help='AV Penetration Rate')
     return parser
 
 def get_indicator(speed_log, tp, xml_path, runtime):
