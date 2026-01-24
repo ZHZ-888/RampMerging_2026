@@ -33,8 +33,8 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # ================================
 # Experiment parameter grid
 # ================================
-AV_P_VALS=(0.1, 0.2, 0.3) # AV penetartion
-SEEDS=(16, 17, 18, 19, 20)                         # Random seeds
+AV_P_VALS=(0.1 0.2 0.3) # AV penetartion
+SEEDS=(16 17 18 19 20)                         # Random seeds
 
 NAV=${#AV_P_VALS[@]}   # Number of AV Settings (3)
 NS=${#SEEDS[@]}        # Number of Seeds (5)
