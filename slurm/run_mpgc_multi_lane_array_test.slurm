@@ -71,6 +71,4 @@ python run.py \
   --algo fifo_multi_lane \
   --av_p "$AV_P" \
   --seed "$SEED" \
-  --r_fr "$RAMP" \
-  --m_fr "$MAINLINE" \
   --out_csv "$OUT_CSV"
