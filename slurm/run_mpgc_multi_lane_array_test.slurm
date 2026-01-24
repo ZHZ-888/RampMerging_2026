@@ -48,14 +48,14 @@ fi
 
 TASK_ID=${SLURM_ARRAY_TASK_ID}
 
-# Map array task ID to (ramp demand, seed)
-r_idx=$(( TASK_ID / NS ))
+# Map array task ID to (av_p, seed)
+av_idx=$(( TASK_ID / NS ))
 s_idx=$(( TASK_ID % NS ))
 
 AV_P=${AV_P_VALS[$av_idx]}
 SEED=${SEEDS[$s_idx]}
 
-echo "TASK_ID=$TASK_ID | AV_P=$AV_P | Seed=$SEED"
+echo "TASK_ID=$TASK_ID | AV_P=$AV_P | Seed=$SEED | (Indices: av=$av_idx, s=$s_idx)"
 
 # ================================
 # Per-task CSV output (safe for parallel jobs)
