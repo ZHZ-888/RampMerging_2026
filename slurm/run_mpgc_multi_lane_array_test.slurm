@@ -68,7 +68,7 @@ mkdir -p data/raw/tmp
 # Run FIFO multi-lane simulation
 # ================================
 python run.py \
-  --algo fifo_multi_lane \
+  --algo mpgc_multi_lane_collect_RF_at_data \
   --av_p "$AV_P" \
   --seed "$SEED" \
   --out_csv "$OUT_CSV"

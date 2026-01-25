@@ -11,7 +11,7 @@ with a parameter-specific file name.
 import argparse
 import pandas as pd
 import functions.print_control as prc
-from scripts.multi_lane.run_mpgc_multi_lane_colloect_RF_state_data import main
+from scripts.multi_lane.run_mpgc_multi_lane_collect_RF_state_data import main
 
 
 if __name__ == "__main__":
