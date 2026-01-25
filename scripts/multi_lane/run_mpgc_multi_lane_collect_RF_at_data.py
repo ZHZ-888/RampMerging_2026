@@ -86,7 +86,7 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
     # scripts loop
     while step < st * 10:
         # checkpoint
-        if step > 117.6 * 10:
+        if step > 740 * 10:
             pass
 
         traci.simulationStep()  # start simulation
@@ -162,14 +162,14 @@ if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
     dic_targets, ls_features = mpgc_main(
-        av_p = 0.1,
+        av_p = 0.2,
         r_fr = 990,
         m_fr = 1500,
-        seed = 1,
+        seed = 16,
         r_autoFollow_p = 1,
         r_platoon_p = 1,
         loss_rate = 0,
-        gui = True,
+        gui = False,
         plot = False,
         display = False,
         lc = False,
