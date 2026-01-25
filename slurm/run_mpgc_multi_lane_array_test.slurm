@@ -65,7 +65,7 @@ OUT_CSV="data/raw/tmp/rf_data_avp${AV_P}_seed${SEED}.csv"
 mkdir -p data/raw/tmp
 
 # ================================
-# Run FIFO multi-lane simulation
+# Run mpgc_multi_lane_collect_RF_at_data multi-lane simulation
 # ================================
 python run.py \
   --algo mpgc_multi_lane_collect_RF_at_data \
