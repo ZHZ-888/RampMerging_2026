@@ -2,7 +2,6 @@ from functions import platoon_formation2 as pform
 from platoon_split_rl_model import main_agent_handler as agent
 from functions import merging_control_regular as mcr
 
-
 class FormationController:
     def __init__(self, data_recorder, traci):
         self.data_recorder = data_recorder
@@ -50,7 +49,7 @@ class FormationController:
             = self.p_formation.tag_vehicles13(ls_ihA, max_team_size=11)  # SPLIT_PROMOTE
         his_dic_platoon_size, dic_platoon_size, dic_platoon_members \
             = self.p_formation.get_platoon_size3(ls_ihA, ls_leader_AV)
-        dic_current_oversizedP, dic_current_upBav \
+        dic_oversized_platoon_states, dic_leader_candidates \
             = self.p_formation.find_oversizedP_nearbyAV(ls_ihB_av, dic_platoon_size)
 
         # record leaderAV on mainline
@@ -61,8 +60,8 @@ class FormationController:
 
         # RL modules
         dic_insertedAV = self.rl_agent.run_agent_decision(step, dic_platoon_members,
-                                                 dic_current_oversizedP, dic_current_upBav,
-                                                 ls_ihA, gating_value=0.6)  # SPLIT_INSERT
+                                                 dic_oversized_platoon_states, dic_leader_candidates,
+                                                 ls_ihA, gating_value=0.5)  # SPLIT_INSERT
 
         self.merge_regular.flashing_lane_changing(step, dic_insertedAV, ls_ihB)
         dic_score_reward = self.rl_agent.update_reward(step, st, dic_platoon_members)
@@ -70,13 +69,13 @@ class FormationController:
         # ahah.plot_loss(step, st)
 
         # SC2: Predict (find) free followers
-        dic_nonOversizedP = self.p_formation.non_oversized_platoon(dic_platoon_members, dic_current_oversizedP)
+        dic_nonOversizedP = self.p_formation.non_oversized_platoon(dic_platoon_members, dic_oversized_platoon_states)
         dic_id_preState, dic_id_features = self.p_formation.predict_following_state(dic_tags, ls_vehid, model=True)
         dic_sparseP = self.p_formation.find_sparse_platoon(dic_nonOversizedP, dic_id_preState)
         # sparseP => sparse_platoon = {av_leader:first_free_hv}
         promote_av = self.p_formation.free_promote(dic_sparseP, dic_platoon_members)  # FREE_PROMOTE
 
-        # encourage innner lane change which lane_0 hv close to ramp entry
+        # encourage inner lane change which lane_0 hv close to ramp entry
         self.p_formation.manage_lc_behavior_near_ws(lc, ls_ihAB_hv, ls_wsBC_hv, length_ih, p_to_inner=0.8)
 
         # record target value

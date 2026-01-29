@@ -32,14 +32,14 @@ class AgentHandler:
         # dic_insertedAV = {AV_id: type, ...} record promotedAV and its type; here type = 'split'
         self.dic_score_reward = {} # record lc_av and [score, reward], dic = {lc_av:[score, reward]}
 
-    def run_agent_decision(self, step, dic_platoon_members, dic_current_oversizedP,
-                           dic_current_upBav, ls_upA, gating_value=None):
+    def run_agent_decision(self, step, dic_platoon_members, dic_oversized_platoon_states,
+                           dic_leader_candidates, ls_upA, gating_value=None):
         '''
         split_insert (side AV insert into oversized platoon)
 
         :param dic_platoon_members: {leader_id: [leader_id, veh2, ...]}
-        :param dic_current_oversizedP:
-        :param dic_current_upBav: candidate AVs for oversized_platoon (leader_AV),
+        :param dic_oversized_platoon_states:
+        :param dic_leader_candidates: candidate AVs for oversized_platoon (leader_AV),
                e.g. {leader_AV:[candidateAV1, candidateAV2]}
         :param gating_value: gating value, active action while top-score above it
 
@@ -47,11 +47,11 @@ class AgentHandler:
                 here type = 'split'
                 Leader change triggered by oversized platoon splitting (split)
         '''
-        if not dic_current_oversizedP:
+        if not dic_oversized_platoon_states:
             return {}  # {AV_id: type, ...}, type = 'split' or 'free', candidates
         inserted_results = [] # list of inserted AVs with (leader_id, av_id, state, action)
-        for leader_id, pInfo in dic_current_oversizedP.items():
-            if leader_id in self.ls_splited_platoon or leader_id not in dic_current_upBav:
+        for leader_id, platoon_states in dic_oversized_platoon_states.items():
+            if leader_id in self.ls_splited_platoon or leader_id not in dic_leader_candidates:
                 continue
 
             # === Add scoring interval control ===
@@ -59,7 +59,7 @@ class AgentHandler:
             if step - last_step < self.scoring_interval:
                 continue
             self.last_score_step[leader_id] = step
-            ls_candidateAV = dic_current_upBav[leader_id] # list of candidate AV
+            ls_candidateAV = dic_leader_candidates[leader_id] # list of candidate AV
             if not ls_candidateAV:
                 continue
             # Use low threshold during warm-up phase to encourage early exploration
@@ -74,8 +74,8 @@ class AgentHandler:
             selected_state = None
             dic_lcAV_score = {}
             for av_id in ls_candidateAV:
-                # state = self.agent.state_builder.build_state(av_id, pMember, pInfo)
-                state = self.agent.state_builder.build_state2(av_id, pMember, pInfo, ls_upA)
+                # state = self.agent.state_builder.build_state(av_id, pMember, platoon_states)
+                state = self.agent.state_builder.build_state2(av_id, pMember, platoon_states, ls_upA)
                 score = self.agent.predict_score(state)
                 dic_lcAV_score[av_id] = score
                 # self.dic_score_reward[av_id] = [score]

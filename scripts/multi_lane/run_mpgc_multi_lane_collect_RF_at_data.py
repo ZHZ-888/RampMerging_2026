@@ -63,14 +63,16 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
         av_p0, av_p1 = av_p, av_p
         m0_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p0, m_fr, seed)
         m1_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p1, m_fr, 100 - seed)
-        r_dpt_type = vg.get_schedule2(st, av_p, r_fr, r_platoon_p, max_attempts, plot, seed, display)
+        r_dpt_type = vg.get_schedule2(st, av_p, r_fr, r_platoon_p,
+                                      max_attempts, plot, seed, display)
         # ramp road veh depature schedule
         veh_gen = vg.VehGen(traci)  # function related to veh generation
         data_recorder = dr.DataRecording(traci)
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
         formation_controller = fc.FormationController(data_recorder, traci)
-        merging_controller = mc.MergingController(data_recorder, traci, av_p, platoon_formation=True, ml=True)
+        merging_controller = mc.MergingController(data_recorder, traci, av_p,
+                                                  platoon_formation=True, ml=True)
 
         dic_targets, ls_features = \
             loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller, lc,
@@ -79,8 +81,8 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
         traci.close()
     return (dic_targets, ls_features)
 
-def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller, lc, r_autoFollow_p,
-         m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None):
+def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller, lc,
+         r_autoFollow_p, m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None):
     # START SIMULATION
     step = 0
     # scripts loop
@@ -88,16 +90,15 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
         # checkpoint
         if step > 740 * 10:
             pass
-
         traci.simulationStep()  # start simulation
         # mainlane vehicle generation
         # veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
-        # veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route0', 27.5, '0')  # 30m/s => 110km/h
+        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route0', 27.5, '0')  # 30m/s => 110km/h
         # ramp vehicle generation
-        veh_gen.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
+        # veh_gen.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
 
         # disable lane-changing
-        data_recorder.disable_all_lane_changes()
+        # data_recorder.disable_all_lane_changes()
 
         # core control
         (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
@@ -162,14 +163,14 @@ if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
     dic_targets, ls_features = mpgc_main(
-        av_p = 0.2,
+        av_p = 0.1,
         r_fr = 990,
         m_fr = 1500,
         seed = 16,
         r_autoFollow_p = 1,
         r_platoon_p = 1,
         loss_rate = 0,
-        gui = False,
+        gui = True,
         plot = False,
         display = False,
         lc = False,

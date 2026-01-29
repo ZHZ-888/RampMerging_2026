@@ -97,8 +97,8 @@ def loop(traci, st, veh_gen, data_recorder, rm_algo,
             prc.print_message(f'************current_time, step:{c_ts, step}************')
 
         # mainlane vehicle generation
-        veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
         veh_gen.veh_gen_hetero(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
+        veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
         # ramp vehicle generation
         veh_gen.veh_gen_hetero(step, r_dpt_type, 'r', 'route2', 10, '0')
 
@@ -162,7 +162,7 @@ def main(args=None, root=None):
     runtime = end - start
 
     tp, average_v, ttc_ratio, avg_speed_std, runtime = (
-        hpc_utils.get_indicator(speed_log, tp, xml_path, runtime))
+        hpc_utils.get_mc_indicator(speed_log, tp, xml_path, runtime))
 
     # 3. Save results
     if parsed_args.out_csv:
@@ -195,4 +195,4 @@ if __name__ == '__main__':
     )
     end = time.time()
     runtime = end - start
-    hpc_utils.get_indicator(speed_log, tp, xml_path, runtime)
+    hpc_utils.get_mc_indicator(speed_log, tp, xml_path, runtime)

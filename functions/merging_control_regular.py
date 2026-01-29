@@ -50,8 +50,10 @@ class MergingControlRegular:
         self.dic_rplatoon_et = {}  # ramp platoon estimate time// {leader_id : [platoon_type, ts_head, ts_tail, update_time]}
         self.dic_mplatoon_et = {}  # mainline platoon estimate time//
         # random forest arrival time prediction model
+        # self.rf_at_model = joblib.load(
+        #     os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model241128_ndarray.pkl'))
         self.rf_at_model = joblib.load(
-            os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model241128_ndarray.pkl'))
+            os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model260125_ndarray.pkl'))
 
     def update_platoon_et(self, step, ls_leader_up, m=True, interval=70):
         '''
@@ -155,8 +157,6 @@ class MergingControlRegular:
         ls_mr_leader_up = ls_m_leader_up_asc + ls_r_leader_up
 
         for leader in ls_mr_leader_up:
-            if leader == 'ravh7400':
-                pass
             platoon_type = self.data_recorder.dic_leader_ptype.get(leader)
             if platoon_type is None:
                 continue  # jump
@@ -483,6 +483,28 @@ class MergingControlRegular:
             t_uni = (D-d_acc)/self.max_speed
             travel_time = t_uni+t_acc
         return travel_time
+
+    def set_veh_color(self):
+        '''
+        dic_follower_state = {follower_id: [state, leader_id]}
+        state = free_mode/following_mode
+
+        av_leader: yellow, av_follower: red
+        action_av: flashing between yellow and red
+        hv_follower: green, hv_free: white
+        '''
+        dic_follower_state = self.data_recorder.dic_follower_state
+        ls_ihAB_hv = self.data_recorder.dic_vid_groups['ls_ihAB_hv']
+        for vid in ls_ihAB_hv:
+            # 1. Try to get the list (returns None if vid is missing)
+            item = dic_follower_state.get(vid)
+            # 2. If item exists, get the first element; otherwise set to None
+            following_state = item[0] if item else None
+            if following_state == 'following_mode':
+                self.traci.vehicle.setColor(vid, (0, 255, 0)) # green
+                self.traci.vehicle.setColor(vid, (144, 238, 144))
+            else:
+                pass
 
     def _get_tail_id(self, dic_vid_groups, platoon_type, leader_id):
         '''

@@ -39,11 +39,13 @@ class DataRecording:
         self.ls_tail_ids = []
 
         '''
-        dic_member_to_leader = 
+        dic_platoon_members = 
                     {'mav19': ['mav19', 'mhv46', 'mhv64', 'mhv74', 'mhv86'], 
                      'veh_2': ['veh_2', 'veh_4']}
+        dic_member_to_leader = {follower_id: leader_id}
         '''
-        self.dic_member_to_leader = {} # only multi-lane scenario have this dic; leader => members
+        self.dic_follower_state = {} # {follower_id: [state, leader_id]}
+        self.dic_member_to_leader = {} # only multi-lane scenario have this dic; from platoon_formation2.py
         self.merge_control_length = 800  # the length of merging control section
 
         # multi-lane scenario => (27.78 m/s => 100 km/h)
@@ -446,20 +448,17 @@ class DataRecording:
         """
         get speed, lane, position, distance of this ID
         """
-        dic_vid_states = {}
-        ls_veh = self.traci.vehicle.getIDList()
-        # v = self.traci.vehicle.getSpeed(vid)
-        if vid == None or vid not in ls_veh:
-            dic_vid_states['v'] = None
-            dic_vid_states['lane'] = None
-            dic_vid_states['pos'] = None
-            dic_vid_states['dis'] = None
+        dic_vid_states = {'v': None, 'lane': None, 'pos': None, 'dis': None}
+        if not vid:
             return dic_vid_states
-        v = self.dic_speed[vid]
-        pos = self.traci.vehicle.getLanePosition(vid)
-        lane_id = self.traci.vehicle.getLaneID(vid)
-        lane_length = self.traci.lane.getLength(lane_id)
-
+        # ls_veh = self.traci.vehicle.getIDList()
+        try:
+            v = self.dic_speed.get(vid)  # cached
+            pos = self.traci.vehicle.getLanePosition(vid)
+            lane_id = self.traci.vehicle.getLaneID(vid)
+            lane_length = self.traci.lane.getLength(lane_id)
+        except Exception:
+            return dic_vid_states
         dic_vid_states['v'] = v
         dic_vid_states['lane'] = lane_id
         dic_vid_states['pos'] = pos

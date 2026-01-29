@@ -86,6 +86,9 @@ class MergingController:
         )
         # jam_mode = True
         # regular_mode = False
+
+        self.merge_regular.set_veh_color()
+
         # === 4. Apply corresponding control logic ===
         if jam_mode:
             # Jam mode control

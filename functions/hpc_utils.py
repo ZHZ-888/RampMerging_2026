@@ -24,17 +24,39 @@ def standard_arg_parser():
     parser.add_argument('--av_p', type=float, default=0, help='AV Penetration Rate')
     return parser
 
-def get_indicator(speed_log, tp, xml_path, runtime):
+def get_mc_indicator(speed_log, tp, xml_path, runtime):
     """Calculates performance indicators after simulation."""
     ttc_ratio, avg_speed_std = calc_ttc_sd_exposure.calc_ttc_and_speed_std(xml_path)
     avg_speeds = [item[1] for item in speed_log]
     clean_avg_speeds = [v for v in avg_speeds if v is not None]
     average_v = sum(clean_avg_speeds) / len(clean_avg_speeds)
-    print("\n           ---performance indicators---")
+    print("\n           ---merging control performance indicators---")
     print(f'tp: {tp} veh/h, average_v:{average_v} m/s, '
           f'ttc_ratio: {ttc_ratio}, avg_speed_std: {avg_speed_std}, '
           f'execution_time:{runtime:.1f} s')
     return tp, average_v, ttc_ratio, avg_speed_std, runtime
+
+def get_fc_indicator(dic_follower_state, his_dic_platoon_size):
+    '''
+    get formation control indicators
+    Parameters
+    ----------
+    dic_follower_state
+    his_dic_platoon_size
+    '''
+    # PLATOON FORMATION results
+    # indicator 1: num.platoon_followers/num.followers %
+    num_follower = len(dic_follower_state)
+    num_platoon_follower = len([k for k, v in dic_follower_state.items() if v[0] == 'following_mode'])
+    print("\n           ---formation control performance indicators---")
+    print(f"index1: {num_platoon_follower} platoon_followers, {num_follower} followers, "
+          f"ratio: {num_platoon_follower / num_follower * 100:.1f}%")
+    # indicator 2: num.normal_size_platoon/num.platoon
+    num_platoon = len(his_dic_platoon_size)
+    num_normal_size_platoon = len([k for k, v in his_dic_platoon_size.items() if v <= 11])
+    print(f"index2: {num_platoon} num_platoon, {num_normal_size_platoon} num_normal_size_platoon, "
+          f"ratio: {num_normal_size_platoon / num_platoon * 100:.1f}%, ")
+    return
 
 def write_one_row_csv(path: str, row: dict):
     """Writes a single row to a CSV file safely."""

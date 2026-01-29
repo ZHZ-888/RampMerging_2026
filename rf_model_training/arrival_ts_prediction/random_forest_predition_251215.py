@@ -17,17 +17,17 @@ import joblib
 #%%
 # 1. Data
 # Feature data (platoon_type, distance, speed)
-df_ft = pd.read_csv('/home/zzha/PycharmProjects/RampMerging4_250208/data/features/df_combined_mr_4f_241128.csv')
+# path = '/home/zzha/PycharmProjects/RampMerging4_250208/data/features/df_combined_mr_4f_241128.csv'
+path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/rf_at_data_rm.csv'
+df_ft = pd.read_csv(path)
 print(len(df_ft))
-df_train_test = df_ft
-df_train_test
 
 #%%
 # 2. Separate features and target variable
-feature_cols = ['platoon_type', 'dis_leader_pv', 'leader_v', 'leader_r_dis', 'm']
+feature_cols = ['platoon_type', 'dis_to_pv', 'speed_leader', 'remain_dis_leader', 'm']
 
-X = df_train_test[feature_cols].values
-y = df_train_test['tail_arr_duration'].values
+X = df_ft[feature_cols].values
+y = df_ft['target'].values
 
 # 3. Split the dataset into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -69,7 +69,7 @@ predicted_time = model.predict(new_data)
 print(f"\nPredicted Arrival Time for new data: {predicted_time[0]:.2f} seconds")
 
 #%% save the model
-joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging4_250208/models/mr_arrival_prediction_model241128_ndarray.pkl')
+joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/mr_arrival_prediction_model260125_ndarray.pkl')
 
 #%% load model
 loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging4_250208/models/mr_arrival_prediction_model241128.pkl')

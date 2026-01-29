@@ -1,45 +1,52 @@
-def get_platoon_info2(self, step, m_dpt_type={}, r_dpt_type={}):
-    """
-    IMPORTANT: recording platoon information
-    240929update: fixed length of platoon info
-    240622update: add tail_id
+def predict_following_state(self, dic_id_type, ls_vehid, model=False):
+    '''
+    250520 updated version: platoon-wise prediction.
+    If any follower is predicted as 'free', all subsequent followers in the same platoon
+    will be automatically labeled as free without prediction (but still recorded).
 
-    :param m_dpt_type: scripts lane veh departure schedule; {4: 'AHHHHHHHHH', 31: 'AHHHHHHHHHHH'}
-    :param r_dpt_type: ramp lane veh departure schedule; {4: 'AHHHHHHHHH', 58: 'AHHHHHHHHHHH'}
-    :return: dic_platoon_info:
-            {'mavh70': [['AHH', 'mhv90'], deque([125.20400390170198, 125.383892989], maxlen=10)]}
-    """
-    # 1. get all avh at this moment
-    dic_vid_groups = self.data_recorder.dic_vid_groups
-    ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']
-    ls_r_leader_up = dic_vid_groups['ls_r_leader_up']
-    ls_mr_leader_up = ls_m_leader_up_asc + ls_r_leader_up
+    :param dic_id_type (dic_tags): {id:tag, ..., } asc order, before merging, on mainlane;
+                                    0: HV follower, 1: leader_AV, 2: follower_AV
+           ls_vehid: all veh on net at this step; the order is not important
+           # dic_promotedAV: {AV_id: type, ...}, type = 'split' or 'free'
+           model: whether to perform prediction using fs_model
+    :return:
+            0:free; 1:following
+            self.dic_id_preState = {id: state,... } # id start from the first follower of the first AV_leader
+            the sequence: decrease or increase
+    '''
+    if not dic_id_type:
+        return self.dic_id_preState, self.dic_id_features
 
-    for leader in ls_mr_leader_up:
-        platoon_type = self.data_recorder.dic_leader_ptype.get(leader)
-        if platoon_type is None:
-            continue  # jump
-        veh_num = len(platoon_type)
-        # special situation, type 'A', no tail vehicle, no platoon length
-        if veh_num == 1:
-            self.dic_platoon_info[leader] = [[platoon_type, None], None]
-            continue
-        tail_id = self._get_tail_id(dic_vid_groups, platoon_type, leader)
-        if tail_id in dic_vid_groups['ls_vehid']:
-            if tail_id not in self.data_recorder.ls_tail_ids:
-                self.data_recorder.ls_tail_ids.append(tail_id)  # ls_tail_ids (purpose?)
-            dic_head_states = self.data_recorder.get_vid_states(leader)
-            dic_tail_states = self.data_recorder.get_vid_states(tail_id)
-            pos_head = dic_head_states['pos']
-            pos_tail = dic_tail_states['pos']
-            platoon_length = pos_head - pos_tail
-            # record information
-            ls_info_partA = [platoon_type, tail_id]
+    # if a new av leader promote or emerge, repredict follower states
 
-            if leader not in self.dic_platoon_info:
-                dq_info_partB = deque(maxlen=10)  # fixed length is 10
-                self.dic_platoon_info[leader] = [ls_info_partA, dq_info_partB]
 
-            self.dic_platoon_info[leader][1].append(platoon_length)
-    self.data_recorder.dic_platoon_info = self.dic_platoon_info
-    return self.dic_platoon_info
+
+
+
+
+    # Only proceed when a new follower appears
+    new_follower_id, newest_tag = next(reversed(dic_id_type.items()))  # get the new in veh_id and veh_tag
+    # If a new platoon leader appears, reset free_triggered
+    if newest_tag == 1:
+        self.free_triggered = False
+    # Only process new followers (skip if already processed or is a leader)
+    if new_follower_id in self.dic_id_features or newest_tag == 1 or new_follower_id not in ls_vehid:
+        return self.dic_id_preState, self.dic_id_features
+    # == get features == always extract features for training
+    arr_select_features = self.get_RFfeatures(new_follower_id)
+    if arr_select_features is None:
+        return self.dic_id_preState, self.dic_id_features  # or `continue` if used in a loop
+    # == prediction ==
+    if model:
+        # if model == True, predict the state of the newest_follower
+        if self.free_triggered:
+            # free_triggered = True; No prediction needed, directly mark as free
+            pre_state = [0]
+        else:
+            # free_triggered = False; Perform prediction using model
+            pre_state = self.fs_model.predict(arr_select_features)
+        self.dic_id_preState[new_follower_id] = pre_state[0]
+
+        if pre_state[0] == 0:  # free
+            self.free_triggered = True
+    return self.dic_id_preState, self.dic_id_features  # self.dic_id_features includes all id & features

@@ -1,8 +1,9 @@
 # platoon_formation2.py
 import os
-import numpy as np
-import joblib  # model prediction
 import random
+
+import joblib  # model prediction
+import numpy as np
 
 current_dir = os.path.dirname(os.path.abspath(__file__))  # Get the absolute path of the current script's directory
 project_root = os.path.dirname(current_dir)  # Get the parent directory as the project root
@@ -20,26 +21,22 @@ class PlatoonForm:
         self.ls_speed_ok = []  # av_id that speed restore back to max(30m/s)
         self.leader_AV = set()  # all leader_AV
         self.dic_id_features = {}  # {id:[f1, f2,..., ], ...}
-        self.dic_follower_state = {}  # state of each followers
+        self.dic_follower_state = {}  # state of each followers; free_mode/following_mode
         self.dic_id_preState = {}
         # follower_state_prediction prediction model
-        # self.fs_model = joblib.load("/Models/follower_state_prediction_model_250501.pkl")
-        # self.fs_model = joblib.load(
-        #     os.path.join(project_root, 'rf_models', 'follower_state_prediction_model_250501.pkl'))
         self.fs_model = joblib.load(
             os.path.join(project_root, 'rf_models', 'follower_state_prediction_model_251121_ndarray.pkl'))
         self.ls_leader_AV = []
         self.ls_follower_AV = []
         self.ls_upA_lastStep = []  # ls_upA (upstream AV) last Step
 
-        self.dic_oversizedPlatoon_info = {}  # {leader_AV: platoon_info}
         self.dic_platoon_size = {}  # all leaderAV and its platoon size
         self.dic_platoon_members = {}  # all leaderAV and its members
         self.free_triggered = False  # for record_predict3
 
         self.dic_AVroleChange = {}  # dic_AVroleChange = {AV_id: type, ...} record AV changed its role
         self.ls_follower_mc = []  # list of follower on merging control section of inflow_highway
-        self.ls_leader_mc = []
+        self.ls_leader_mc_checked = []
 
         self.encourage_change_mark = set()  # record id that has been order to change to inner lane
         self.lcKeepRight_disabled = set()
@@ -54,7 +51,8 @@ class PlatoonForm:
         record each platoon members
         :param ls_upA: ['mhv3305', 'mav3287', 'mhv3171', ...] decrease
         :param leader_AV: all leaderAV CURRENTLY on upstream_0, for example: ['mav2744', 'mav3038']
-        :return: dic_id_size, current leader_AV and its corresponding size
+        :return: dic_id_size = {'mav158': 10, 'mav44': 4, 'mav661': 2},
+                        current leader_AV and its corresponding size
                  dic_platoon_members = {
                                         'mav19': ['mav19', 'mhv46', 'mhv64', 'mhv74', 'mhv86'],
                                         "veh_2": ["veh_2", "veh_4"]
@@ -302,47 +300,44 @@ class PlatoonForm:
                 self.traci.vehicle.setLaneChangeMode(vid, 256)
                 self.no_lc_veh.add(vid)
 
-    def find_oversizedP_nearbyAV(self, ls_upB_av, dic_platoon_size):
+    def find_oversizedP_nearbyAV(self, ls_ihB_av, dic_platoon_size):
         '''
-        find oversized Platoon, get target platoon info
+        Identifies oversized platoons and finds nearby side-lane AVs of oversized platoon
         :param dic_platoon_size: {leader_AV : size, ...}
-                ls_upB_av (decrease, big => small)
-        :return: dic_current_oversizedP => leader_AV : [platoon_info]]
-                dic_current_upBav => leader_AV: [ls_upB_av], all lane_B AV that behind target leader
+                ls_ihB_av (descending, new av => old av)
+        :return: dic_oversized_platoon_states => {leader_AV : [head_pos,
+                                                        tail_pos,
+                                                        avg_speed,
+                                                        size]}
+                dic_leader_candidates => {oversized_platoon leader_AV: [outer_candidates_av1, candidates_av2]}
+                all lane_B AV that behind target leader
         '''
-        # leader_pos, leader_speed, size
-        ls_upB_av_re = ls_upB_av[::-1]  # Reverse to oldest → newest
-        dic_current_oversizedP = {}  # oversized platoon
+        ls_ihB_av_asc = ls_ihB_av[::-1]  # Reverse to oldest → newest
+        dic_oversized_platoon_states = {}  # oversized platoon
         for leader_id, size in dic_platoon_size.items():
             if size > self.max_team_size:
-                '''
-                p_info = [head_pos,
-                        tail_pos,
-                        avg_speed,
-                        size]
-                '''
                 ls_members = self.dic_platoon_members[leader_id]
                 tail_id = ls_members[-1]
-                head_pos = self.traci.vehicle.getLanePosition(leader_id)
-                tail_pos = self.traci.vehicle.getLanePosition(tail_id)
-                avg_speed = sum(self.traci.vehicle.getSpeed(vid) for vid in ls_members) / len(ls_members)
-                ls_info = [head_pos, tail_pos, avg_speed, size]
-                dic_current_oversizedP[leader_id] = ls_info
-                self.dic_oversizedPlatoon_info[leader_id] = ls_info
+                head_pos = self.data_recorder.get_vid_states(leader_id)['pos']
+                tail_pos = self.data_recorder.get_vid_states(tail_id)['pos']
+                avg_speed = sum(self.data_recorder.get_vid_states(vid)['v'] for vid in ls_members) / len(ls_members)
+                platoon_states = [head_pos, tail_pos, avg_speed, size]
+                dic_oversized_platoon_states[leader_id] = platoon_states
         # nearby lane AV list
-        dic_current_upBav = {}
-        if dic_current_oversizedP:
-            for leader_id, info in dic_current_oversizedP.items():
-                leader_pos = info[0]
-                for index, upB_av in enumerate(ls_upB_av_re):
-                    pos = self.traci.vehicle.getLanePosition(upB_av)
-                    if pos < leader_pos:
-                        ls_upB_av_filtered = ls_upB_av_re[index:]
-                        dic_current_upBav[leader_id] = ls_upB_av_filtered
+        dic_leader_candidates = {}
+        if dic_oversized_platoon_states:
+            for leader_id, platoon_states in dic_oversized_platoon_states.items():
+                pos_leader = platoon_states[0]
+                for index, outer_lane_av in enumerate(ls_ihB_av_asc):
+                    # pos = self.traci.vehicle.getLanePosition(outer_lane_av)
+                    pos_outer_av = self.data_recorder.get_vid_states(outer_lane_av)['pos']
+                    if pos_outer_av < pos_leader:
+                        av_candidates = ls_ihB_av_asc[index:]
+                        dic_leader_candidates[leader_id] = av_candidates # dic_target_leader_av_candidates
                         break
-        return dic_current_oversizedP, dic_current_upBav
+        return dic_oversized_platoon_states, dic_leader_candidates
 
-    def check_state(self, id):
+    def _check_state(self, id):
         '''
         check followers' state: decoupled free flow mode/coupled following mode
         :param id:
@@ -383,14 +378,14 @@ class PlatoonForm:
                 return leader, index
         return None, None
 
-    def non_oversized_platoon(self, dic_platoon_members, dic_current_oversizedP):
+    def non_oversized_platoon(self, dic_platoon_members, dic_oversized_platoon_states):
         '''
         get current non oversized platoon
         :param dic_platoon_members: all platoon at this time step
-        :param dic_current_oversizedP: all overseized platoon at this time step
+        :param dic_oversized_platoon_states: all overseized platoon at this time step
         :return: dic_nonOversized
         '''
-        oversized_leader = list(dic_current_oversizedP.keys())
+        oversized_leader = list(dic_oversized_platoon_states.keys())
         all_leader = list(dic_platoon_members.keys())
         non_oversized_leader = list(set(all_leader) - set(oversized_leader))
         dic_nonOversized = {k: dic_platoon_members[k] for k in non_oversized_leader}
@@ -433,6 +428,7 @@ class PlatoonForm:
                 # free_promote
                 self.dic_tags[promote_av] = 1
                 self.dic_AVroleChange[promote_av] = 'free_promote'
+                self.free_triggered = True
             else:
                 promote_av = None
         return
@@ -443,8 +439,9 @@ class PlatoonForm:
         If any follower is predicted as 'free', all subsequent followers in the same platoon
         will be automatically labeled as free without prediction (but still recorded).
 
-        :param dic_id_type: the same as dic_tags = {id:tag, ..., }
-               ls_vehid: the order is not important
+        :param dic_id_type (dic_tags): {id:tag, ..., } asc order, before merging, on mainlane;
+                                        0: HV follower, 1: leader_AV, 2: follower_AV
+               ls_vehid: all veh on net at this step; the order is not important
                # dic_promotedAV: {AV_id: type, ...}, type = 'split' or 'free'
                model: whether to perform prediction using fs_model
         :return:
@@ -456,6 +453,8 @@ class PlatoonForm:
             return self.dic_id_preState, self.dic_id_features
         # Only proceed when a new follower appears
         new_follower_id, newest_tag = next(reversed(dic_id_type.items()))  # get the new in veh_id and veh_tag
+        if new_follower_id == 'mav281':
+            pass
         # If a new platoon leader appears, reset free_triggered
         if newest_tag == 1:
             self.free_triggered = False
@@ -531,7 +530,7 @@ class PlatoonForm:
     def record_follower_state2(self, step, length_ih, dic_tags, ls_ihA):
         """
         When an AV leader enters the last 800 meters of inflow_highway_0 for the first time,
-        record the current states (free_mode / platoon_follow) of all its platoon followers.
+        record the current states (free_mode / following_mode) of all its platoon followers.
 
         :param length_ih: total length of inflow_highway_0
         :param dic_tags: {veh_id: tag}, where tag == 1 means AV leader, tag != 1 means follower
@@ -539,40 +538,27 @@ class PlatoonForm:
         :return: self.dic_follower_state: {follower_id: [state, leader_id]}
         """
 
-        # Length of the merging control section (last 800 meters)
-        length_mc = 800
-        # Starting position of the merging control section
-        length_pf = length_ih - length_mc
-        # 1. Collect all AV leaders (tag == 1)
-        ls_leaders = [vid for vid, tag in dic_tags.items() if tag == 1]
-        # 2. AV leaders currently located on inflow_highway_0
-        ls_ihA_leaders = [vid for vid in ls_ihA if vid in ls_leaders]
-        # 3. Leaders that have reached the merging control section (> length_pf)
-        ls_mc_leaders = [
-            lid for lid in ls_ihA_leaders
-            if self.traci.vehicle.getLanePosition(lid) > length_pf
-        ]
+        # 1. Leaders that have reached the merging control section (> length_pf)
+        ls_mc_leaders = self.data_recorder.dic_vid_groups['ls_m_leader_up']
         # No leader in the merging control section
         if not ls_mc_leaders:
-            return self.ls_leader_mc, self.dic_follower_state, self.dic_final_platoon_info
-
+            return self.ls_leader_mc_checked, self.dic_follower_state, self.dic_final_platoon_info
         # Take the most recently arrived leader
-        leader_mc = ls_mc_leaders[0]
-        if leader_mc == 'mav11232':
-            pass
+        leader_mc_newest = ls_mc_leaders[0]
         # Ensure this leader is recorded only once
-        if leader_mc in self.ls_leader_mc:
-            return self.ls_leader_mc, self.dic_follower_state, self.dic_final_platoon_info
-        self.ls_leader_mc.append(leader_mc)
-        # 4. Retrieve all followers belonging to this leader's platoon
-        platoon_followers = self.dic_platoon_members.get(leader_mc, [])[1:]
-        # 5. Record the state of each follower at the moment the leader enters 800m
+        if leader_mc_newest in self.ls_leader_mc_checked:
+            return self.ls_leader_mc_checked, self.dic_follower_state, self.dic_final_platoon_info
+        self.ls_leader_mc_checked.append(leader_mc_newest)
+        # 2. Retrieve all followers belonging to this leader's platoon
+        platoon_followers = self.dic_platoon_members.get(leader_mc_newest, [])[1:]
+        # 3. Record the state of each follower at the moment the leader enters 800m
         for fol in platoon_followers:
-            state = self.check_state(fol)  # Determine free_mode or platoon_follow
-            self.dic_follower_state[fol] = [state, leader_mc]
+            state = self._check_state(fol)  # Determine free_mode or following_mode
+            self.dic_follower_state[fol] = [state, leader_mc_newest]
+        self.data_recorder.dic_follower_state = self.dic_follower_state
         # record final platoon information
         self._get_final_platoon_info(step, self.dic_follower_state)
-        return self.ls_leader_mc, self.dic_follower_state, self.dic_final_platoon_info
+        return self.ls_leader_mc_checked, self.dic_follower_state, self.dic_final_platoon_info
 
     def encourage_inner_lane_change(
             self,
@@ -644,12 +630,14 @@ class PlatoonForm:
             return
         # if lc is True
         self._disable_keepRight_in_weaving(ls_ihAB_hv, ls_wsBC_hv)
-        self._encourage_outer_to_inner(ls_ihAB_hv, length_ih, p_to_inner, weaving_influence_range)
-        self._cancel_pending_changes_on_center()
-        self._restore_keepRight_outside_weaving(length_ih, weaving_influence_range)
+        # self._encourage_outer_to_inner(ls_ihAB_hv, length_ih, p_to_inner, weaving_influence_range)
+        # self._cancel_pending_changes_on_center()
+        # self._restore_keepRight_outside_weaving(length_ih, weaving_influence_range)
 
     def update_member_to_leader(self, dic_platoon_members):
-        """Build a reverse mapping from follower ID to its platoon leader."""
+        """Build a reverse mapping from follower ID to its platoon leader.
+        dic_member_to_leader = {follower_id: leader_id,...}
+        """
         dic_member_to_leader = {}
         for leader_id, members in dic_platoon_members.items():
             for veh_id in members:

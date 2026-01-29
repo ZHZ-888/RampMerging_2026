@@ -15,54 +15,6 @@ class StateBuilder:
         self.max_lane_pos = max_lane_pos # take note this number
         self.max_size = max_size
 
-    def build_state(self, av_id: str, pMember, p_info: list) -> np.ndarray:
-        """
-        Build the state vector for a given candidate AV.
-
-        Parameters:
-        - av_id: candidate vehicle ID (on side lane)
-        - pMember: members list of oversized platoon
-        - p_info: list = [head_pos, tail_pos, avg_speed, size]
-
-        Returns:
-        - np.ndarray: normalized state vector with 8 elements
-        """
-        try:
-            # Unpack platoon info
-            head_pos, tail_pos, avg_speed, size = p_info
-
-            # AV features
-            v_av = self.traci.vehicle.getSpeed(av_id)
-            av_pos = self.traci.vehicle.getLanePosition(av_id)
-
-            # veh number before and after lc_av
-            positions = [(vid, self.traci.vehicle.getLanePosition(vid)) for vid in pMember]
-            num_front = len([vid for vid, pos in positions if pos >= av_pos])
-            num_back = len([vid for vid, pos in positions if pos < av_pos])
-
-            # Relative position
-            gap_tail = (tail_pos - av_pos) / self.max_gap
-            gap_head = (head_pos - av_pos) / self.max_gap
-            gap_tail = np.clip(gap_tail, -1.0, 1.0)
-            gap_head = np.clip(gap_head, -1.0, 1.0)
-
-            # Construct normalised state vector
-            state = np.array([
-                v_av / self.vmax,
-                av_pos / self.max_lane_pos,
-                gap_tail,
-                gap_head,
-                size / self.max_size,
-                avg_speed / self.vmax,
-                num_front / self.max_size,
-                num_back / self.max_size
-            ], dtype=np.float32)
-
-        except Exception as e:
-            print(f"[StateBuilder] Failed to extract state for {av_id}: {e}")
-            state = np.zeros(8, dtype=np.float32)
-        return state
-
     def build_state2(self, av_id: str, pMember, p_info: list, ls_upA) -> np.ndarray:
         """
         Build the state vector for a given candidate AV.
@@ -75,6 +27,8 @@ class StateBuilder:
         Returns:
         - np.ndarray: normalized state vector with 10 elements
         """
+        if av_id == 'mbav1274':
+            pass
         try:
             # Unpack platoon info
             head_pos, tail_pos, avg_speed, size = p_info

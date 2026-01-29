@@ -87,14 +87,21 @@ def loop(traci, st, vgvg, data_recorder,
             prc.print_message(f'************current_time, step:{c_ts, step}************')
 
         # mainlane vehicle generation
-        vgvg.veh_gen_hetero(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
         vgvg.veh_gen_hetero(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
+        # vgvg.veh_gen_hetero(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
         # ramp vehicle generation
         vgvg.veh_gen_hetero(step, r_dpt_type, 'r', 'route2', 10, '0')
-
         # performance indicator
         dic_vehinfo = data_recorder.record_vehinfo()
         ls_veh_id = dic_vehinfo['ls_vehid']
+
+        for vid in ls_veh_id:
+            traci.vehicle.setParameter(
+                vid,
+                "laneChangeModel.lcKeepRight",
+                "0"
+            )
+
         step_speed = data_recorder.get_average_speed(step, ls_veh_id)
         # 1. speed_record
         speed_log.append(step_speed)
@@ -131,7 +138,7 @@ def main(args=None, root=None):
     runtime = end - start
 
     tp, average_v, ttc_ratio, avg_speed_std, runtime = (
-        hpc_utils.get_indicator(speed_log, tp, xml_path, runtime))
+        hpc_utils.get_mc_indicator(speed_log, tp, xml_path, runtime))
     # 3. Save results
     if parsed_args.out_csv:
         row = {
@@ -153,16 +160,16 @@ if __name__ == '__main__':
     start = time.time()
     speed_log, tp, xml_path = fifo_main(
         av_p = 0,
-        r_fr = 1200,
+        r_fr = 0,
         m_fr = 1500,
         seed = 5,
-        gui = False,
+        gui = True,
         plot = False,
         display = False,
         st = 1200
     )
     end = time.time()
     runtime = end - start
-    hpc_utils.get_indicator(speed_log, tp, xml_path, runtime)
+    hpc_utils.get_mc_indicator(speed_log, tp, xml_path, runtime)
 
 
