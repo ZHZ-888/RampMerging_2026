@@ -16,7 +16,7 @@ from functions import data_recording as dr
 from functions import hpc_utils
 
 
-def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p, r_platoon_p, loss_rate=0,
+def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate=0,
          gui=False, plot=False, display=False, lc=False, st=1000):
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
@@ -34,7 +34,10 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p, r_platoon_p, loss_rate=0,
     '''
     Look for a system setting named TRAJ_DIR. If it exists, use it. If not, use this default folder.
     '''
-    traj_dir = os.environ.get("TRAJ_DIR", "../../data/multi_lane/algo")
+    traj_dir = Path(os.environ.get(
+                    "TRAJ_DIR",
+                    ROOT / "data" / "multi_lane" / "algo"
+                ))
     file_name = f'trj_{r_fr}_{av_p}_{seed}_{loss_rate}.xml'
     xml_path = os.path.join(traj_dir, file_name)
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
@@ -85,7 +88,7 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
     # scripts loop
     while step < st * 10:
         # checkpoint
-        if step > 55 * 10:
+        if step > 100 * 10:
             pass
         traci.simulationStep()  # start simulation
 
@@ -109,6 +112,36 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
     return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
             tp, speed_log, queue_log)
 
+def main(args=None, root=None):
+    """
+    Unified entry point for CLI (command line interface) / HPC.
+    This function is called by run.py.
+    It parses command-line arguments and calls mpgc_main().
+    """
+    prc.PRINT_ENABLED = False
+
+    # 1. Parse Args (HPC/CLI Mode)
+    parser = hpc_utils.standard_arg_parser()
+    parsed_args = parser.parse_args(args=args)
+
+    # 2. Run simulation
+    # Call the original algorithm
+    start = time.time()
+    (dic_score_reward, dic_follower_state, his_dic_platoon_size,
+     dic_id_features, tp, speed_log, queue_log, xml_path) = mpgc_main(
+        av_p=parsed_args.av_p,
+        r_fr=parsed_args.r_fr,
+        m_fr=parsed_args.m_fr,
+        seed=parsed_args.seed,
+        gui=parsed_args.gui
+    )
+    end = time.time()
+    runtime = end - start
+
+    hpc_utils.get_fc_indicator(dic_follower_state, his_dic_platoon_size)
+    tp, average_v, ttc_ratio, avg_speed_std, runtime = (
+        hpc_utils.get_mc_indicator(speed_log, tp, xml_path, runtime))
+
 def _set_dynamic_traffic(step, start_t, r_dpt_type, dynamic=True):
     '''
     set dynamic traffic. For example: default r_demands=720 veh/h; start_t=5 min, new_fr=180 veh/h;
@@ -126,20 +159,19 @@ def _set_dynamic_traffic(step, start_t, r_dpt_type, dynamic=True):
         r_dpt_type.update(new_r_dpt_type)  # merge together
     return r_dpt_type
 
-
 if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path) = mpgc_main(
-        av_p = 0.3,
+        av_p = 0.1,
         r_fr = 720,
         m_fr = 1200,
         seed = 1,
         r_autoFollow_p = 1,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles
         loss_rate = 0,
-        gui = True,
+        gui = False,
         plot = False,
         display = False,
         lc = False, # if consider HV lane-changing

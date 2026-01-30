@@ -121,7 +121,7 @@ def loop(traci, st, vgvg, vcfunc, drdr, vch, vcjfunc, pfpf, lc_hv=False, lc_av=F
 
         # SC2: Predict (find) free followers
         dic_nonOversizedP = pfpf.non_oversized_platoon(dic_platoon_members, dic_current_oversizedP)
-        dic_id_preState, dic_id_features = pfpf.predict_following_state(dic_id_type, ls_vehid, model=True)
+        dic_id_preState, dic_id_features = pfpf.predict_flw_state(dic_id_type, ls_vehid, model=True)
         dic_sparseP = pfpf.find_sparse_platoon(dic_nonOversizedP, dic_id_preState)
         # sparseP => sparse_platoon = {av_leader:first_free_hv}
         promote_av = pfpf.free_promote(dic_sparseP, dic_platoon_members) # FREE_PROMOTE

@@ -13,19 +13,19 @@ class PlatoonForm:
         self.traci = traci
         self.data_recorder = data_recorder
         self.max_speed = self.data_recorder.max_speed
+        self.max_team_size = 0
+        self.fs_model = joblib.load(
+            os.path.join(project_root, 'rf_models', 'follower_state_prediction_model_251121_ndarray.pkl'))
+
         self.dec_av = []
         self.dic_tags = {}
-        self.max_team_size = 0
-        self.dic_leaderAV_targetID = {}  # target_platoon and target_veh
         self.recover_time_map = {}  # record av speed setting recover time
         self.ls_speed_ok = []  # av_id that speed restore back to max(30m/s)
-        self.leader_AV = set()  # all leader_AV
+        # self.leader_AV = set()  # all leader_AV
         self.dic_id_features = {}  # {id:[f1, f2,..., ], ...}
         self.dic_follower_state = {}  # state of each followers; free_mode/following_mode
         self.dic_id_preState = {}
         # follower_state_prediction prediction model
-        self.fs_model = joblib.load(
-            os.path.join(project_root, 'rf_models', 'follower_state_prediction_model_251121_ndarray.pkl'))
         self.ls_leader_AV = []
         self.ls_follower_AV = []
         self.ls_upA_lastStep = []  # ls_upA (upstream AV) last Step
@@ -35,7 +35,6 @@ class PlatoonForm:
         self.free_triggered = False  # for record_predict3
 
         self.dic_AVroleChange = {}  # dic_AVroleChange = {AV_id: type, ...} record AV changed its role
-        self.ls_follower_mc = []  # list of follower on merging control section of inflow_highway
         self.ls_leader_mc_checked = []
 
         self.encourage_change_mark = set()  # record id that has been order to change to inner lane
@@ -44,6 +43,9 @@ class PlatoonForm:
         self.no_lc_av = set()
         self.no_lc_veh = set()
         self.dic_final_platoon_info = {} # m_dpt_type
+
+        self.dic_id_last_leader = {}
+        self.dic_leader_free_triggered = {}
 
     def get_platoon_size3(self, ls_upA, leader_AV):
         '''
@@ -283,7 +285,6 @@ class PlatoonForm:
                 self.ls_speed_ok.append(vid)
                 continue
             self.traci.vehicle.setMaxSpeed(vid, self.max_speed)  # restore to 27.78 m/s
-            
 
     def restrict_lane_changeBase(self, veh_id):
         self.traci.vehicle.setParameter(veh_id, "laneChangeModel.lcStrategic", "0.0")
@@ -337,31 +338,6 @@ class PlatoonForm:
                         break
         return dic_oversized_platoon_states, dic_leader_candidates
 
-    def _check_state(self, id):
-        '''
-        check followers' state: decoupled free flow mode/coupled following mode
-        :param id:
-        :return:
-        '''
-        minGap = 4.5
-        tau = 1
-        v_except = 20
-        dis_buffer = 5
-        p_veh_info = self.traci.vehicle.getLeader(id)
-        if p_veh_info is None:
-            # no leader
-            state = 'free_mode'
-            return state
-        pv_id, dis = p_veh_info
-        # when its leader arrive at the end of upstream_0, the dis between this veh and its preceding veh
-        dis_real = dis + minGap
-        dis_except = minGap + v_except * tau
-        if dis_real > dis_except + dis_buffer:
-            state = 'free_mode'
-        else:
-            state = 'following_mode'
-        return state
-
     def get_cor_leader(self, dic_platoon_members, follower_id):
         '''
         according to dic and follower_id, find its leader_id,
@@ -399,11 +375,13 @@ class PlatoonForm:
         '''
         dic_sparse_platoon = {}
         for leader, ls_followers in dic_nonOversized.items():
-            if leader == 'mav3287':
+            if leader == 'mav158':
                 pass
             for follower in ls_followers:
-                if (follower in dic_id_preState and dic_id_preState[follower] == 0
-                        and leader not in self.dic_AVroleChange):  # temporary measure, future multiple step prediction
+                if follower == 'mhv586':
+                    pass
+                if (follower in dic_id_preState and dic_id_preState[follower] == 0):
+                        # and leader not in self.dic_AVroleChange):  # temporary measure, future multiple step prediction
                     # tag as sparse platoon
                     first_free_follower = follower
                     dic_sparse_platoon[leader] = first_free_follower
@@ -433,53 +411,78 @@ class PlatoonForm:
                 promote_av = None
         return
 
-    def predict_following_state(self, dic_id_type, ls_vehid, model=False):
-        '''
-        250520 updated version: platoon-wise prediction.
-        If any follower is predicted as 'free', all subsequent followers in the same platoon
-        will be automatically labeled as free without prediction (but still recorded).
-
-        :param dic_id_type (dic_tags): {id:tag, ..., } asc order, before merging, on mainlane;
-                                        0: HV follower, 1: leader_AV, 2: follower_AV
-               ls_vehid: all veh on net at this step; the order is not important
-               # dic_promotedAV: {AV_id: type, ...}, type = 'split' or 'free'
-               model: whether to perform prediction using fs_model
-        :return:
-                0:free; 1:following
-                self.dic_id_preState = {id: state,... } # id start from the first follower of the first AV_leader
-                the sequence: decrease or increase
-        '''
+    # TODO: Optimize prediction efficiency—consider batch processing or caching leader lookups to reduce computational burden when processing many HV followers
+    def predict_flw_state(self, dic_id_type, ls_vehid, model=False):
+        """
+        Updated platoon-wise prediction:
+        - Add per-follower last leader mapping in `self.dic_id_last_leader`.
+        - Add per-leader free cascade flag in `self.dic_leader_free_triggered`.
+        - Scan vehicles newest -> oldest and (re)predict any follower that is new or whose leader changed.
+        """
         if not dic_id_type:
             return self.dic_id_preState, self.dic_id_features
-        # Only proceed when a new follower appears
-        new_follower_id, newest_tag = next(reversed(dic_id_type.items()))  # get the new in veh_id and veh_tag
-        if new_follower_id == 'mav281':
-            pass
-        # If a new platoon leader appears, reset free_triggered
-        if newest_tag == 1:
-            self.free_triggered = False
-        # Only process new followers (skip if already processed or is a leader)
-        if new_follower_id in self.dic_id_features or newest_tag == 1 or new_follower_id not in ls_vehid:
-            return self.dic_id_preState, self.dic_id_features
-        # == get features == always extract features for training
-        arr_select_features = self.get_RFfeatures(new_follower_id)
-        if arr_select_features is None:
-            return self.dic_id_preState, self.dic_id_features  # or `continue` if used in a loop
 
-        # == prediction ==
-        if model:
-            # if model == True, predict the state of the newest_follower
-            if self.free_triggered:
-                # free_triggered = True; No prediction needed, directly mark as free
-                pre_state = [0]
-            else:
-                # free_triggered = False; Perform prediction using model
-                pre_state = self.fs_model.predict(arr_select_features)
-            self.dic_id_preState[new_follower_id] = pre_state[0]
+        # Clean / reset when a vehicle becomes leader
+        for vid, tag in dic_id_type.items():
+            if tag == 1:
+                self.dic_id_last_leader.pop(vid, None)
+                self.dic_id_features.pop(vid, None)  # removes id from the dictionary; returns None if id doesn't exist.
+                self.dic_id_preState.pop(vid, None)  # removes the prediction state for id.
+                self.dic_leader_free_triggered[vid] = False
 
-            if pre_state[0] == 0:  # free
-                self.free_triggered = True
-        return self.dic_id_preState, self.dic_id_features  # self.dic_id_features includes all id & features
+        # Process newest -> oldest
+        items = list(dic_id_type.items())[::-1]
+        for vid, tag in items:
+            if vid == 'mav281':
+                pass
+
+            # only handle AV followers
+            if tag == 1:
+                continue
+
+            # if left network, remove records so we can re-evaluate later
+            if vid not in ls_vehid:
+                self.dic_id_last_leader.pop(vid, None)
+                self.dic_id_features.pop(vid, None)
+                self.dic_id_preState.pop(vid, None)
+                continue
+
+            # find current leader for this follower
+            leader_id, _ = self.get_cor_leader(self.dic_platoon_members, vid)
+            if leader_id is None:
+                # no leader mapping now; clear last leader so it will be retried later
+                self.dic_id_last_leader.pop(vid, None)
+                continue
+
+            # skip if already predicted for this leader
+            if vid in self.dic_id_last_leader and self.dic_id_last_leader[vid] == leader_id:
+                continue
+
+            # extract features (this also stores features in self.dic_id_features)
+            arr_select_features = self.get_RFfeatures(vid)
+            if arr_select_features is None:
+                # missing data now; clear last-leader to try again later
+                self.dic_id_last_leader.pop(vid, None)
+                continue
+
+            # record mapping that this follower was evaluated for this leader
+            self.dic_id_last_leader[vid] = leader_id
+
+            # perform prediction if requested
+            if model:
+                # respect per-leader free cascade
+                if self.dic_leader_free_triggered.get(leader_id, False):
+                    pre_state = 0
+                else:
+                    pre_state = int(self.fs_model.predict(arr_select_features)[0])
+
+                self.dic_id_preState[vid] = pre_state
+
+                # if this follower is free, subsequent followers in same platoon are free
+                if pre_state == 0:
+                    self.dic_leader_free_triggered[leader_id] = True
+
+        return self.dic_id_preState, self.dic_id_features
 
     def get_RFfeatures(self, new_follower_id):
         '''
@@ -643,6 +646,55 @@ class PlatoonForm:
             for veh_id in members:
                 dic_member_to_leader[veh_id] = leader_id
         return dic_member_to_leader
+
+    def move_av_no_followers(self, ls_leader_AV):
+        """
+        Encourage an AV leader with no followers to move from the inner lane to the outer lane.
+
+        :param ls_leader_AV: AV leader list, ascending order
+        """
+        # aviod the first emerged AV jump to outer lane
+        ls_leader_AV_filtered = ls_leader_AV[:-1]
+        for leader_id in ls_leader_AV_filtered:
+            # Check if the AV leader has no followers
+            followers = self.dic_platoon_members.get(leader_id, [])[1:]  # Exclude the leader itself
+            if not followers:
+                try:
+                    # Get the current lane of the AV leader
+                    current_lane = self.traci.vehicle.getLaneIndex(leader_id)
+                    # Ensure the AV is in the inner lane (lane 0)
+                    if current_lane == 0:
+                        # Command the AV leader to change to the outer lane (e.g., lane 0)
+                        self.traci.vehicle.changeLane(leader_id, 1, 3)  # Duration of 3 seconds, from lane 0 to lane 1
+                        # Reset the speed to the maximum speed setting
+                        self.traci.vehicle.setMaxSpeed(leader_id, self.max_speed)
+                except Exception as e:
+                    print(f"Error encouraging AV leader {leader_id} to outer lane: {e}")
+
+    def _check_state(self, id):
+        '''
+        check followers' state: decoupled free flow mode/coupled following mode
+        :param id:
+        :return:
+        '''
+        minGap = 4.5
+        tau = 1
+        v_except = 20
+        dis_buffer = 5
+        p_veh_info = self.traci.vehicle.getLeader(id)
+        if p_veh_info is None:
+            # no leader
+            state = 'free_mode'
+            return state
+        pv_id, dis = p_veh_info
+        # when its leader arrive at the end of upstream_0, the dis between this veh and its preceding veh
+        dis_real = dis + minGap
+        dis_except = minGap + v_except * tau
+        if dis_real > dis_except + dis_buffer:
+            state = 'free_mode'
+        else:
+            state = 'following_mode'
+        return state
 
     def _get_final_platoon_info(self, step, dic_follower_state):
         """

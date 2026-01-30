@@ -19,29 +19,30 @@ class AgentHandler:
         self.vcfunc = vcfunc
         self.agent = RLScoringAgent(traci,
             model_path=path_pt if mode == "predict" else None)
-        self.ls_splited_platoon = [] # splited platoon leader
+        self.scoring_interval = scoring_interval  # Minimum interval (in steps) between scoring attempts
+        self.training_warmup_steps = 20000
+        self.next_save_step = 10000
+        self.collected = 0  # Track how many transitions have been collected
         self.target_lane = 0
+
+        self.ls_splited_platoon = [] # splited platoon leader
         self.insert_buffer = []
         self.last_score_step = {} # Records last scoring step for each leader_id (cooldown control)
-        self.scoring_interval = scoring_interval # Minimum interval (in steps) between scoring attempts
         self.ls_score = []
-        self.training_warmup_steps = 20000
-        self.collected = 0  # Track how many transitions have been collected
-        self.next_save_step = 10000
         self.dic_insertedAV = {} # plan taking action but may still in process
         # dic_insertedAV = {AV_id: type, ...} record promotedAV and its type; here type = 'split'
         self.dic_score_reward = {} # record lc_av and [score, reward], dic = {lc_av:[score, reward]}
 
-    def run_agent_decision(self, step, dic_platoon_members, dic_oversized_platoon_states,
+    def run_agent_decision_old(self, step, dic_platoon_members, dic_oversized_platoon_states,
                            dic_leader_candidates, ls_upA, gating_value=None):
         '''
         split_insert (side AV insert into oversized platoon)
 
         :param dic_platoon_members: {leader_id: [leader_id, veh2, ...]}
-        :param dic_oversized_platoon_states:
-        :param dic_leader_candidates: candidate AVs for oversized_platoon (leader_AV),
-               e.g. {leader_AV:[candidateAV1, candidateAV2]}
-        :param gating_value: gating value, active action while top-score above it
+                dic_oversized_platoon_states:
+                dic_leader_candidates: candidate AVs for oversized_platoon (leader_AV),
+                    e.g. {leader_AV:[candidateAV1, candidateAV2]}
+                gating_value: gating value, active action while top-score above it
 
         :return: dic_insertedAVcands = {AV_id: type, ...} record candidate promotedAV and its type;
                 here type = 'split'
@@ -53,7 +54,6 @@ class AgentHandler:
         for leader_id, platoon_states in dic_oversized_platoon_states.items():
             if leader_id in self.ls_splited_platoon or leader_id not in dic_leader_candidates:
                 continue
-
             # === Add scoring interval control ===
             last_step = self.last_score_step.get(leader_id, -999)
             if step - last_step < self.scoring_interval:
@@ -124,6 +124,28 @@ class AgentHandler:
                     print(f"[Agent] Failed to insert {selected_av} due to TraCI exception")
         return self.dic_insertedAV
 
+    def run_agent_decision(self, step, dic_platoon_members, dic_oversized_platoon_states,
+                           dic_leader_candidates, ls_upA, gating_value=None):
+        """
+        Main function to handle AV insertion decisions.
+        """
+        if not dic_oversized_platoon_states:
+            return {}
+
+        for leader_id in dic_oversized_platoon_states:
+            if leader_id in self.ls_splited_platoon or leader_id not in dic_leader_candidates:
+                continue
+
+            selected_av, selected_state, score = self._evaluate_candidates(step,
+                leader_id, dic_platoon_members, dic_leader_candidates, dic_oversized_platoon_states, ls_upA,
+                gating_value
+            )
+
+            if selected_av:
+                self._execute_insertion(step, leader_id, selected_av, selected_state, dic_platoon_members, score)
+
+        return self.dic_insertedAV
+
     def update_reward(self, current_step, st, dic_platoon_members):
         '''
         Check insert_buffer and issue rewards if leader has exited control zone.
@@ -148,6 +170,8 @@ class AgentHandler:
                 #     pass
                 # reward = 1.0 if success else 0.0
                 reward = self.evaluate_insertion_reward(lc_av, platoon_snapshot, dic_platoon_members)
+                if lc_av == 'mbav3527':
+                    pass
                 self.dic_score_reward[lc_av].append(reward)
                 if self.mode == 'train':
                     self.agent.record_transition(record['state'], reward)
@@ -161,68 +185,6 @@ class AgentHandler:
                 self.collected = 0
                 self.save_model_if_needed(current_step, st)
         return self.dic_score_reward
-
-    def check_insert_success3(self, lc_av, platoon_snapshot, dic_platoon_members):
-        """
-        Check whether the inserted AV (lc_av) successfully splits the original platoon
-        by inserting into its middle (not at the head or tail).
-
-        Conditions:
-        - The AV must be on the target lane (lane 0).
-        - The AV must be located between other platoon members (i.e., at least one member ahead and behind).
-
-        Args:
-            lc_av: ID of the inserted autonomous vehicle.
-            platoon_snapshot: oversized platoon snapshot at the moment of insertion decision
-            dic_platoon_members: dict mapping leader ID to list of platoon member IDs.
-
-        Returns:
-            bool: True if the AV is inserted in the middle of the platoon, False otherwise.
-        """
-        try:
-            if lc_av == 'mbav3139':
-                pass
-            leader_av = platoon_snapshot[0]
-            tail_id = platoon_snapshot[-1]
-
-            # current_lane = self.traci.vehicle.getLaneIndex(lc_av)
-            current_laneID = self.traci.vehicle.getLaneID(lc_av)
-            this_pos = self.traci.vehicle.getLanePosition(lc_av)
-            tail_pos = self.traci.vehicle.getLanePosition(tail_id)
-            if current_laneID != 'upstream_0':
-                # AV must be on upstream_0
-                return False
-            if this_pos < tail_pos:
-                # lc_AV didn't cut into target oversized platoon
-                return False
-
-            if lc_av in dic_platoon_members and len(dic_platoon_members[lc_av]) > 1:
-                # Case1: when lc_av becomes a new leader or has followers (a valid split)
-                if lc_av == 'mbav82763':
-                    pass
-                new_platoon = dic_platoon_members[lc_av]
-                num_rear = len(new_platoon)-1 # all followers
-                split_anchor_id = new_platoon[1]
-                num_front = platoon_snapshot.index(split_anchor_id)
-            else:
-                # Case2: lc_av currently not a leader, or its new platoon has no followers
-                num_front = 1 # add av_leader
-                num_rear = 0
-                for id in platoon_snapshot[1:]: # exclude original leader
-                    if id == lc_av:
-                        continue # skip self
-                    pos = self.traci.vehicle.getLanePosition(id)
-                    if pos > this_pos:
-                        num_front += 1
-                    else: # pos <= current_pos
-                        num_rear += 1
-            if num_front >= 1 and num_rear >= 1:
-                return True
-            else:
-                return False
-        except self.traci.TraCIException:
-            return False
-
 
     def evaluate_insertion_reward(self, lc_av, platoon_snapshot, dic_platoon_members):
         """
@@ -343,3 +305,58 @@ class AgentHandler:
         if current_step != st*10-1:
             return
         self.agent.plot_loss_curve()  # plot loss curve
+
+    def _evaluate_candidates(self, step, leader_id, dic_platoon_members, dic_leader_candidates,
+                             dic_oversized_platoon_states, ls_upA, gating_value):
+        """
+        Evaluate candidate AVs for a given leader and select the one with the highest score.
+        """
+        last_step = self.last_score_step.get(leader_id, -999)
+        if step - last_step < self.scoring_interval:
+            return None, None, None
+        self.last_score_step[leader_id] = step
+
+        ls_candidateAV = dic_leader_candidates[leader_id]
+        if not ls_candidateAV:
+            return None, None, None
+
+        best_score = -float('inf')
+        selected_av = None
+        selected_state = None
+        pMember = dic_platoon_members[leader_id]
+        platoon_states = dic_oversized_platoon_states[leader_id]
+
+        for av_id in ls_candidateAV:
+            state = self.agent.state_builder.build_state2(av_id, pMember, platoon_states, ls_upA)
+            score = self.agent.predict_score(state)
+            if score > best_score:
+                best_score = score
+                selected_av = av_id
+                selected_state = state
+
+        if gating_value is not None and best_score < gating_value:
+            return None, None, best_score
+        self.dic_score_reward[selected_av] = [score]
+        self.ls_score.append(score)
+        return selected_av, selected_state, best_score
+
+    def _execute_insertion(self, step, leader_id, selected_av, selected_state, dic_platoon_members, score):
+        """
+        Execute the lane change for the selected AV and update tracking structures.
+        """
+        try:
+            self.traci.vehicle.changeLane(selected_av, self.target_lane, duration=100)
+            print(f"[Agent] Insert decision: {selected_av} with score {score:.3f}")
+            platoon_snapshot = dic_platoon_members[leader_id]
+            self.ls_splited_platoon.append(leader_id)
+            self.insert_buffer.append({
+                "leader_id": leader_id,
+                "platoon_snapshot": platoon_snapshot,
+                "av_id": selected_av,
+                "state": selected_state,
+                "step": step
+            })
+            self.dic_insertedAV[selected_av] = 'split_insert'
+            print(f'dic_insertedAVcands: {self.dic_insertedAV}')
+        except self.traci.TraCIException:
+            print(f"[Agent] Failed to insert {selected_av} due to TraCI exception")

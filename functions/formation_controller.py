@@ -70,13 +70,15 @@ class FormationController:
 
         # SC2: Predict (find) free followers
         dic_nonOversizedP = self.p_formation.non_oversized_platoon(dic_platoon_members, dic_oversized_platoon_states)
-        dic_id_preState, dic_id_features = self.p_formation.predict_following_state(dic_tags, ls_vehid, model=True)
+        dic_id_preState, dic_id_features = self.p_formation.predict_flw_state(dic_tags, ls_vehid, model=True)
         dic_sparseP = self.p_formation.find_sparse_platoon(dic_nonOversizedP, dic_id_preState)
         # sparseP => sparse_platoon = {av_leader:first_free_hv}
         promote_av = self.p_formation.free_promote(dic_sparseP, dic_platoon_members)  # FREE_PROMOTE
 
         # encourage inner lane change which lane_0 hv close to ramp entry
         self.p_formation.manage_lc_behavior_near_ws(lc, ls_ihAB_hv, ls_wsBC_hv, length_ih, p_to_inner=0.8)
+        # encourage AV without follower move to outter lane (from lane0 to lane1)
+        self.p_formation.move_av_no_followers(ls_leader_AV)
 
         # record target value
         ls_leader_mc, dic_follower_state, dic_final_platoon_info = (
