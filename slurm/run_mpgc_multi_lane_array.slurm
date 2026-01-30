@@ -76,4 +76,5 @@ python run.py \
   --algo mpgc_multi_lane \
   --av_p "$AV_P" \
   --r_fr "$RAMP" \
-  --seed "$SEED"
+  --seed "$SEED" \
+  --out_csv "$OUT_CSV"

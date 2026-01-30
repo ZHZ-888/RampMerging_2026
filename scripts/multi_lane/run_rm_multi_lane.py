@@ -188,7 +188,7 @@ if __name__ == '__main__':
         r_fr = 1100,
         m_fr = 1500,
         seed = 1,
-        gui = False,
+        gui = True,
         plot = False,
         display = False,
         st = 1200
