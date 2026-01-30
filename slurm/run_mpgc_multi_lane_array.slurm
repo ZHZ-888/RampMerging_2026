@@ -65,9 +65,9 @@ echo "TASK_ID=$TASK_ID | AV_P=$AV_P | RAMP=$RAMP | SEED=$SEED | (Indices: av=$av
 # Per-task XML output (safe for parallel jobs)
 # Each task writes to its own XML file
 # ================================
+OUT_XML="$TRAJ_DIR/trj_${SEED}_${AV_P}_${RAMP}.xml"
 OUT_CSV="data/raw/tmp/rm_task_${TASK_ID}.csv"
 mkdir -p data/raw/tmp
-OUT_XML="$TRAJ_DIR/trj_${SEED}_${AV_P}_${RAMP}.xml"
 
 # ================================
 # Run mpgc_multi_lane simulation
