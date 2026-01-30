@@ -142,6 +142,21 @@ def main(args=None, root=None):
     tp, average_v, ttc_ratio, avg_speed_std, runtime = (
         hpc_utils.get_mc_indicator(speed_log, tp, xml_path, runtime))
 
+    # 3. Save results
+    if parsed_args.out_csv:
+        row = {
+            "algo": "rm_multi_lane",
+            "ramp_demand": parsed_args.r_fr,
+            "mainline_demand": parsed_args.m_fr,
+            "seed": parsed_args.seed,
+            "throughput": tp,
+            "avg_speed": average_v,
+            "ttc_ratio": ttc_ratio,
+            "avg_speed_std": avg_speed_std,
+            "runtime": runtime
+        }
+        hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
+
 def _set_dynamic_traffic(step, start_t, r_dpt_type, dynamic=True):
     '''
     set dynamic traffic. For example: default r_demands=720 veh/h; start_t=5 min, new_fr=180 veh/h;
