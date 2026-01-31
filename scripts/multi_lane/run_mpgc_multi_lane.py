@@ -179,7 +179,7 @@ if __name__ == '__main__':
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path) = mpgc_main(
-        av_p = 0.1,
+        av_p = 0.3,
         r_fr = 720,
         m_fr = 1200,
         seed = 1,

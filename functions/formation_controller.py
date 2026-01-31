@@ -25,7 +25,6 @@ class FormationController:
             dic_final_platoon_info: {66: 'AHHHHHHHHHH', 90: 'AHHHHH', 138: 'AHHHHHHHHH', 174: 'AH', 177: 'AHH'}
         '''
         # === Unpack veh info ===
-        # dic_vid_groups = self.data_recorder.record_vehinfo()
         dic_vid_groups = (
             self.data_recorder.dic_vid_groups
             if self.data_recorder.dic_vid_groups
