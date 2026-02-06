@@ -89,7 +89,7 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
     while step < st * 10:
         # checkpoint
         if step > 100 * 10:
-            pass
+             pass
         traci.simulationStep()  # start simulation
 
         c_ts = traci.simulation.getTime()  # current_timestep
@@ -179,7 +179,7 @@ if __name__ == '__main__':
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path) = mpgc_main(
-        av_p = 0.3,
+        av_p = 0.1, # 0.3
         r_fr = 720,
         m_fr = 1200,
         seed = 1,

@@ -17,6 +17,7 @@ class AgentHandler:
         self.traci = traci
         self.mode = mode
         self.vcfunc = vcfunc
+
         self.agent = RLScoringAgent(traci,
             model_path=path_pt if mode == "predict" else None)
         self.scoring_interval = scoring_interval  # Minimum interval (in steps) between scoring attempts
@@ -32,97 +33,6 @@ class AgentHandler:
         self.dic_insertedAV = {} # plan taking action but may still in process
         # dic_insertedAV = {AV_id: type, ...} record promotedAV and its type; here type = 'split'
         self.dic_score_reward = {} # record lc_av and [score, reward], dic = {lc_av:[score, reward]}
-
-    def run_agent_decision_old(self, step, dic_platoon_members, dic_oversized_platoon_states,
-                           dic_leader_candidates, ls_upA, gating_value=None):
-        '''
-        split_insert (side AV insert into oversized platoon)
-
-        :param dic_platoon_members: {leader_id: [leader_id, veh2, ...]}
-                dic_oversized_platoon_states:
-                dic_leader_candidates: candidate AVs for oversized_platoon (leader_AV),
-                    e.g. {leader_AV:[candidateAV1, candidateAV2]}
-                gating_value: gating value, active action while top-score above it
-
-        :return: dic_insertedAVcands = {AV_id: type, ...} record candidate promotedAV and its type;
-                here type = 'split'
-                Leader change triggered by oversized platoon splitting (split)
-        '''
-        if not dic_oversized_platoon_states:
-            return {}  # {AV_id: type, ...}, type = 'split' or 'free', candidates
-        inserted_results = [] # list of inserted AVs with (leader_id, av_id, state, action)
-        for leader_id, platoon_states in dic_oversized_platoon_states.items():
-            if leader_id in self.ls_splited_platoon or leader_id not in dic_leader_candidates:
-                continue
-            # === Add scoring interval control ===
-            last_step = self.last_score_step.get(leader_id, -999)
-            if step - last_step < self.scoring_interval:
-                continue
-            self.last_score_step[leader_id] = step
-            ls_candidateAV = dic_leader_candidates[leader_id] # list of candidate AV
-            if not ls_candidateAV:
-                continue
-            # Use low threshold during warm-up phase to encourage early exploration
-            low_threshold = 0.0001
-            high_threshold = 0.3
-            threshold = low_threshold if step < self.training_warmup_steps else high_threshold
-            pMember = dic_platoon_members[leader_id]  # platoon member list
-
-            # Evaluate all candidate AVs for this platoon, select one with highest predicted score
-            best_score = -float('inf')
-            selected_av = None
-            selected_state = None
-            dic_lcAV_score = {}
-            for av_id in ls_candidateAV:
-                # state = self.agent.state_builder.build_state(av_id, pMember, platoon_states)
-                state = self.agent.state_builder.build_state2(av_id, pMember, platoon_states, ls_upA)
-                score = self.agent.predict_score(state)
-                dic_lcAV_score[av_id] = score
-                # self.dic_score_reward[av_id] = [score]
-                if score > best_score:
-                    best_score = score
-                    selected_av = av_id
-                    selected_state = state
-
-            if gating_value is not None:
-                if best_score >= gating_value:
-                    # Only proceed if score exceeds gating_value
-                    state = selected_state
-                    score = best_score
-                else:
-                    # Below gating_value: do not insert
-                    selected_av, state, score = None, None, best_score
-            else:
-                # No threshold gating: always insert top-scoring candidate
-                state = selected_state
-                score = best_score
-
-            self.dic_score_reward[selected_av] = [score]
-
-            # print(f"[Score] Leader {leader_id} → best AV score: {score:.3f}")
-            self.ls_score.append(score)
-            # === Execute AV lane change if selected ===
-            if selected_av:
-                try:
-                    self.traci.vehicle.changeLane(selected_av, self.target_lane, duration=100)
-
-                    print(f"[Agent] Insert decision: {selected_av} with score {score:.3f}")
-                    platoon_snapshot = dic_platoon_members[leader_id] # platoon snapshot at the moment of insertion decision
-                    self.ls_splited_platoon.append(leader_id)
-                    self.insert_buffer.append({
-                        "leader_id": leader_id,
-                        "platoon_snapshot": platoon_snapshot,
-                        "av_id": selected_av,
-                        "state": state,
-                        "step": step
-                    })
-
-                    inserted_results.append((leader_id, selected_av, state))
-                    self.dic_insertedAV[selected_av] = 'split_insert'
-                    print(f'dic_insertedAVcands: {self.dic_insertedAV}')
-                except self.traci.TraCIException:
-                    print(f"[Agent] Failed to insert {selected_av} due to TraCI exception")
-        return self.dic_insertedAV
 
     def run_agent_decision(self, step, dic_platoon_members, dic_oversized_platoon_states,
                            dic_leader_candidates, ls_upA, gating_value=None):
@@ -183,30 +93,52 @@ class AgentHandler:
             if self.collected >= 32:
                 self.agent.train_on_recorded(epochs=5, batch_size=16)
                 self.collected = 0
-                self.save_model_if_needed(current_step, st)
+                self._save_model_if_needed(current_step, st)
         return self.dic_score_reward
 
     def evaluate_insertion_reward(self, lc_av, platoon_snapshot, dic_platoon_members):
         """
-        Evaluate insertion success and return a reward score. (i.e. check_insert_success4)
-        This function extends `check_insert_success4` by returning a scalar reward
-        based on the insertion quality (i.e., balance of vehicles ahead and behind).
+        Evaluate insertion success and return a reward score for split_insert scenario.
 
-        ori: check_insert_success3
-        Check whether the inserted AV (lc_av) successfully splits the original platoon
-        by inserting into its middle (not at the head or tail).
+        REWARD SETTINGS SUMMARY (Split Agent):
+        ========================================
 
-        Conditions:
-        - The AV must be on the target lane (lane 0).
-        - The AV must be located between other platoon members (i.e., at least one member ahead and behind).
+        1. FAILURE PENALTIES (return -0.1):
+           - Wrong lane: AV not on 'inflow_highway_0' (inner lane)
+           - Missed insertion: AV position < platoon tail position (didn't cut in)
+           - Invalid split: AV inserted at head/tail only (num_front < 1 or num_rear < 1)
+           - TraCI exception: Vehicle not found or simulation error
+
+        2. SUCCESS REWARDS (return value in (0, 1]):
+           Formula: reward = 1.0 - imbalance_ratio
+           where: imbalance_ratio = |num_front - num_rear| / (total_vehicles - 1)
+
+           Reward Scale Examples:
+           - Perfect balance (5 front, 5 rear): reward = 1.0
+           - Moderate imbalance (6 front, 4 rear): reward ≈ 0.8
+           - High imbalance (10 front, 2 rear): reward ≈ 0.27
+
+           Goal: Encourage splits near the middle of oversized platoons to create
+                 two balanced sub-platoons for optimal throughput.
+
+        3. EVALUATION CASES:
+           Case 1: AV becomes new leader with followers (dic_platoon_members[lc_av] exists)
+                   - Count rear: all followers in new platoon (len(new_platoon) - 1)
+                   - Count front: position of split_anchor_id in original platoon snapshot
+
+           Case 2: AV not yet recognized as leader (transitional state)
+                   - Count by position: compare lanePosition of all platoon members
+                   - num_front starts at 1 (original leader), num_rear starts at 0
 
         Args:
             lc_av: ID of the inserted autonomous vehicle.
-            platoon_snapshot: oversized platoon snapshot at the moment of insertion decision
-            dic_platoon_members: dict mapping leader ID to list of platoon member IDs.
+            platoon_snapshot: oversized platoon members at the moment of insertion decision
+            dic_platoon_members: dict mapping leader ID to list of current platoon member IDs.
 
         Returns:
-            float: Reward score. 0 if insertion failed or invalid; (0, 1] based on balance if successful.
+            float: Reward in [-0.1, 1.0] range
+                  -0.1 = failure (wrong lane, missed insertion, invalid split)
+                  (0, 1.0] = success (quality based on split balance)
         """
         try:
             leader_av = platoon_snapshot[0]
@@ -226,14 +158,6 @@ class AgentHandler:
                 # Case1: when lc_av becomes a new leader or has followers (a valid split)
                 new_platoon = dic_platoon_members[lc_av]
                 num_rear = len(new_platoon)-1 # all followers
-                split_anchor_id = new_platoon[1]
-                if split_anchor_id == 'mbav91391':
-                    # print(f'dic_platoon_members:{dic_platoon_members}')
-                    # print(f'lc_av:{lc_av}')
-                    # print(f'platoon_snapshot:{platoon_snapshot}')
-                    # print(f'new_platoon:{new_platoon}')
-                    pass
-                # num_front = platoon_snapshot.index(split_anchor_id)
                 # Try to find the first AV in new_platoon that also appears in platoon_snapshot
                 split_anchor_id = None
                 for vid in new_platoon[1:]:
@@ -245,7 +169,6 @@ class AgentHandler:
                     num_front = platoon_snapshot.index(split_anchor_id)
                 else:
                     num_front = 0  # fallback: no match found
-
             else:
                 # Case2: lc_av currently not a leader, or its new platoon has no followers
                 num_front = 1 # add av_leader
@@ -269,20 +192,6 @@ class AgentHandler:
         except self.traci.TraCIException:
             return -0.1
 
-    def save_model_if_needed(self, current_step, st):
-        """
-        Periodically save the trained model.
-        """
-        save_interval = 30000  # every 10k steps
-        if current_step > self.next_save_step or current_step == st*10-1:
-            os.makedirs("saved_models", exist_ok=True)
-            timestamp = datetime.now().strftime("%y%m%d_%H%M")  # e.g. 250517_1915
-            filename = f"split_score_model_{timestamp}.pt"
-            full_path = os.path.join("/home/zzha/PycharmProjects/RampMerging4_250208/platoon_split_rl_model/saved_models", filename)
-            self.agent.save_model(full_path)
-            print(f"[Model] Auto-saved at step {current_step}")
-            self.next_save_step += save_interval  # set next checkpoint
-
     def plot_scores(self, current_step, st):
         if current_step != st*10-1:
             return
@@ -305,6 +214,20 @@ class AgentHandler:
         if current_step != st*10-1:
             return
         self.agent.plot_loss_curve()  # plot loss curve
+
+    def _save_model_if_needed(self, current_step, st):
+        """
+        Periodically save the trained model.
+        """
+        save_interval = 30000  # every 10k steps
+        if current_step > self.next_save_step or current_step == st*10-1:
+            os.makedirs("saved_models", exist_ok=True)
+            timestamp = datetime.now().strftime("%y%m%d_%H%M")  # e.g. 250517_1915
+            filename = f"split_score_model_{timestamp}.pt"
+            full_path = os.path.join("/home/zzha/PycharmProjects/RampMerging4_250208/platoon_split_rl_model/saved_models", filename)
+            self.agent.save_model(full_path)
+            print(f"[Model] Auto-saved at step {current_step}")
+            self.next_save_step += save_interval  # set next checkpoint
 
     def _evaluate_candidates(self, step, leader_id, dic_platoon_members, dic_leader_candidates,
                              dic_oversized_platoon_states, ls_upA, gating_value):

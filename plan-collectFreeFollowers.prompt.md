@@ -1,5 +1,45 @@
 # Plan: Collect Free Followers Feature Implementation
 
+## ✅ COMPLETED: Modular Refactoring (January 31, 2026)
+
+The project has been successfully refactored from a monolithic `platoon_formation2.py` (818 lines) into a clean modular architecture:
+
+### New Module Structure
+
+```
+functions/
+├── formation_controller.py          # Orchestrator (updated)
+├── platoon_basic.py                 # Core platoon operations (NEW - ~450 lines)
+├── platoon_oversized_handler.py     # SC1: Oversized platoon logic (NEW - ~60 lines)
+├── platoon_sparse_handler.py        # SC2 + SC3: Sparse platoon handling (NEW - ~260 lines)
+└── platoon_lane_manager.py          # Lane change management (NEW - ~220 lines)
+```
+
+### What Was Done
+
+1. ✅ **Created `platoon_basic.py`** - Core operations (tagging, size tracking, speed control, recording)
+2. ✅ **Created `platoon_oversized_handler.py`** - SC1 logic for finding oversized platoons
+3. ✅ **Created `platoon_sparse_handler.py`** - SC2 logic + NEW SC3 implementation
+4. ✅ **Created `platoon_lane_manager.py`** - All lane change behaviors
+5. ✅ **Updated `formation_controller.py`** - Now orchestrates all modules
+6. ✅ **Implemented basic `collect_free_followers()`** - Foundation ready for RL integration
+
+### SC3: Collect Free Followers (Implemented)
+
+**Status**: ✅ Basic implementation complete, ready for RL enhancement
+
+**Current Implementation** (`platoon_sparse_handler.py`):
+- `find_sparseP_nearbyAV()` - Finds nearby side-lane AVs for sparse platoons ✅
+- `collect_free_followers()` - Executes lane change to collect free followers ✅
+  - Currently uses simple first-candidate selection
+  - TODO: Integrate RL scoring agent for optimal candidate selection
+
+**Integration** (`formation_controller.py`):
+- SC3 now runs after SC2 in the control flow ✅
+- Properly coordinated with other platoon operations ✅
+
+---
+
 ## Problem Statement
 
 Currently, the platoon formation algorithm addresses:
@@ -199,7 +239,29 @@ if dic_sparse_candidates:
 - Test with varying ramp demands
 - Validate across multiple random seeds
 
-## Implementation Order
+## Implementation Status
+
+### ✅ Completed (January 31, 2026)
+1. ✅ **Phase 0**: Modular refactoring - Split `platoon_formation2.py` into 4 focused modules
+2. ✅ **Phase 1**: Implemented `find_sparseP_nearbyAV()` in `platoon_sparse_handler.py`
+3. ✅ **Phase 3**: Implemented basic `collect_free_followers()` in `platoon_sparse_handler.py`
+4. ✅ **Phase 4**: Integrated SC3 into `formation_controller.py` control flow
+
+### 🔄 In Progress / TODO
+5. **Phase 2**: Extend scoring mechanism with `scenario_type` parameter
+   - Add `scenario_type='collect'` to RL agent state builder
+   - Modify RL scoring to distinguish between split and collect scenarios
+6. **Phase 5**: Extend RL training pipeline
+   - Collect training data for collection scenario
+   - Fine-tune reward function
+7. **Phase 6**: Testing and validation
+   - Unit tests for new methods
+   - HPC parameter sweep testing
+   - Performance metrics analysis
+
+---
+
+## Implementation Order (Updated)
 
 1. **Phase 1**: Implement `find_sparseP_nearbyAV()` (Step 1)
 2. **Phase 2**: Extend scoring mechanism with `scenario_type` (Step 2)

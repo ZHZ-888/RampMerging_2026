@@ -14,7 +14,11 @@ from functions import data_recording as dr
 from functions import print_control as prc # the shared fuction of print control
 from functions import action_manager as vchl
 from functions import merging_control_jam as vchj
-from functions import platoon_formation2 as pf # 250525update
+# Updated imports - using new modular structure
+from functions import platoon_basic as pbasic
+from functions import platoon_oversized_handler as poversized
+from functions import platoon_sparse_handler as psparse
+from functions import platoon_lane_manager as plane
 
 import argparse # for changing parameter setting on HPC
 
@@ -64,15 +68,23 @@ def main(av_p, r_fr, m_fr, seed, loss_rate=0, gui=False, plot=False, display=Fal
         vcfunc = vc.Func1(traci, drdr)  # vehicle control; put instance of dr into vc
         vch = vchl.ActionParamsExecute(drdr, vcfunc, loss_rate) # vehicle control high level
         vcjfunc = vchj.Func(traci, drdr, vcfunc, loss_rate) # during jam
-        pfpf = pf.PlatoonForm(traci, vcfunc)
+
+        # Initialize new modular platoon formation components
+        p_basic = pbasic.PlatoonBasic(traci, vcfunc)
+        p_oversized = poversized.PlatoonOversizedHandler(traci, vcfunc, p_basic)
+        p_sparse = psparse.PlatoonSparseHandler(traci, vcfunc, p_basic)
+        p_lane = plane.PlatoonLaneManager(traci, vcfunc)
+
         # RL module
         dic_follower_state, his_dic_platoon_size, dic_id_features = \
-            loop(traci, st, vgvg, vcfunc, drdr, vch, vcjfunc, pfpf, lc_hv, lc_av, m0_dpt_type, m1_dpt_type)
+            loop(traci, st, vgvg, vcfunc, drdr, vch, vcjfunc, p_basic, p_oversized, p_sparse, p_lane,
+                 lc_hv, lc_av, m0_dpt_type, m1_dpt_type)
     finally:
         traci.close()
     return dic_follower_state, his_dic_platoon_size, dic_id_features
 
-def loop(traci, st, vgvg, vcfunc, drdr, vch, vcjfunc, pfpf, lc_hv=False, lc_av=False, m0_dpt_type=None, m1_dpt_type=None):
+def loop(traci, st, vgvg, vcfunc, drdr, vch, vcjfunc, p_basic, p_oversized, p_sparse, p_lane,
+         lc_hv=False, lc_av=False, m0_dpt_type=None, m1_dpt_type=None):
     # START SIMULATION
     step = 0
     # scripts loop
@@ -113,30 +125,30 @@ def loop(traci, st, vgvg, vcfunc, drdr, vch, vcjfunc, pfpf, lc_hv=False, lc_av=F
 
         # SC1: find oversized platoon
         dic_id_type, ls_leader_AV, ls_follower_AV, dic_AVroleChange \
-            = pfpf.tag_vehicles13(ls_ihA, max_team_size=11) # SPLIT_PROMOTE
+            = p_basic.tag_vehicles13(ls_ihA, max_team_size=11) # SPLIT_PROMOTE
         his_dic_platoon_size, dic_platoon_size, dic_platoon_members \
-            = pfpf.get_platoon_size3(ls_ihA, ls_leader_AV)
+            = p_basic.get_platoon_size3(ls_ihA, ls_leader_AV)
         dic_current_oversizedP, dic_current_upBav \
-            = pfpf.find_oversizedP_nearbyAV(ls_ihB_av, dic_platoon_size)
+            = p_oversized.find_oversizedP_nearbyAV(ls_ihB_av, dic_platoon_size)
 
         # SC2: Predict (find) free followers
-        dic_nonOversizedP = pfpf.non_oversized_platoon(dic_platoon_members, dic_current_oversizedP)
-        dic_id_preState, dic_id_features = pfpf.predict_flw_state(dic_id_type, ls_vehid, model=True)
-        dic_sparseP = pfpf.find_sparse_platoon(dic_nonOversizedP, dic_id_preState)
+        dic_nonOversizedP = p_oversized.non_oversized_platoon(dic_platoon_members, dic_current_oversizedP)
+        dic_id_preState, dic_id_features = p_sparse.predict_flw_state(dic_id_type, ls_vehid, model=True)
+        dic_sparseP = p_sparse.find_sparse_platoon(dic_nonOversizedP, dic_id_preState)
         # sparseP => sparse_platoon = {av_leader:first_free_hv}
-        promote_av = pfpf.free_promote(dic_sparseP, dic_platoon_members) # FREE_PROMOTE
+        promote_av = p_sparse.free_promote(dic_sparseP, dic_platoon_members) # FREE_PROMOTE
 
         # restric av lc behaviour
         ls_av = ls_ihA_av + ls_ihB_av
-        pfpf.restrict_av_lc(lc_av, ls_av)
+        p_lane.restrict_av_lc(lc_av, ls_av)
         # encourage innner lane change which lane_0 hv close to ramp entry
-        pfpf.manage_lc_behavior_near_ws(lc_hv, ls_ihAB_hv, ls_wsBC_hv, length_ih, p_to_inner=0.8)
+        p_lane.manage_lc_behavior_near_ws(lc_hv, ls_ihAB_hv, ls_wsBC_hv, length_ih, p_to_inner=0.8)
         # record target value
-        ls_follower_op, dic_follower_state = pfpf.record_follower_state2(length_ih, dic_id_type, ls_ihA)
+        ls_follower_op, dic_follower_state = p_basic.record_follower_state2(step, length_ih, dic_id_type, ls_ihA)
 
         # control gaps between platoons
-        pfpf.form_platoon3(ls_leader_AV, ls_follower_AV)
-        pfpf.restore_speed_limit2(ls_centerA_av)
+        p_basic.form_platoon3(ls_leader_AV, ls_follower_AV)
+        p_basic.restore_speed_limit2(ls_centerA_av)
         step += 1
     return dic_follower_state, his_dic_platoon_size, dic_id_features
 

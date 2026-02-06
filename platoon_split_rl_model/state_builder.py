@@ -50,7 +50,7 @@ class StateBuilder:
             dis_to_head_norm = np.tanh(dis_to_head)
 
             # gap before and after lc_av
-            front_gap, rear_gap = self.get_insertion_gap(pMember, ls_upA, av_pos)
+            front_gap, rear_gap = self._get_insertion_gap(pMember, ls_upA, av_pos)
             front_gap_norm = np.clip(front_gap/self.max_gap, 0.0, 1.0)
             rear_gap_norm = np.clip(rear_gap / self.max_gap, 0.0, 1.0)
 
@@ -74,7 +74,65 @@ class StateBuilder:
 
         return state
 
-    def get_insertion_gap(self, ls_pMember, ls_upA, av_pos):
+    def build_state_free(self, candidate_av: str, pMember, p_info: list, ls_upA) -> np.ndarray:
+        """
+        free_insert
+        Build the state vector for a given candidate AV.
+
+        Parameters:
+        - candidate_av: candidate vehicle ID (on side lane)
+        - pMember: members list of oversized platoon
+        - p_info: list = [head_pos, tail_pos, avg_speed, size]
+
+        Returns:
+        - np.ndarray: normalized state vector with 10 elements
+        """
+        try:
+            # Unpack platoon info
+            head_pos, tail_pos, avg_speed, size = p_info
+
+            # AV features
+            v_av = self.traci.vehicle.getSpeed(av_id)
+            av_pos = self.traci.vehicle.getLanePosition(av_id)
+
+            # veh number before and after lc_av
+            positions = [(vid, self.traci.vehicle.getLanePosition(vid)) for vid in pMember]
+            num_front = len([vid for vid, pos in positions if pos >= av_pos])
+            num_back = len([vid for vid, pos in positions if pos < av_pos])
+
+            # Relative position
+            dis_to_tail = (tail_pos - av_pos) / self.max_gap
+            dis_to_head = (head_pos - av_pos) / self.max_gap
+            # Normalize relative distances with tanh to retain scale and avoid hard clipping
+            dis_to_tail_norm = np.tanh(dis_to_tail)
+            dis_to_head_norm = np.tanh(dis_to_head)
+
+            # gap before and after lc_av
+            front_gap, rear_gap = self._get_insertion_gap(pMember, ls_upA, av_pos)
+            front_gap_norm = np.clip(front_gap/self.max_gap, 0.0, 1.0)
+            rear_gap_norm = np.clip(rear_gap / self.max_gap, 0.0, 1.0)
+
+            # Construct normalised state vector
+            state = np.array([
+                v_av / self.vmax,
+                av_pos / self.max_lane_pos,
+                dis_to_tail_norm, # Normalized to [-1, 1] range to preserve directional information
+                dis_to_head_norm, # Normalized to [-1, 1] range to preserve directional information
+                size / self.max_size,
+                avg_speed / self.vmax,
+                num_front / self.max_size,
+                num_back / self.max_size,
+                front_gap_norm,
+                rear_gap_norm
+            ], dtype=np.float32)
+
+        except Exception as e:
+            print(f"[StateBuilder] Failed to extract state for {av_id}: {e}")
+            state = np.zeros(10, dtype=np.float32)
+
+        return state
+
+    def _get_insertion_gap(self, ls_pMember, ls_upA, av_pos):
         '''
         Compute the front and rear gap for a candidate AV insertion position,
         based on platoon members and downstream vehicles on the same lane.
