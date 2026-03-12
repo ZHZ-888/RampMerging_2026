@@ -23,7 +23,6 @@ def rm_main(av_p, r_fr, m_fr, seed,
     # Project root directory
     ROOT = Path(__file__).resolve().parents[2]
     # SUMO SETTING
-    # sumo_config_path = '../../road_network/multi_lane_motorway/real/cfg_multi_lane_merge_rm.sumocfg'
     sumo_config_path = (
             ROOT
             / "road_network"
@@ -93,6 +92,7 @@ def loop(traci, st, veh_gen, data_recorder, rm_algo,
             pass
         traci.simulationStep()  # start simulation
         c_ts = traci.simulation.getTime()  # current_timestep
+
         if c_ts % 1 == 0:
             prc.print_message(f'************current_time, step:{c_ts, step}************')
 
@@ -185,7 +185,7 @@ if __name__ == '__main__':
     start = time.time()
     speed_log, tp, xml_path = rm_main(
         av_p = 0,
-        r_fr = 1100,
+        r_fr = 1000,
         m_fr = 1500,
         seed = 1,
         gui = True,

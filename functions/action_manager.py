@@ -2,8 +2,8 @@ from functions import print_control as prc
 from functions import v2x_disturbance as v2x
 class ActionManager:
     def __init__(self, instance_dr, merge_regular, loss_rate=0):
-        self.merge_regular = merge_regular
         self.data_recorder = instance_dr
+        self.merge_regular = merge_regular
         self.loss_rate = loss_rate
         self.delay_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate)
 

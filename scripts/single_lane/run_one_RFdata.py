@@ -1,4 +1,4 @@
-# run_one_RLdata.py
+# run_one_RFdata.py
 """
 Run one simulation for RL training dataset generation.
 

@@ -10,11 +10,12 @@ class PlatoonLaneManager:
         self.data_recorder = data_recorder
         self.max_speed = self.data_recorder.max_speed
 
+        self.no_strategic_lc_veh = set() # Lane change control
         self.encourage_change_mark = set()  # record id that has been order to change to inner lane
         self.lcKeepRight_disabled = set()
         self.pending_changes = set()
         self.no_lc_av = set()
-
+        self.std_leaders_done = set() # record standard platoon leaders processed for av_fol jump innner lane
     def encourage_inner_lane_change(
             self,
             ls_ihA_hv: list,
@@ -76,12 +77,32 @@ class PlatoonLaneManager:
                 self.traci.vehicle.setLaneChangeMode(vid, 0)
                 self.no_lc_av.add(vid)
 
+    def manage_lc_behaviour(self, lc, dic_tags):
+        ls_AV_followers = [v for v, t in dic_tags.items() if t == 2]
+        ls_HV_followers = [v for v, t in dic_tags.items() if t == 0]
+
+        ls_followers = ls_AV_followers + ls_HV_followers
+        ls_leaders = [v for v, t in dic_tags.items() if t == 1]
+
+        if not lc: # lc == False
+            # Only disable lane changing for followers that haven't been processed yet
+            to_disable = set(ls_followers) - self.no_lc_av
+            for vid in to_disable:
+                try:
+                    self.traci.vehicle.setLaneChangeMode(vid, 0)
+                except Exception:
+                    pass
+                self.no_lc_av.add(vid)
+        else: # lc == True
+            pass
+
     def manage_lc_behavior_near_ws(self, lc, ls_ihAB_hv, ls_wsBC_hv, length_ih,
                                    p_to_inner=0.8, weaving_influence_range=200.0):
         """
         Adaptive lane-changing control near ramp.
         """
-        if not lc:  # if lc (lane_changing) is False, just skip
+        if not lc:  # if lc (lane_changing) is False
+
             return
         # if lc is True
         self._disable_keepRight_in_weaving(ls_ihAB_hv, ls_wsBC_hv)
@@ -91,7 +112,7 @@ class PlatoonLaneManager:
 
     def move_av_no_followers(self, ls_leader_AV, dic_platoon_members):
         """
-        Encourage an AV leader with no followers to move from the inner lane to the outer lane.
+        Encourage an AV leader with no followers to move from the outter lane to the inner lane.
 
         :param ls_leader_AV: AV leader list, ascending order
         :param dic_platoon_members: Platoon membership dictionary
@@ -105,14 +126,55 @@ class PlatoonLaneManager:
                 try:
                     # Get the current lane of the AV leader
                     current_lane = self.traci.vehicle.getLaneIndex(leader_id)
-                    # Ensure the AV is in the inner lane (lane 0)
+                    # Ensure the AV is in the outter lane (lane 0)
                     if current_lane == 0:
-                        # Command the AV leader to change to the outer lane (e.g., lane 1)
+                        # Command the AV leader to change to the inner lane (e.g., lane 1)
                         self.traci.vehicle.changeLane(leader_id, 1, 3)  # Duration of 3 seconds, from lane 0 to lane 1
                         # Reset the speed to the maximum speed setting
                         self.traci.vehicle.setMaxSpeed(leader_id, self.max_speed)
                 except Exception as e:
                     print(f"Error encouraging AV leader {leader_id} to outer lane: {e}")
+
+    def restrict_strategic_lc(self, ls_id):
+        '''
+        forbid auto lane_change
+
+        0: Disable all lane changes (complete override)
+        256 (0b100000000): Disable strategic lane changes only//own route needs
+        512 (0b1000000000): Disable cooperative lane changes//help others
+        1621 (default): Full autonomous mode with all lane change reasons enabled
+
+        :param ls_id: list of veh id
+        :return:
+        '''
+        for vid in ls_id:
+            if vid not in self.no_strategic_lc_veh:
+                self.traci.vehicle.setLaneChangeMode(vid, 256)
+                self.no_strategic_lc_veh.add(vid)
+
+    def encourage_av_fol_to_out_lane(self, ls_leader_AV, dic_standard_platoon):
+        '''
+
+        Parameters
+        ----------
+        dic_standard_platoon
+
+        Returns
+        -------
+        '''
+
+        if len(dic_standard_platoon) < 2:
+            return
+        ordered = [k for k in ls_leader_AV if k in dic_standard_platoon]
+        second_to_last_leader = ordered[-2]
+        if second_to_last_leader in self.std_leaders_done:
+            return
+        members = dic_standard_platoon.get(second_to_last_leader, [])
+        followers = members[1:]
+        for fol in followers:
+            if 'av' in fol:
+                self.traci.vehicle.changeLane(fol, 1, 3)
+        self.std_leaders_done.add(second_to_last_leader) # avoid repeat loop
 
     def _disable_keepRight_in_weaving(self, ls_ihAB_hv, ls_wsBC_hv):
         "'_' for internal use within a class or module and not part of the public API."

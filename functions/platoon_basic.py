@@ -17,7 +17,7 @@ class PlatoonBasic:
         self.dec_av = []
         self.dic_tags = {}
         self.recover_time_map = {}  # record av speed setting recover time
-        self.ls_speed_ok = []  # av_id that speed restore back to max(30m/s)
+        self.ls_speed_ok = []  # av_id that speed restore back to max (27.78 m/s)
         self.dic_platoon_size = {}  # all leaderAV and its platoon size
         self.dic_platoon_members = {}  # all leaderAV and its members
 
@@ -31,8 +31,7 @@ class PlatoonBasic:
         self.dic_follower_state = {}  # state of each followers; free_mode/following_mode
         self.dic_final_platoon_info = {}  # m_dpt_type
 
-        # Lane change control
-        self.no_strategic_lc_veh = set()
+
 
     def get_platoon_size3(self, ls_ihA, ls_leader):
         '''
@@ -75,6 +74,8 @@ class PlatoonBasic:
 
     def tag_vehicles13(self, ls_ihA, max_team_size=11):
         '''
+        260301 crucial update, only keep dic_tags for vehicles still on current road network
+
         label each vehicle: 0 => follower_HV, 1 => leader_AV, 2 => follower_AV;
         also for split_promote (promote a follower_AV to leader_AV to split oversized platoon)
 
@@ -83,8 +84,8 @@ class PlatoonBasic:
         :param max_team_size: maximum allowed platoon size
         :return: updated dic_tags, ls_leader_AV, ls_follower_AV
         '''
-        ls_ihA_asc = ls_ihA[::-1]  # Reverse to oldest → newest
         self.max_team_size = max_team_size
+        ls_ihA_asc = ls_ihA[::-1]  # Reverse to oldest → newest
 
         if self.ls_ihA_lastStep != ls_ihA:
             # === get new_dic, make sure the order is correct ===
@@ -146,6 +147,8 @@ class PlatoonBasic:
                         if 'b' in id:
                             self.dic_AVroleChange[id] = 'split_insert'
                         else:
+                            if id == 'mav4686':
+                                pass
                             self.dic_AVroleChange[id] = 'split_promote'
                         self.dic_tags[id] = 1  # Mark as leader
                         current_leader = id
@@ -164,6 +167,10 @@ class PlatoonBasic:
 
             self.ls_ihA_lastStep = ls_ihA
 
+            # filter out vehicles that have left the road network
+            ls_vehid = self.data_recorder.dic_vid_groups['ls_vehid'] # all vehicle in this step
+            self.dic_tags = {k: v for k, v in self.dic_tags.items() if k in ls_vehid}
+
             # Update leader and follower lists for current control section
             dic_leader_AV = {k: v for k, v in self.dic_tags.items() if v == 1}
             dic_follower_AV = {k: v for k, v in self.dic_tags.items() if v == 2}
@@ -176,7 +183,7 @@ class PlatoonBasic:
 
         return self.dic_tags, self.ls_leader_AV, self.ls_follower_AV, self.dic_AVroleChange
 
-    def form_platoon3(self, ls_leader_av, ls_follower_av):
+    def form_platoon3(self, ls_vehid, ls_leader_av, ls_follower_av):
         '''
         based on desire_v to determining leader_AV, and leader_AV decrease to create gaps between platoons
         :param ls_leader_av: the list of leader_AV (asc; small=>large)
@@ -190,26 +197,38 @@ class PlatoonBasic:
             60 = 16.67
         '''
         min_dis = 100
-        v_max = self.data_recorder.max_speed  # 27.78 m/s => 100km/h
+
         v_level1 = 19.44  # 22.22m/s => 80km/h; ori 20m/s
         v_level2 = 16.67  # 19.44m/s => 70km/h; ori 15m/s
+        # make sure all veh in ls_leader_av and ls_follower_av in ls_vehid
+        ls_leader_av = [id for id in ls_leader_av if id in ls_vehid]
+        ls_follower_av = [id for id in ls_follower_av if id in ls_vehid]
         ls_second_decAV = []
         for id in ls_follower_av:
+            if id == 'mav281':
+                pass
             self.traci.vehicle.setColor(id, (255, 0, 0, 255))  # red
-            self.traci.vehicle.setMaxSpeed(id, v_max)
-        for id in ls_leader_av:
-            self.traci.vehicle.setColor(id, (255, 255, 0, 255))  # yellow
+            self.traci.vehicle.setMaxSpeed(id, self.data_recorder.max_speed)
+            if id in self.dec_av:
+                self.dec_av.remove(id)
+        for leader in ls_leader_av:
+            if leader == 'mav281':
+                pass
+            self.traci.vehicle.setColor(leader, (255, 255, 0, 255))  # yellow
             # platoon space control
-            if id not in self.dec_av: # av that has dec to level1 speed?
-                self.traci.vehicle.setMaxSpeed(id, v_level1)
-                self.dec_av.append(id)
+            if leader not in self.dec_av: # av that has dec to level1 speed?
+                self.traci.vehicle.setMaxSpeed(leader, v_level1)
+                self.dec_av.append(leader)
         # check if any leader av is very close to it's preceding vehicle
         for index, leader in enumerate(ls_leader_av):  # ascending order
+            if leader == 'mav281':
+                pass
             preceding_veh_info = self.traci.vehicle.getLeader(leader)
             if preceding_veh_info is not None:
                 dis_to_pv = preceding_veh_info[1]
-                speed = self.traci.vehicle.getSpeed(leader)
-                if dis_to_pv < min_dis and speed == v_level1:
+                # speed = self.traci.vehicle.getSpeed(leader)
+                speed_leader = self.data_recorder.get_vid_states(leader)['v']
+                if dis_to_pv < min_dis and speed_leader == v_level1:
                     '''
                     if find LEADER do not has enough space from its preceding veh, 
                     this LEADER (and other LEADER after this LEADER) need to 
@@ -217,18 +236,17 @@ class PlatoonBasic:
                     '''
                     ls_second_decAV = ls_leader_av[index:]
                     break
-        for id in ls_second_decAV:
-            self._set_hold_speed(id, v_level2, 7)
+        self._set_hold_speed(ls_second_decAV, v_level2, 7)
 
-    def restore_speed_limit2(self, ls_centerA_av):
+    def restore_speed_limit2(self, ls_av):
         '''
         restor av max_speed to 27.78 m/s
         max_speed = 27.78
-        :param ls_centerA_av: list of AV IDs in center lane, order is not important
+        :param ls_av: list of AV IDs
         :return:
         '''
 
-        for vid in ls_centerA_av:
+        for vid in ls_av:
             if vid in self.ls_speed_ok:
                 continue
             current_max = self.traci.vehicle.getMaxSpeed(vid)
@@ -236,23 +254,6 @@ class PlatoonBasic:
                 self.ls_speed_ok.append(vid)
                 continue
             self.traci.vehicle.setMaxSpeed(vid, self.max_speed)  # restore to 27.78 m/s
-
-    def restrict_strategic_lc(self, ls_id):
-        '''
-        forbid auto lane_change
-
-        0: Disable all lane changes (complete override)
-        256 (0b100000000): Disable strategic lane changes only//own route needs
-        512 (0b1000000000): Disable cooperative lane changes//help others
-        1621 (default): Full autonomous mode with all lane change reasons enabled
-
-        :param ls_id: list of veh id
-        :return:
-        '''
-        for vid in ls_id:
-            if vid not in self.no_strategic_lc_veh:
-                self.traci.vehicle.setLaneChangeMode(vid, 256)
-                self.no_strategic_lc_veh.add(vid)
 
     def get_cor_leader(self, follower_id):
         '''
@@ -307,9 +308,9 @@ class PlatoonBasic:
         self.data_recorder.dic_follower_state = self.dic_follower_state
         # record final platoon information
         self._get_final_platoon_info(step, self.dic_follower_state)
-        return self.dic_follower_state, self.dic_final_platoon_info
+        return self.dic_follower_state, self.dic_final_platoon_info # change to leftmost lane and keep until the end of the road
 
-    def _set_hold_speed(self, id, set_v, hold_time):
+    def _set_hold_speed_ori(self, id, set_v, hold_time):
         '''
         Set vehicle speed to set_v for hold_time seconds, then auto-recover to ori_v.
         Also checks and recovers any expired speed holds.
@@ -321,6 +322,8 @@ class PlatoonBasic:
         # Check and recover expired holds
         to_remove = []
         for veh_id, (target_speed, recover_time) in self.recover_time_map.items():
+            if veh_id == 'mbav142892':
+                pass
             if current_time >= recover_time:
                 self.traci.vehicle.setMaxSpeed(veh_id, target_speed)
                 to_remove.append(veh_id)
@@ -332,6 +335,31 @@ class PlatoonBasic:
             ori_v = self.traci.vehicle.getMaxSpeed(id)  # Get current max speed
             self.traci.vehicle.setMaxSpeed(id, set_v)
             self.recover_time_map[id] = (ori_v, current_time + hold_time)
+
+    def _set_hold_speed(self, ls_second_decAV, set_v, hold_time):
+        '''
+        Set vehicle speed to set_v for hold_time seconds, then auto-recover to ori_v.
+        Also checks and recovers any expired speed holds.
+        params:
+            self.recover_time_map = {vid: (target_speed, recover_time), ...}
+        '''
+        current_time = self.traci.simulation.getTime()
+
+        # Check and recover expired holds
+        to_remove = []
+        for vid, (target_speed, recover_time) in self.recover_time_map.items():
+            if current_time >= recover_time:
+                self.traci.vehicle.setMaxSpeed(vid, target_speed)
+                to_remove.append(vid)
+        for vid in to_remove:
+            del self.recover_time_map[vid]
+
+        # Set new hold (store original speed for recovery)
+        for id in ls_second_decAV:
+            if id not in self.recover_time_map:
+                ori_v = self.traci.vehicle.getMaxSpeed(id)  # Get current max speed
+                self.traci.vehicle.setMaxSpeed(id, set_v)
+                self.recover_time_map[id] = (ori_v, current_time + hold_time)
 
     def _check_state(self, id):
         '''

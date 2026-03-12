@@ -1108,15 +1108,18 @@ class VehGen:
 
 
 if __name__ == '__main__':
-    st = 1200
-    av_p = 0.3
+    st = 1200 * 5
+    av_p = 0.1
     fr = 1080  # 360
     platoon_p = 1
     max_attempts = 7
-    seed = 4
-    plot = True
+    seed = 0
+    plot = False
     display = True
     dic_dpt_type = get_schedule2(st, av_p, fr, platoon_p, max_attempts, plot=plot, seed=seed, display=True)
+    count_dict = {key: len(value) for key, value in dic_dpt_type.items()}
+    print(count_dict)
+
 
 
 

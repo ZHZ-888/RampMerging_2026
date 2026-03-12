@@ -18,7 +18,7 @@ class MergingController:
     def __init__(self, data_recorder, traci, av_p, platoon_formation=False, ml=False, loss_rate=0, mpc_interval=70,
                  delta_t=12): # ml: multi-lane
         self.data_recorder = data_recorder
-        self.merge_regular = mcr.MergingControlRegular(traci, self.data_recorder)
+        self.merge_regular = mcr.MergingControlRegular(traci, self.data_recorder, ml)
         self.action_mgr = act_mgr.ActionManager(self.data_recorder, self.merge_regular, loss_rate)
         self.merge_jam = mcj.MergingControlJam(traci, self.data_recorder, self.merge_regular, loss_rate, ml) # vehicle control during_jame3
         self.mode_switch = mcj.ShiftMode(traci, self.data_recorder,av_p)
@@ -47,7 +47,7 @@ class MergingController:
 
         # === 1. Unpack veh info ===
         dic_vid_groups = (
-            self.data_recorder.record_multi_lane_info()
+            self.data_recorder.dic_vid_groups
             if self.pf
             else self.data_recorder.record_vehinfo()
         )
@@ -84,9 +84,9 @@ class MergingController:
             ls_r_veh_up,
             ls_r_leader_up
         )
+
         # jam_mode = True
         # regular_mode = False
-
         self.merge_regular.set_veh_color()
 
         # === 4. Apply corresponding control logic ===
@@ -120,8 +120,7 @@ class MergingController:
              dic_leader_action, ls_action_leader,
              dic_m_leader_followup_action, ls_m_leaders_followup) = self.action_mgr.get_action_info(
                                                                            step,
-                                                                           interval=self.mpc_interval
-                                                                          )
+                                                                           interval=self.mpc_interval)
             # execute actions
             self.action_mgr.execute_action(step, dic_leader_action, ls_action_leader, ls_veh_id)
             self.action_mgr.execute_action(step, dic_m_leader_followup_action, ls_m_leaders_followup, ls_veh_id)

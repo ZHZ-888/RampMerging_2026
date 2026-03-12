@@ -38,6 +38,11 @@ class DataRecording:
         self.dic_lane = {}
         self.ls_tail_ids = []
 
+        # Phase 1 optimization caches
+        self.dic_leader_gap = {}  # {follower_id: gap_to_leader} - pre-computed gaps
+        self.ls_lane0_veh = []  # Vehicles on lane 0 (main lane 0)
+        self.ls_lane1_veh = []  # Vehicles on lane 1 (main lane 1)
+
         '''
         dic_platoon_members = 
                     {'mav19': ['mav19', 'mhv46', 'mhv64', 'mhv74', 'mhv86'], 
@@ -332,6 +337,7 @@ class DataRecording:
         self.dic_vid_groups['ls_upB_av'] = ls_upB_av
 
         # veh on weaving section (ws)
+        self.dic_vid_groups['ls_wsB_av'] = ls_wsB_av
         self.dic_vid_groups['ls_wsB_hv'] = ls_wsB_hv
         self.dic_vid_groups['ls_wsC_hv'] = ls_wsC_hv
         self.dic_vid_groups['ls_wsBC_hv'] = ls_wsBC_hv
@@ -499,6 +505,30 @@ class DataRecording:
         for vid in self.traci.vehicle.getIDList():
             self.traci.vehicle.setLaneChangeMode(vid, 0)
 
+    def update_leader_gap_cache(self, dic_platoon_members):
+        """
+        Update leader-follower gap cache after platoon members are identified.
+        Called after identify_platoon_members() in formation_controller.
+
+        Pre-compute gaps to avoid repeated position queries.
+        Params:
+            - dic_platoon_members: {leader_id: [leader_id, follower1_id, follower
+            - dic_pos: lane position
+        """
+        self.dic_leader_gap.clear()
+
+        for leader_id, members in dic_platoon_members.items():
+            if leader_id not in self.dic_pos:
+                continue
+            leader_pos = self.dic_pos[leader_id]
+
+            for follower_id in members[1:]:  # Skip leader itself
+                if follower_id in self.dic_pos:
+                    follower_pos = self.dic_pos[follower_id]
+                    self.dic_leader_gap[follower_id] = leader_pos - follower_pos
+        return
+
+
     def _record_rf_at_target(self, step, tail_id):
         '''
         record platoon tail arrival time
@@ -521,15 +551,35 @@ class DataRecording:
 
     def _build_step_cache(self, ls_vehid):
         """
-           Cache per-step TraCI queries to reduce IPC overhead.
-           all vehicle on traffic network
+        Cache per-step TraCI queries to reduce IPC overhead.
+        All vehicle on traffic network.
+
+        Phase 1 optimizations:
+        - Build lane-specific vehicle lists
+        - Note: Leader gaps are computed separately via update_leader_gap_cache()
         """
+        # Clear previous cache
+        self.dic_pos.clear()
+        self.dic_dis.clear()
+        self.dic_speed.clear()
+        self.dic_lane.clear()
+        self.ls_lane0_veh.clear()
+        self.ls_lane1_veh.clear()
+
+        # Cache basic vehicle properties
         for vid in ls_vehid:
             # These TraCI calls are expensive; cache them once per step.
             self.dic_pos[vid] = self.traci.vehicle.getLanePosition(vid)
             self.dic_dis[vid] = self.traci.vehicle.getDistance(vid)
             self.dic_speed[vid] = self.traci.vehicle.getSpeed(vid)
-            self.dic_lane[vid] = self.traci.vehicle.getLaneID(vid)
+            lane_id = self.traci.vehicle.getLaneID(vid)
+            self.dic_lane[vid] = lane_id
+
+            # Build lane-specific lists (Phase 1 optimization)
+            if 'inflow_highway_0' in lane_id:
+                self.ls_lane0_veh.append(vid)
+            elif 'inflow_highway_1' in lane_id:
+                self.ls_lane1_veh.append(vid)
         return
 
     def _get_vid_digit(self, vid):

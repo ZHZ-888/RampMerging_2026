@@ -42,6 +42,10 @@ def fifo_main(av_p, r_fr, m_fr, seed,
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
                 "--fcd-output", str(xml_path), # save path
                 "--no-warnings"]  # , '-S' start auto, and quit auto
+
+    # restart simulation from saved state
+    # sumo_cmd += ["--load-state", "state_100.xml"]
+
     sumo_options = ["--step-length", str(sim_step)]
 
     # If GUI is enabled, set the GUI view schema
@@ -83,6 +87,11 @@ def loop(traci, st, vgvg, data_recorder,
             pass
         traci.simulationStep()  # start simulation
         c_ts = traci.simulation.getTime()  # current_timestep
+
+        # save state at 100s for visualisation
+        # if c_ts == 120:
+        #     traci.simulation.saveState("state_100.xml")
+
         if c_ts % 1 == 0:
             prc.print_message(f'************current_time, step:{c_ts, step}************')
 

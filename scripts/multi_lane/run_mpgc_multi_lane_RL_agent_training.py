@@ -42,7 +42,11 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
     xml_path = os.path.join(traj_dir, file_name)
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
                 "--fcd-output", str(xml_path), # save path
-                "--no-warnings"]  #
+                "--no-warnings"]
+
+    # restart simulation from saved state
+    # sumo_cmd += ["--load-state", "state_14440.xml"]
+
     sumo_options = ["--step-length", str(sim_step)]
 
     # If GUI is enabled, set the GUI view schema
@@ -73,13 +77,13 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
                                                   platoon_formation=True, ml=True)
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size,
-         dic_id_features, tp, speed_log, queue_log) = \
+         dic_id_features) = \
             loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller, lc,
                  r_autoFollow_p, m0_dpt_type, m1_dpt_type, r_dpt_type)
     finally:
         traci.close()
     return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
-            tp, speed_log, queue_log, xml_path)
+            xml_path)
 
 def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller, lc,
          r_autoFollow_p, m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None):
@@ -88,29 +92,29 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
     # scripts loop
     while step < st * 10:
         # checkpoint
-        if step > 1190 * 10:
+        if step > 14452 * 10:
              pass
         traci.simulationStep()  # start simulation
 
         c_ts = traci.simulation.getTime()  # current_timestep
+
+        # save state at 100s for visualisation
+        # if c_ts == 14440:
+        #     traci.simulation.saveState("state_14440.xml")
+
         if c_ts % 1 == 0:
             prc.print_message(f'************current_time, step:{c_ts, step}************')
 
         # main vehicle generation
         veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
         veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
-        # ramp vehicle generation
-        veh_gen.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size,
          dic_id_features, dic_final_platoon_info) = formation_controller.step(st, step, lc)
-        tp, speed_log, queue_log = merging_controller.step(st, step,
-                                                           dic_final_platoon_info, r_dpt_type)
 
         data_recorder.record_tail_arrival(step)
         step += 1
-    return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
-            tp, speed_log, queue_log)
+    return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features)
 
 def main(args=None, root=None):
     """
@@ -178,24 +182,22 @@ if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
-     tp, speed_log, queue_log, xml_path) = mpgc_main(
-        av_p = 0.1, # 0.3
-        r_fr = 1000,
-        m_fr = 1500,
+     xml_path) = mpgc_main(
+        av_p = 0.3, # 0.3
+        r_fr = 0,
+        m_fr = 1200,
         seed = 1,
         r_autoFollow_p = 1,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles
         loss_rate = 0,
-        gui = False,
+        gui = True,
         plot = False,
         display = False,
         lc = False, # if consider HV lane-changing
-        st = 1200
+        st = 1200*50
     )
     end = time.time()
     runtime = end - start
 
     hpc_utils.get_fc_indicator(dic_follower_state, his_dic_platoon_size)
 
-    tp, average_v, ttc_ratio, avg_speed_std, runtime = (
-        hpc_utils.get_mc_indicator(speed_log, tp, xml_path, runtime))

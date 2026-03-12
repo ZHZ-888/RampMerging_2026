@@ -33,24 +33,31 @@ class PlatoonSparseHandler:
         - Add per-follower last leader mapping in `self.dic_id_last_leader`.
         - Add per-leader free cascade flag in `self.dic_leader_free_triggered`.
         - Scan vehicles newest -> oldest and (re)predict any follower that is new or whose leader changed.
+
+        Params:
+        - ls_vehid:
+        - dic_id_last_leader: {follower : last_leader, ...}
         """
         if not dic_id_type:
             return self.dic_id_preState, self.dic_id_features
-
         # Clean / reset when a vehicle becomes leader
         for vid, tag in dic_id_type.items():
             if tag == 1:
                 self.dic_id_last_leader.pop(vid, None)
                 self.dic_id_features.pop(vid, None)  # removes id from the dictionary; returns None if id doesn't exist.
                 self.dic_id_preState.pop(vid, None)  # removes the prediction state for id.
+                if vid == 'mav4686':
+                    pass
                 self.dic_leader_free_triggered[vid] = False
 
         # Process newest -> oldest
-        items = list(dic_id_type.items())[::-1]
+        # items = list(dic_id_type.items())[::-1] # seems has a problem in this sequence!
+        items = list(dic_id_type.items())
         for vid, tag in items:
-            if vid == 'mav281':
+            if vid == 'mhv4704' or vid == 'mhv4751' or vid == 'mhv4801':
                 pass
-
+            if vid == 'mhv4858':
+                pass
             # only handle followers (both AV and HV)
             if tag == 1:
                 continue
@@ -95,6 +102,8 @@ class PlatoonSparseHandler:
 
                 # if this follower is free, subsequent followers in same platoon are free
                 if pre_state == 0:
+                    if leader_id == 'mav4686':
+                        pass
                     self.dic_leader_free_triggered[leader_id] = True
 
         return self.dic_id_preState, self.dic_id_features
@@ -149,9 +158,13 @@ class PlatoonSparseHandler:
         identify sparse platoon
         :param dic_id_preState:
         :return: dic_sparse_platoon = {leader_id : first_free_follower, ...}
+                 dic_standard_platoon = {leader_id : [leader, follower1, follower2, ...], ...}
+                 // those platoons are non-oversized and without free followers
         '''
         dic_sparse_platoon = {}
+        dic_standard_platoon = {}
         for leader, ls_followers in dic_nonOversized.items():
+            first_free_follower = None
             for follower in ls_followers:
                 if (follower in dic_id_preState and dic_id_preState[follower] == 0):
                         # and leader not in self.dic_AVroleChange):  # temporary measure, future multiple step prediction
@@ -159,51 +172,79 @@ class PlatoonSparseHandler:
                     first_free_follower = follower
                     dic_sparse_platoon[leader] = first_free_follower
                     break
-        return dic_sparse_platoon
+            if first_free_follower is None:
+                dic_standard_platoon[leader] = ls_followers
+        return dic_sparse_platoon, dic_standard_platoon
 
     def free_promote(self, dic_sparse_platoon, dic_platoon_members):
         '''
         promote AV_follower (from 2 to 1) between leader_AV and first_free_follower if possible
-        :param dic_sparse_platoon: {leader : first_free_follower}
+        :param dic_sparse_platoon: {sparse_leader : first_free_follower}
         :param dic_platoon_members: all platoon leader and its followers
         :return:
         '''
-        for leader, first_free_follower in dic_sparse_platoon.items():
-            platoon_members = dic_platoon_members[leader]
-            idx_first_free = platoon_members.index(first_free_follower)
-            ls_free_followers = platoon_members[1:idx_first_free]
-            # check if there are any av_follower
-            ls_av_only = [vid for vid in ls_free_followers if 'av' in vid]
-            if ls_av_only:
-                promote_av = ls_av_only[-1]
-                # free_promote
-                self.p_basic.dic_tags[promote_av] = 1
-                self.p_basic.dic_AVroleChange[promote_av] = 'free_promote'
-                self.free_triggered = True
-                # Remove prediction state since it's now a leader
-                self.dic_id_preState.pop(promote_av, None)
-            else:
+        for sparse_leader, first_free_follower in dic_sparse_platoon.items():
+            if sparse_leader == 'mav6916':
                 pass
+            platoon_members = dic_platoon_members[sparse_leader]
+            idx_first_free = platoon_members.index(first_free_follower)
+            ls_following_fol = platoon_members[1:idx_first_free]
+            # check if there are any av_follower before first_free_follower
+            ls_av_following_fol = [vid for vid in ls_following_fol if 'av' in vid]
+            promote_av = None
+            if 'av' in first_free_follower:
+                promote_av = first_free_follower
+            elif ls_av_following_fol:
+                promote_av = ls_av_following_fol[-1]
+            # if no AV is available to promote, skip
+            if promote_av is None:
+                continue
+            # free_promote
+            self.p_basic.dic_tags[promote_av] = 1
+            self.p_basic.dic_AVroleChange[promote_av] = 'free_promote'
+            self.free_triggered = True
+            # Remove prediction state since it's now a leader
+            self.dic_id_preState.pop(promote_av, None)
         return
+
+    def filter_out_AV_followers(self, dic_sparse_platoon, dic_platoon_members):
+        '''
+        filter out AV followers, as the role of AV_follower could change
+        Params:
+            - dic_sparse_platoon: {sparse_leader : first_free_follower}
+            - dic_platoon_members: {leader: [leader, follower1, follower2, ...], ...}
+        Return:
+            - dic_sparse_platoon_filtered: {sparse_leader: first_free_hv_follower}
+        '''
+        dic_sparse_platoon_filtered = {}
+        for sparse_leader, first_free_fol in dic_sparse_platoon.items():
+            platoon_members = dic_platoon_members[sparse_leader]
+            idx_first_free = platoon_members.index(first_free_fol)
+            ls_free_fol = platoon_members[idx_first_free:]
+            # Filter to keep only HV followers
+            ls_hv_free_fol = [fol for fol in ls_free_fol if 'hv' in fol]
+            if len(ls_hv_free_fol) > 1:
+                dic_sparse_platoon_filtered[sparse_leader] = ls_hv_free_fol[0]
+        return dic_sparse_platoon_filtered
 
     def find_sparseP_nearbyAV(self, ls_ihB_av, dic_sparse_platoon):
         """
         Find nearby side-lane AVs for sparse platoons with free followers
 
         :param ls_ihB_av: side-lane AVs (descending order)
-        :param dic_sparse_platoon: {leader_id: first_free_follower}
+        :param dic_sparse_platoon: {sparse_leader: first_free_follower}
         :param dic_platoon_members: platoon membership info
-        :return: dic_sparse_candidates = {leader_id: [candidate_av1, candidate_av2, ...]}
+        :return: dic_sparse_candidates = {sparse_leader: [candidate_av1, candidate_av2, ...]}
         """
         ls_ihB_av_asc = ls_ihB_av[::-1]  # oldest → newest
         dic_sparse_candidates = {}
 
-        for leader_id, first_free_fol in dic_sparse_platoon.items():
-            if leader_id == 'mav281':
+        for sparse_leader, first_free_fol in dic_sparse_platoon.items():
+            if sparse_leader == 'mav281':
                 pass
             # Get position of first free follower
             try:
-                pos_free_fol = self.data_recorder.get_vid_states(first_free_fol)['pos']
+                pos_sparse_leader = self.data_recorder.get_vid_states(sparse_leader)['pos']
             except:
                 continue
 
@@ -214,49 +255,10 @@ class PlatoonSparseHandler:
                 except:
                     continue
 
-                if pos_side_av < pos_free_fol:
+                if pos_side_av <= pos_sparse_leader:
                     # All AVs from this point onward are candidates
                     av_candidates = ls_ihB_av_asc[index:]
-                    dic_sparse_candidates[leader_id] = av_candidates
+                    dic_sparse_candidates[sparse_leader] = av_candidates
                     break
 
         return dic_sparse_candidates
-
-    def collect_free_followers(self, dic_sparse_candidates, dic_sparse_platoon):
-        """
-        Execute lane change for best candidate AV to collect free followers
-        This is a simple implementation - can be enhanced with RL scoring later
-
-        :param dic_sparse_candidates: Dictionary of candidates for each sparse platoon
-        :param dic_sparse_platoon: Dictionary of sparse platoons
-        :param dic_platoon_members: Platoon membership info
-        """
-        for leader_id, candidates in dic_sparse_candidates.items():
-            if not candidates:
-                continue
-
-            first_free_fol = dic_sparse_platoon[leader_id]
-
-            # For now, select the first (oldest/nearest) candidate
-            # TODO: Integrate RL scoring agent to select best candidate
-            best_av = candidates[0]
-
-            # Execute lane change (jump in front of free follower)
-            try:
-                # Get target lane (same as free follower's lane)
-                target_lane = 0 # inner lane
-
-                # Command lane change
-                self.traci.vehicle.changeLane(best_av, target_lane, 3)
-
-                # Mark this AV as a new leader
-                self.p_basic.dic_tags[best_av] = 1
-                self.p_basic.dic_AVroleChange[best_av] = 'free_insert'
-
-                # Remove from prediction tracking since it's now a leader
-                self.dic_id_preState.pop(best_av, None)
-                self.dic_id_last_leader.pop(best_av, None)
-
-            except Exception as e:
-                # Lane change may fail due to safety constraints - that's okay
-                pass

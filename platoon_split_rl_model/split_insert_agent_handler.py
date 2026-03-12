@@ -1,4 +1,4 @@
-# main_agent_handler.py
+# split_insert_agent_handler.py
 
 import os
 import matplotlib.pyplot as plt
@@ -13,13 +13,14 @@ project_root = os.path.dirname(current_dir) # Get the parent directory as the pr
 path_pt = os.path.join(project_root, 'platoon_split_rl_model', 'saved_models', 'split_score_model_251124_1900.pt')
 
 class AgentHandler:
-    def __init__(self, traci, vcfunc, scoring_interval=10, mode='train'):
+    def __init__(self, traci, data_recorder, scoring_interval=10, mode='train'):
         self.traci = traci
+        self.data_recorder = data_recorder
         self.mode = mode
-        self.vcfunc = vcfunc
+        # self.merge_regular = merge_regular
 
-        self.agent = RLScoringAgent(traci,
-            model_path=path_pt if mode == "predict" else None)
+        self.agent = RLScoringAgent(traci, data_recorder,
+                                    model_path=path_pt if mode == "predict" else None)
         self.scoring_interval = scoring_interval  # Minimum interval (in steps) between scoring attempts
         self.training_warmup_steps = 20000
         self.next_save_step = 10000
@@ -67,25 +68,17 @@ class AgentHandler:
             leader_id = record['leader_id']
             tail_id = platoon_snapshot[-1] # platoon tail id at the moment of insertion decision
             lc_av = record['av_id']
-            if leader_id == 'mav635' or leader_id == 'mav2484':
-                pass
             try:
                 lane_id = self.traci.vehicle.getLaneID(leader_id)
             except self.traci.TraCIException:
                 lane_id = None
 
             if lane_id == 'ws_1': # inflow_highway_0
-                # success = self.check_insert_success3(lc_av, platoon_snapshot, dic_platoon_members)
-                # if not success: # success = False
-                #     pass
-                # reward = 1.0 if success else 0.0
                 reward = self.evaluate_insertion_reward(lc_av, platoon_snapshot, dic_platoon_members)
-                if lc_av == 'mbav3527':
-                    pass
                 self.dic_score_reward[lc_av].append(reward)
                 if self.mode == 'train':
                     self.agent.record_transition(record['state'], reward)
-                print(f"[Agent] Reward {'+' if reward > 0 else ''}{reward:.1f} for AV {lc_av}")
+                print(f"[SplitInsert] {lc_av} reward: {'+' if reward > 0 else ''}{reward:.3f} ")
                 self.insert_buffer.remove(record)
                 updated = True
         if updated and self.mode == 'train':
@@ -181,6 +174,7 @@ class AgentHandler:
                         num_front += 1
                     else: # pos <= current_pos
                         num_rear += 1
+
             if num_front >= 1 and num_rear >= 1:
                 imbalance = abs(num_front - num_rear)
                 total = num_front + num_rear + 1
@@ -269,7 +263,7 @@ class AgentHandler:
         """
         try:
             self.traci.vehicle.changeLane(selected_av, self.target_lane, duration=100)
-            print(f"[Agent] Insert decision: {selected_av} with score {score:.3f}")
+            print(f"[SplitInsert] {selected_av} selected with score {score:.3f}")
             platoon_snapshot = dic_platoon_members[leader_id]
             self.ls_splited_platoon.append(leader_id)
             self.insert_buffer.append({
@@ -282,4 +276,4 @@ class AgentHandler:
             self.dic_insertedAV[selected_av] = 'split_insert'
             print(f'dic_insertedAVcands: {self.dic_insertedAV}')
         except self.traci.TraCIException:
-            print(f"[Agent] Failed to insert {selected_av} due to TraCI exception")
+            print(f"[SplitInsert] {selected_av} failed to insert due to TraCI exception")

@@ -72,7 +72,7 @@ def loop(traci, st, vgvg, merging_controller, p_autoFollow, m_dpt_type=None, r_d
     while step < st*10:
         if step > 69:
             pass
-        if step == 4039:
+        if step >= 777 * 10:
             pass
         if step%10 == 0:
             pass
@@ -105,23 +105,23 @@ def loop(traci, st, vgvg, merging_controller, p_autoFollow, m_dpt_type=None, r_d
 
 if __name__ == '__main__':
     prc.PRINT_ENABLED = False
-    delta_t = 12
-    mpc_interval = 70 # step; 10step = 1s
-
-    st = 1200 # 1000
-    av_p = 0.1 # 0.3
-    r_fr = 540 # 990 # 540, 360
-    m_fr = 1080 # 132
-    platoon_p = 0.8 # percentage of platoon vehicles; default 1
-    p_autoFollow = 0.8  # auto follow proportion (percentage = proportion × 100%); default 1
-    loss_rate = 0.1 # 0 (default), 0.05, 0.1, 0.15; packet loss rate
-    seed = 1 # 4
-    gui = False
-    plot = False
-    display = False
     start = time.time()
     tp, speed_log, queue_log, xml_path = (
-        main(av_p, r_fr, m_fr, seed, mpc_interval, delta_t, p_autoFollow, platoon_p, loss_rate, gui, plot, display, st))
+        main(
+            av_p = 0.1,
+            r_fr = 720, # 990, 540, 360
+            m_fr = 1080,
+            seed = 1, # 4
+            mpc_interval = 70, # step; 10step = 1s
+            delta_t = 12,
+            p_autoFollow = 1, # auto follow proportion (percentage = proportion × 100%); 0.8 ;default 1
+            platoon_p = 1, # percentage of platoon vehicles; 0.8; default 1
+            loss_rate = 0, # 0 (default), 0.05, 0.1, 0.15; packet loss rate
+            gui = True,
+            plot = False,
+            display = False,
+            st = 1200
+        ))
     end = time.time()
 
     ttc_ratio, avg_speed_std = calc_ttc_sd_exposure.calc_ttc_and_speed_std(xml_path)

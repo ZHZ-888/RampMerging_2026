@@ -33,7 +33,7 @@ class RLScoringAgent:
     This module predicts the score of inserting a candidate AV,
     and learns to regress the expected reward based on observed outcomes.
     """
-    def __init__(self, traci, model_path=None, lr=5e-4, gamma=0.99):
+    def __init__(self, traci, data_recorder, model_path=None, lr=5e-4, gamma=0.99):
         """
         Initialize the scoring model and training components.
 
@@ -44,7 +44,8 @@ class RLScoringAgent:
             gamma: Discount factor (currently unused, but kept for future use).
         """
         self.traci = traci
-        self.state_builder = StateBuilder(traci)
+        self.data_recorder = data_recorder
+        self.state_builder = StateBuilder(traci, data_recorder)
         self.gamma = gamma
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -131,8 +132,10 @@ class RLScoringAgent:
             return
         # save loss data
         df_loss = pd.DataFrame({'step': list(range(len(self.loss_history))), 'loss': self.loss_history})
-        df_loss.to_csv(f"/home/zzha/PycharmProjects/RampMerging4_250208"
-                       f"/platoon_split_rl_model/plot_data/loss_data_step.csv", index=False)
+        # df_loss.to_csv(f"/home/zzha/PycharmProjects/RampMerging_2026"
+        #                f"/platoon_split_rl_model/plot_data/loss_data_step.csv", index=False)
+        df_loss.to_csv(f"/home/zzha/PycharmProjects/RampMerging_2026"
+                       f"/platoon_split_rl_model/plot_data/loss_data_step_FREE_INSERT_260302.csv", index=False)
 
         plt.plot(self.loss_history, label="Training Loss", color='blue', linewidth=1, alpha=0.3)
         # Smoothed loss line (moving average)
