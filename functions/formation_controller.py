@@ -54,6 +54,7 @@ class FormationController:
         ls_wsBC_hv = dic_vid_groups['ls_wsBC_hv']
         ls_wsB_av = dic_vid_groups['ls_wsB_av']
         ls_centerA_av = dic_vid_groups['ls_centerA_av']
+        ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']
         length_ih = self.data_recorder.length_ih  # obtain the length of inflow_highway
 
         # ******** HANDLE OVERSIZED PLATOONS ********
@@ -102,7 +103,7 @@ class FormationController:
 
         # control gaps between platoons
         self.p_basic.form_platoon3(ls_vehid, ls_leader_AV, ls_follower_AV)
-        self.p_basic.restore_speed_limit2(ls_wsB_av) # ls_centerA_av
+        self.p_basic.restore_speed_limit2(ls_m_leader_up_asc) # ls_wsB_av; ls_centerA_av
 
         # record dic_platoon_members
         dic_member_to_leader = self.p_basic.update_member_to_leader(dic_platoon_members)

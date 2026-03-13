@@ -165,7 +165,7 @@ class MergingControlJam:
         ls_r_leader_pre_stop = self._get_r_leader_pre_stop()
         first_r_leader_proper = ls_r_leader_pre_stop[0] if ls_r_leader_pre_stop else None # first ramp leader (on ramp_proper) before acc space
         # only dis < 203
-        if first_r_leader_proper == 'ravh40':
+        if first_r_leader_proper == 'ravh890':
             pass
 
         if (self.r_leader_stop is None
@@ -174,7 +174,7 @@ class MergingControlJam:
                 and first_r_leader_proper not in self.first_stop_recorded):
             # stop the first ramp_proper leader and make sure it's not in skip list
             try:
-                if first_r_leader_proper == 'ravh40':
+                if first_r_leader_proper == 'ravh890':
                     pass
                 self.traci.vehicle.setStop(first_r_leader_proper, 'inflow_merge', self.stop_pos, laneIndex=0)  # duration
                 self.first_stop_recorded.append(first_r_leader_proper)
@@ -392,6 +392,8 @@ class MergingControlJam:
 
             # 3.1 between platoons
             for i, head_id in enumerate(ls_m_leader_up_asc):
+                if head_id == 'mbav11196':
+                    pass
                 if head_id not in self.dic_mplatoon_et:
                     headway_differences[head_id] = 0
                 elif i == 0 and head_id != first_veh:
@@ -406,6 +408,8 @@ class MergingControlJam:
                     # Get the arrival time of the current head vehicle
                     ts_head_current = self.dic_mplatoon_et[head_id][1]
                     # Get the arrival time of the preceding vehicle's tail
+                    if ls_m_leader_up_asc[i-1] == 'mbav11196':
+                        pass
                     ts_tail_previous = self.dic_mplatoon_et[ls_m_leader_up_asc[i - 1]][2]
                     # Get the remaining time of the preceding vehicle
                     ts_tail_remaining = ts_tail_previous - c_ts
@@ -635,6 +639,33 @@ class MergingControlJam:
             self.m_leader_acting = True
         return action_m_leader
 
+    def _push_if_not_redundant(self, step, value, update_queue, last_value_attr: str):
+        """
+        Push a value into the specified delay update_queue if it's not redundant.
+
+        :param step: current time step
+        :param value: payload to be pushed
+        :param update_queue: which delay buffer to use (e.g., self.action_buffer or self.timing_buffer)
+        :param last_value_attr: name of attribute to store the last pushed value (e.g., 'last_action_payload')
+        :return: maybe_released value from the update_queue
+        """
+        if value == True:
+            pass
+        last_value = getattr(self, last_value_attr, None)
+        # is_redundant = (value == last_value or all(not x for x in value))
+        if isinstance(value, (list, tuple)):
+            is_redundant = (value == last_value or all(not x for x in value))
+        else:
+            if step == 493:
+                pass
+            last_push_step = update_queue.buffer[0][1] if update_queue.buffer else None
+            is_redundant = (value is False or step == last_push_step)
+
+        if not is_redundant:
+            setattr(self, last_value_attr, value)
+            update_queue.push2(step, value)
+        return update_queue.maybe_release(step)
+
     def _jam_control_clean(self, step, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up,
                            dic_vid_groups, ls_r_dep_times, mpc_interval, delta_t):
         '''
@@ -675,33 +706,6 @@ class MergingControlJam:
         queue_log = self.data_recorder.get_queue_length(step, ls_r_proper, ls_r_dep_times)
         self._restart_ramp_fleet(first_r_leader, timing) # Resume r_leader
         return queue_log
-
-    def _push_if_not_redundant(self, step, value, update_queue, last_value_attr: str):
-        """
-        Push a value into the specified delay update_queue if it's not redundant.
-
-        :param step: current time step
-        :param value: payload to be pushed
-        :param update_queue: which delay buffer to use (e.g., self.action_buffer or self.timing_buffer)
-        :param last_value_attr: name of attribute to store the last pushed value (e.g., 'last_action_payload')
-        :return: maybe_released value from the update_queue
-        """
-        if value == True:
-            pass
-        last_value = getattr(self, last_value_attr, None)
-        # is_redundant = (value == last_value or all(not x for x in value))
-        if isinstance(value, (list, tuple)):
-            is_redundant = (value == last_value or all(not x for x in value))
-        else:
-            if step == 493:
-                pass
-            last_push_step = update_queue.buffer[0][1] if update_queue.buffer else None
-            is_redundant = (value is False or step == last_push_step)
-
-        if not is_redundant:
-            setattr(self, last_value_attr, value)
-            update_queue.push2(step, value)
-        return update_queue.maybe_release(step)
 
     def _jam_control_disturbed(self, step, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up,
                      dic_vid_groups, ls_r_dep_times, mpc_interval, delta_t):

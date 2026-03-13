@@ -37,6 +37,7 @@ class DataRecording:
         self.dic_speed = {}
         self.dic_lane = {}
         self.ls_tail_ids = []
+        self.dic_lane_length = {} # {lane_id: lane_length}; record lane_id and it's length, save traci calls
 
         # Phase 1 optimization caches
         self.dic_leader_gap = {}  # {follower_id: gap_to_leader} - pre-computed gaps
@@ -457,18 +458,17 @@ class DataRecording:
         dic_vid_states = {'v': None, 'lane': None, 'pos': None, 'dis': None}
         if not vid:
             return dic_vid_states
-        # ls_veh = self.traci.vehicle.getIDList()
         try:
             v = self.dic_speed.get(vid)  # cached
-            pos = self.traci.vehicle.getLanePosition(vid)
-            lane_id = self.traci.vehicle.getLaneID(vid)
-            lane_length = self.traci.lane.getLength(lane_id)
+            lane_id = self.dic_lane.get(vid) # lane_id = self.traci.vehicle.getLaneID(vid)
+            pos = self.dic_pos.get(vid) # pos = self.traci.vehicle.getLanePosition(vid)
+            dis = self.dic_dis.get(vid)
         except Exception:
             return dic_vid_states
         dic_vid_states['v'] = v
         dic_vid_states['lane'] = lane_id
         dic_vid_states['pos'] = pos
-        dic_vid_states['dis'] = lane_length-pos
+        dic_vid_states['dis'] = dis
         return dic_vid_states # v, lane, pos, dis
 
     def record_rf_at_features(self, leader_id, features, c_ts):
@@ -554,27 +554,31 @@ class DataRecording:
         Cache per-step TraCI queries to reduce IPC overhead.
         All vehicle on traffic network.
 
-        Phase 1 optimizations:
         - Build lane-specific vehicle lists
         - Note: Leader gaps are computed separately via update_leader_gap_cache()
         """
         # Clear previous cache
-        self.dic_pos.clear()
-        self.dic_dis.clear()
         self.dic_speed.clear()
         self.dic_lane.clear()
+        self.dic_pos.clear()
+        self.dic_dis.clear() # distance to end of lane
         self.ls_lane0_veh.clear()
         self.ls_lane1_veh.clear()
 
         # Cache basic vehicle properties
         for vid in ls_vehid:
             # These TraCI calls are expensive; cache them once per step.
-            self.dic_pos[vid] = self.traci.vehicle.getLanePosition(vid)
-            self.dic_dis[vid] = self.traci.vehicle.getDistance(vid)
-            self.dic_speed[vid] = self.traci.vehicle.getSpeed(vid)
             lane_id = self.traci.vehicle.getLaneID(vid)
-            self.dic_lane[vid] = lane_id
+            pos = self.traci.vehicle.getLanePosition(vid)
+            lane_length = self.dic_lane_length.get(lane_id)
+            if lane_length is None:
+                lane_length = self.traci.lane.getLength(lane_id)
+                self.dic_lane_length[lane_id] = lane_length
 
+            self.dic_speed[vid] = self.traci.vehicle.getSpeed(vid)
+            self.dic_lane[vid] = lane_id
+            self.dic_pos[vid] = pos
+            self.dic_dis[vid] = lane_length - pos
             # Build lane-specific lists (Phase 1 optimization)
             if 'inflow_highway_0' in lane_id:
                 self.ls_lane0_veh.append(vid)
