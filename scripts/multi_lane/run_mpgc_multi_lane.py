@@ -145,7 +145,8 @@ def main(args=None, root=None):
     # 3. Save results
     if parsed_args.out_csv:
         row = {
-            "algo": "rm_multi_lane",
+            "algo": "mpgc_multi_lane",
+            "av_p": parsed_args.av_p,
             "ramp_demand": parsed_args.r_fr,
             "mainline_demand": parsed_args.m_fr,
             "seed": parsed_args.seed,
