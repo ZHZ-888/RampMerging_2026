@@ -109,7 +109,7 @@ if __name__ == '__main__':
     tp, speed_log, queue_log, xml_path = (
         main(
             av_p = 0.1,
-            r_fr = 0, # 990, 540, 360
+            r_fr = 720, # 990, 540, 360
             m_fr = 1080,
             seed = 1, # 4
             mpc_interval = 70, # step; 10step = 1s

@@ -7,10 +7,28 @@
 #SBATCH --error=error-logs/err_%A_%a.txt    # Standard error log
 # NOTE: Submit with --array=0-14  (3 AV_Ps * 5 Seeds = 15 jobs)
 
+# ==============================================================================
+# USAGE EXAMPLES:
+# 1. Default submission (uses values defined in this script):
+#    sbatch --array=0-14 run_mpgc_multi_lane_array_RF_AT.slurm
+#
+# 2. Overriding Flow Rates from Command Line:
+#    sbatch --array=0-14 --export=ALL,M_FR=1200,R_FR=600 run_mpgc_multi_lane_array_RF_AT.slurm
+# ==============================================================================
+
 set -euo pipefail
 
 # Ensure relative paths are resolved from the submission directory
 cd "$SLURM_SUBMIT_DIR"
+
+# ================================
+# External Parameters (Flow Rates)
+# Set default values if not provided via --export
+# ================================
+M_FR=${M_FR:-1500}  # Default Mainroad flow rate: 1500 veh/h
+R_FR=${R_FR:-900}   # Default Ramp flow rate: 900 veh/h
+
+echo "Flow Settings: M_FR=$M_FR, R_FR=$R_FR"
 
 # ================================
 # Load Python environment
@@ -33,8 +51,8 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # ================================
 # Experiment parameter grid
 # ================================
-AV_P_VALS=(0.1 0.2 0.3) # AV penetartion
-SEEDS=(16 17 18 19 20)                         # Random seeds
+AV_P_VALS=(0.1 0.2 0.3) # AV penetration
+SEEDS=(16 17 18 19 20)  # Random seeds
 
 NAV=${#AV_P_VALS[@]}   # Number of AV Settings (3)
 NS=${#SEEDS[@]}        # Number of Seeds (5)
@@ -61,7 +79,7 @@ echo "TASK_ID=$TASK_ID | AV_P=$AV_P | Seed=$SEED | (Indices: av=$av_idx, s=$s_id
 # Per-task CSV output (safe for parallel jobs)
 # Each task writes to its own CSV file
 # ================================
-OUT_CSV="data/raw/tmp/rf_data_avp${AV_P}_seed${SEED}.csv"
+OUT_CSV="data/raw/tmp/rf_data_mfr${M_FR}_rfr${R_FR}_avp${AV_P}_seed${SEED}.csv"
 mkdir -p data/raw/tmp
 
 # ================================
@@ -71,4 +89,6 @@ python run.py \
   --algo mpgc_multi_lane_collect_RF_at_data \
   --av_p "$AV_P" \
   --seed "$SEED" \
+  --m_fr "$M_FR" \
+  --r_fr "$R_FR" \
   --out_csv "$OUT_CSV"

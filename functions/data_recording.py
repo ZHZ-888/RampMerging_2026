@@ -129,11 +129,13 @@ class DataRecording:
         self.dic_vid_groups['ls_m_leader_up'] = ls_m_leader_up  # big => small
         self.dic_vid_groups['ls_m_leader_up_asc'] = ls_m_leader_up_asc
         self.dic_vid_groups['ls_m_veh_up'] = ls_m_veh_up
+        self.dic_vid_groups['ls_m_veh_net'] = ls_m_veh_net
 
         self.dic_vid_groups['ls_r_leader_net'] = ls_r_leader_net
         self.dic_vid_groups['ls_r_leader_up'] = ls_r_leader_up
         self.dic_vid_groups['ls_r_leader_up_asc'] = ls_r_leader_up_asc
         self.dic_vid_groups['ls_r_veh_up'] = ls_r_veh_up  # ramp veh before merging
+        self.dic_vid_groups['ls_r_veh_net'] = ls_r_veh_net
 
         self.dic_vid_groups['ls_r_veh_net_asc'] = ls_r_veh_net_asc
         self.dic_vid_groups['ls_r_veh_net_last_asc'] = ls_r_veh_net_last_asc
@@ -183,11 +185,14 @@ class DataRecording:
         ls_ms_leader_up = [vid for vid in ls_ms_veh_up if vid in self.ls_m_leader_his_asc]
         ls_ms_leader_up_asc = sorted(ls_ms_leader_up, key=lambda x: int(''.join(filter(str.isdigit, x))))  # min=>max; asc (ascending)
         ls_m_veh_net = [vid for vid in ls_vehid if 'm' in vid]
+        ls_m_veh_net = sorted(ls_m_veh_net, key=lambda x: int(''.join(filter(str.isdigit, x))), reverse=True)
 
         # r, ramp
         ls_r_leader_net = [vid for vid in ls_vehid if 'ravh' in vid]  # ramp AV leader (history)
         ls_r_veh_net = [vid for vid in ls_vehid if 'r' in vid]  # all veh id from ramp, [rav 120, rav 100, ravh 110]
+        ls_r_veh_net = sorted(ls_r_veh_net, key=lambda x: int(''.join(filter(str.isdigit, x))), reverse=True)
         ls_r_veh_net_asc = sorted(ls_r_veh_net, key=lambda x: int(''.join(filter(str.isdigit, x)))) # asc
+
         # head RV before merging
         tup_r_veh_up = self.traci.edge.getLastStepVehicleIDs('inflow_merge')  # ramp vehicle current
         ls_r_veh_up = list(tup_r_veh_up)  # ramp veh before merging
@@ -307,12 +312,13 @@ class DataRecording:
         self.dic_vid_groups['ls_m_leader_up'] = ls_ms_leader_up  # big => small
         self.dic_vid_groups['ls_m_leader_up_asc'] = ls_ms_leader_up_asc
         self.dic_vid_groups['ls_m_veh_up'] = ls_ms_veh_up
+        self.dic_vid_groups['ls_m_veh_net'] = ls_m_veh_net
 
         self.dic_vid_groups['ls_r_leader_net'] = ls_r_leader_net
         self.dic_vid_groups['ls_r_leader_up'] = ls_r_leader_up
         self.dic_vid_groups['ls_r_leader_up_asc'] = ls_r_leader_up_asc
         self.dic_vid_groups['ls_r_veh_up'] = ls_r_veh_up  # ramp veh before merging
-
+        self.dic_vid_groups['ls_r_veh_net'] = ls_r_veh_net
         self.dic_vid_groups['ls_r_veh_net_asc'] = ls_r_veh_net_asc
         self.dic_vid_groups['ls_r_veh_net_last_asc'] = ls_r_veh_net_last_asc
         # max => min (ls_mr_leader_up = ls_ms_leader_up+ls_r_leader_up)
@@ -492,6 +498,8 @@ class DataRecording:
     def record_tail_arrival(self, step):
         '''
         call self._record_rf_at_target
+        Params:
+            self.ls_tail_ids
         '''
         ls_vehid = self.dic_vid_groups['ls_vehid']
         ls_tail_ids_net = [vid for vid in self.ls_tail_ids if vid in ls_vehid]
@@ -535,7 +543,7 @@ class DataRecording:
         enters WS for the first time
         dic_tail_arrived_ws = {leader_id: [tail_id, arrival_time]}
         '''
-        if tail_id == 'rhv1000' or 'mhv188':
+        if tail_id == 'rhv540':
             pass
         if tail_id.startswith('m'):
             leader_id = self.get_hv_leader(tail_id)

@@ -18,7 +18,7 @@ from functions import hpc_utils
 
 
 def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate=0,
-         gui=False, plot=False, display=False, lc=False, st=1000):
+              gui=False, plot=False, display=False, lc=False, st=2400):
     # SUMO SETTING
     # path = '/home/zzha/PycharmProjects/RoadNetwork/multi_lane_motorway/multi_lane_motorway1_lefthand_noLaneChanging.sumocfg'
     # path = 'road_network/multi_lane_motorway/cfg_pf.sumocfg'
@@ -91,7 +91,7 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
         # mainlane vehicle generation
         veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route0', 27.5, '0')  # 30m/s => 110km/h
         # ramp vehicle generation
-        # veh_gen.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
+        veh_gen.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
 
         # disable lane-changing
         # data_recorder.disable_all_lane_changes()
@@ -160,20 +160,19 @@ if __name__ == '__main__':
     start = time.time()
     dic_targets, ls_features = mpgc_main(
         av_p = 0.1,
-        r_fr = 990,
-        m_fr = 1500,
+        r_fr = 900,
+        m_fr = 0, # 1500
         seed = 16,
         r_autoFollow_p = 1,
         r_platoon_p = 1,
         loss_rate = 0,
-        gui = False,
+        gui = True,
         plot = False,
         display = False,
         lc = False,
         st = 1200
     )
     end = time.time()
-
 
     # orgnise data
     # output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260123.csv"

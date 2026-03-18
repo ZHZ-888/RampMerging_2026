@@ -126,19 +126,26 @@ class MergingControlRegular:
         240929update: fixed length of platoon info
         240622update: add tail_id
 
-        :param m_dpt_type: scripts lane veh departure schedule; {4: 'AHHHHHHHHH', 31: 'AHHHHHHHHHHH'}
-        :param r_dpt_type: ramp lane veh departure schedule; {4: 'AHHHHHHHHH', 58: 'AHHHHHHHHHHH'}
+        :param
+                ls_r_leader_up:
+                m_dpt_type: scripts lane veh departure schedule; {4: 'AHHHHHHHHH', 31: 'AHHHHHHHHHHH'}
+                r_dpt_type: ramp lane veh departure schedule; {4: 'AHHHHHHHHH', 58: 'AHHHHHHHHHHH'}
         :return: dic_platoon_info:
                 {'mavh70': [['AHH', 'mhv90'], deque([platoon_length1, platoon_length2], maxlen=10)]}
         """
         # get info at this moment
         dic_vid_groups = self.data_recorder.dic_vid_groups
-        ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']
-        ls_r_leader_up = dic_vid_groups['ls_r_leader_up']
-        ls_mr_leader_up = ls_m_leader_up_asc + ls_r_leader_up
 
-        for leader in ls_mr_leader_up:
-            if leader == 'mav40':
+        # ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']
+        # ls_r_leader_up = dic_vid_groups['ls_r_leader_up']
+        # ls_mr_leader_up = ls_m_leader_up_asc + ls_r_leader_up
+
+        ls_m_leader_net = dic_vid_groups['ls_m_leader_net']
+        ls_r_leader_net = dic_vid_groups['ls_r_leader_net']
+        ls_mr_leader_net = ls_m_leader_net + ls_r_leader_net
+
+        for leader in ls_mr_leader_net:
+            if leader == 'ravh900':
                 pass
             platoon_type = self.data_recorder.dic_leader_ptype.get(leader)
             if platoon_type is None:
@@ -474,17 +481,20 @@ class MergingControlRegular:
     def _get_tail_id(self, dic_vid_groups, platoon_type, leader_id):
         '''
         get platoon tail id
+        Params:
+            ls_m_veh_up:
+            ls_r_veh_up: desc
+
+            ls_r_veh_net: should be desc
         '''
-        if leader_id == 'mav40':
-            pass
         if leader_id.startswith('m'):
-            ls_veh_up = dic_vid_groups['ls_m_veh_up']
+            ls_veh_net = dic_vid_groups['ls_m_veh_net']
         else:
-            ls_veh_up = dic_vid_groups['ls_r_veh_up']
-        idx_leader = ls_veh_up.index(leader_id)
+            ls_veh_net = dic_vid_groups['ls_r_veh_net']
+        idx_leader = ls_veh_net.index(leader_id)
         dev_idx = len(platoon_type) - 1
         idx_tail = idx_leader - dev_idx
-        tail_id = ls_veh_up[idx_tail] if idx_tail >= 0 else None
+        tail_id = ls_veh_net[idx_tail] if idx_tail >= 0 else None
         return tail_id
 
     def _apply_acceleration(self, vid, acc, smooth=False):
