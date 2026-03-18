@@ -46,17 +46,13 @@ class PlatoonSparseHandler:
                 self.dic_id_last_leader.pop(vid, None)
                 self.dic_id_features.pop(vid, None)  # removes id from the dictionary; returns None if id doesn't exist.
                 self.dic_id_preState.pop(vid, None)  # removes the prediction state for id.
-                if vid == 'mav4686':
-                    pass
                 self.dic_leader_free_triggered[vid] = False
 
         # Process newest -> oldest
         # items = list(dic_id_type.items())[::-1] # seems has a problem in this sequence!
         items = list(dic_id_type.items())
         for vid, tag in items:
-            if vid == 'mhv4704' or vid == 'mhv4751' or vid == 'mhv4801':
-                pass
-            if vid == 'mhv4858':
+            if vid == 'mhv805':
                 pass
             # only handle followers (both AV and HV)
             if tag == 1:

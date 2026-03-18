@@ -1,5 +1,5 @@
-# run_mpgc_multi_lane.py
 '''
+run_mpgc_multi_lane.py
 multi-lane simulation
 test longer platoon
 '''
@@ -25,7 +25,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
                         / "multi_lane_motorway"
                         / "real"
                         / "cfg_multi_lane_merge.sumocfg"
-                        )
+    )
     # Simulation step length
     sim_step = 0.1
     # Determine the SUMO binary based on whether GUI is needed
@@ -88,7 +88,7 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
     # scripts loop
     while step < st * 10:
         # checkpoint
-        if step > 1190 * 10:
+        if step > 105 * 10:
              pass
         traci.simulationStep()  # start simulation
 
@@ -180,14 +180,14 @@ if __name__ == '__main__':
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path) = mpgc_main(
-        av_p = 0.3, # 0.3
-        r_fr = 1400, # 1000
+        av_p = 0.1, # 0.3
+        r_fr = 0, # 1000
         m_fr = 1500, # 1500
         seed = 1,
         r_autoFollow_p = 1,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles
         loss_rate = 0,
-        gui = False,
+        gui = True,
         plot = False,
         display = False,
         lc = False, # if consider HV lane-changing

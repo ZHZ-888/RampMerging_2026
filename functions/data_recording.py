@@ -59,7 +59,7 @@ class DataRecording:
 
         self.ls_features = []
         self.leader_record_counter = defaultdict(int)
-        self.dic_tail_arrived_ws = {} # {tail_id: arrival_ts}
+        self.dic_tail_arrived_ws = {} # {leader_id: [tail_id, arrival_time]}
         self.dic_platoon_info = {} # {vid:[type, tail_id, length1, length2...]}
 
     def record_vehinfo(self): # for single_lane scenario
@@ -533,7 +533,7 @@ class DataRecording:
         '''
         record platoon tail arrival time
         enters WS for the first time
-        dic_targets = {leader_id: [tail_id, arrival_time]}
+        dic_tail_arrived_ws = {leader_id: [tail_id, arrival_time]}
         '''
         if tail_id == 'rhv1000' or 'mhv188':
             pass

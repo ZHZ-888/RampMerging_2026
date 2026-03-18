@@ -39,11 +39,8 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
     # Determine the SUMO binary based on whether GUI is needed
     sumo_bin = 'sumo-gui' if gui else 'sumo'
     # Construct the SUMO command and options
-    traj_dir = os.environ.get("TRAJ_DIR", "../../data/multi_lane/algo")  # default 'data/mpgc'
     file_name = f'trj_{r_fr}_{av_p}_{seed}_{loss_rate}.xml'
-    xml_path = os.path.join(traj_dir, file_name)
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
-                # "--fcd-output", str(xml_path), # save path
                 "--no-warnings"]  # , '-S' start auto, and quit auto
     sumo_options = ["--step-length", str(sim_step)]
 
@@ -92,7 +89,6 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
             pass
         traci.simulationStep()  # start simulation
         # mainlane vehicle generation
-        # veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
         veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route0', 27.5, '0')  # 30m/s => 110km/h
         # ramp vehicle generation
         # veh_gen.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
@@ -143,11 +139,11 @@ def collect_RF_data(dic_targets, ls_features, output_path):
     columns = [
         "leader_id",
         "record_index",
-        "prediction_ts",
+        "prediction_ts", # timestamp when record the features
         "platoon_type",
-        "dis_to_pv",
-        "speed_leader",
-        "remain_dis_leader",
+        "leader_to_pv_dis", # dis_to_pv
+        "leader_speed", # speed leader
+        "leader_left_dis", # remain_dis_leader
         "m"
     ]
     df = pd.DataFrame(ls_features, columns=columns)
@@ -170,7 +166,7 @@ if __name__ == '__main__':
         r_autoFollow_p = 1,
         r_platoon_p = 1,
         loss_rate = 0,
-        gui = True,
+        gui = False,
         plot = False,
         display = False,
         lc = False,
@@ -178,7 +174,9 @@ if __name__ == '__main__':
     )
     end = time.time()
 
+
     # orgnise data
-    output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260123.csv"
-    # collect_RF_data(dic_targets, ls_features, output_path)
+    # output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260123.csv"
+    output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260318.csv"
+    collect_RF_data(dic_targets, ls_features, output_path)
 

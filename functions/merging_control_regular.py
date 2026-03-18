@@ -60,7 +60,7 @@ class MergingControlRegular:
                 os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model241128_ndarray.pkl'))
 
 
-    def update_platoon_et(self, step, ls_leader_up, m=True, interval=70):
+    def update_platoon_et(self, step, ls_leader_up, m=True, interval=60):
         '''
         calls self._get_features()
               self.rf_at_model
@@ -70,7 +70,7 @@ class MergingControlRegular:
             dic_mplatoon_et ={m_vid, [platoon_type, ts_head, ts_tail, c_ts]}
         '''
         if step % interval == 0:
-            c_ts = step/10 # c_ts = self.traci.simulation.getTime()
+            c_ts = step/10 + 0.1 # c_ts = self.traci.simulation.getTime()
             for leader in ls_leader_up:
                 platoon_type = self.data_recorder.dic_leader_ptype.get(leader, "A")
                 if platoon_type is None:
@@ -87,7 +87,7 @@ class MergingControlRegular:
                     # ts_tail, obtain through prediction model
                     features = self._get_features2(leader)  # 5 features
                     ls_features = list(features)
-                    # [platoon_type, dis_to_pv, speed_leader, remain_dis_leader, m]
+                    # [platoon_type, leader_to_pv_dis, speed_leader, remain_dis_leader, m]
                     indices = [3, 2, 4, 0, 7]  # the indices of selected features
                     sel_features = [ls_features[i] for i in indices] # selected features
                     sel_features_c = sel_features.copy()
@@ -138,6 +138,8 @@ class MergingControlRegular:
         ls_mr_leader_up = ls_m_leader_up_asc + ls_r_leader_up
 
         for leader in ls_mr_leader_up:
+            if leader == 'mav40':
+                pass
             platoon_type = self.data_recorder.dic_leader_ptype.get(leader)
             if platoon_type is None:
                 continue  # jump
@@ -188,7 +190,7 @@ class MergingControlRegular:
         dic_mplatoon_tail_et = {m_leader: ls_ts[2] for m_leader, ls_ts in dic_mplatoon_et_valid.items()}
 
         for r_leader in dic_rplatoon_et_valid.keys():
-            if r_leader == 'ravh1290':
+            if r_leader == 'ravh700':
                 pass
             r_ts_head = dic_rplatoon_et_valid[r_leader][1] # ramp platoon head timestamp
             dic_mplatoon_tail_et_asc = sorted(dic_mplatoon_tail_et.items(),
@@ -469,31 +471,6 @@ class MergingControlRegular:
             travel_time = t_uni+t_acc
         return travel_time
 
-    def set_veh_color(self):
-        '''
-        dic_follower_state = {follower_id: [state, leader_id]}
-        state = free_mode/following_mode
-
-        av_leader: yellow, av_follower: red
-        action_av: flashing between yellow and red
-        hv_follower: green, hv_free: white
-        '''
-        dic_follower_state = self.data_recorder.dic_follower_state
-        try:
-            ls_ihAB_hv = self.data_recorder.dic_vid_groups['ls_ihAB_hv']
-            for vid in ls_ihAB_hv:
-                # 1. Try to get the list (returns None if vid is missing)
-                item = dic_follower_state.get(vid)
-                # 2. If item exists, get the first element; otherwise set to None
-                following_state = item[0] if item else None
-                if following_state == 'following_mode':
-                    self.traci.vehicle.setColor(vid, (0, 255, 0)) # green
-                    self.traci.vehicle.setColor(vid, (144, 238, 144))
-                else:
-                    pass
-        except:
-            pass
-
     def _get_tail_id(self, dic_vid_groups, platoon_type, leader_id):
         '''
         get platoon tail id
@@ -535,30 +512,35 @@ class MergingControlRegular:
         else:
             self.traci.vehicle.setColor(vid, (255, 255, 0, 255)) # default yellow for AV_leader
 
-    def _get_features2(self, vid):
+    def _get_features2(self, leader):
         '''
         update from 4 features to 5 features (m or r)
-        get features of the vid
-        :param vid:
+        get features of the leader
+        Features:
+            platoon_type
+            leader_to_pv_dis (dis_to_pv)
+            leader_left_dis (remain_dis_leader)
+
+        :param leader:
                dic_platoon_info: {head_id:[['AHHH', tail_id], [length1, length2, ...]]}
         :return:
         '''
         # 1. platoon type
-        platoon_type = self.data_recorder.dic_leader_ptype[vid]
-        # 2. distance between this veh and its previous vehicle
-        p_veh_info = self.traci.vehicle.getLeader(vid)  # p_veh_info = [p_id, dis]
+        platoon_type = self.data_recorder.dic_leader_ptype[leader]
+        # 2. distance between this leader and its previous vehicle
+        p_veh_info = self.traci.vehicle.getLeader(leader, self.merge_control_length)  # p_veh_info = [p_id, dis]
         if p_veh_info is not None:
-            dis_to_pv = p_veh_info[1]
+            leader_to_pv_dis = p_veh_info[1] # dis to pv (leader dis to pv)
         else:
-            dis_to_pv = self.merge_control_length # equal to the length of merging control section
+            leader_to_pv_dis = self.merge_control_length # equal to the length of merging control section
         # 3. speed of platoon leader AV
-        dic_head_states = self.data_recorder.get_vid_states(vid)
+        dic_head_states = self.data_recorder.get_vid_states(leader)
         speed_leader = dic_head_states['v'] # this_speed
         # 4. remain dis of platoon leader AV
         remain_dis_leader = dic_head_states['dis'] # this_remain_dis
         # 5. speed of tail vid
-        if self.dic_platoon_info.get(vid, None) is not None:
-            tail_id = self.dic_platoon_info[vid][0][1]
+        if self.dic_platoon_info.get(leader, None) is not None:
+            tail_id = self.dic_platoon_info[leader][0][1]
             if tail_id == None:
                 pass
             dic_tail_states = self.data_recorder.get_vid_states(tail_id)
@@ -570,11 +552,11 @@ class MergingControlRegular:
             speed_tail = None
             remaining_dis_tail = None
         # 7. mainline platoon or ramp platoon
-        if 'm' in vid:
+        if 'm' in leader:
             m = 1 # True
         else:
             m = 0 # False
-        return remain_dis_leader, remaining_dis_tail, dis_to_pv, platoon_type, speed_leader, speed_tail, tail_id, m
+        return remain_dis_leader, remaining_dis_tail, leader_to_pv_dis, platoon_type, speed_leader, speed_tail, tail_id, m
 
     def _update_info(self, vid, ts_head_adj):
         """
@@ -620,7 +602,7 @@ class MergingControlRegular:
     def _compare_delay_loss(self):
         for r_leader, m_leader in self.dic_rm_leader_map.items():
             if r_leader is not None and m_leader is not None:  # make sure r_leader/m_leader is not None
-                if r_leader == 'ravh1290':
+                if r_leader == 'ravh2410':
                     pass
                 ts_rp_head = self.dic_rplatoon_et[r_leader][1] # ramp platoon leader (head) estimate arrival timestamp (head_tr)
                 ts_rp_tail = self.dic_rplatoon_et[r_leader][2] # tail time (tail_tr)

@@ -14,7 +14,7 @@ class ActionManager:
         self.ls_m_leaders_followup = None
         self.last_update_payload = None
 
-    def get_action_info(self, step, interval=70):
+    def get_action_info(self, step, interval=60):
         """
         :param step: The step for which action info is requested.
         :param interval: The interval between disturbances (default is 70).
@@ -41,7 +41,7 @@ class ActionManager:
         self.dic_m_leader_followup_action = dic_m_leader_followup_action
         self.ls_m_leaders_followup = ls_m_leaders_followup
 
-    def _build_action_payload(self, step, interval=70):
+    def _build_action_payload(self, step, interval=60):
         """
         :param step: the step number to check if it's a multiple of the interval
         :param interval: MPC interval, default is 70
@@ -80,7 +80,7 @@ class ActionManager:
         return (self.dic_rm_leader_map, self.dic_leader_action, self.ls_action_leader,
                 self.dic_m_leader_followup_action, self.ls_m_leaders_followup)
 
-    def _get_action_clean(self, step, interval=70):
+    def _get_action_clean(self, step, interval=60):
         """
         Assume perfect V2X
         :param step:

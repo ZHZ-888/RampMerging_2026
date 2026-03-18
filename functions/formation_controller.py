@@ -65,10 +65,10 @@ class FormationController:
         # SPLIT_INSERT agent
         dic_oversized_platoon_states, dic_leader_candidates \
             = self.p_oversized.find_oversizedP_nearbyAV(ls_ihB_av, dic_platoon_size)
-        dic_insertedAV = self.split_agent.run_agent_decision(step, dic_platoon_members,
-                                                             dic_oversized_platoon_states,
-                                                             dic_leader_candidates,
-                                                             ls_ihA, gating_value=0.5)
+        # dic_insertedAV = self.split_agent.run_agent_decision(step, dic_platoon_members,
+        #                                                      dic_oversized_platoon_states,
+        #                                                      dic_leader_candidates,
+        #                                                      ls_ihA, gating_value=0.5)
         # self.merge_regular.flashing_lane_changing(step, dic_insertedAV, ls_ihB)
         dic_score_reward = self.split_agent.update_reward(step, st, dic_platoon_members)
         # ahah.plot_scores(step, st)
@@ -79,15 +79,15 @@ class FormationController:
         dic_id_preState, dic_id_features = self.p_sparse.predict_flw_state(dic_tags, ls_vehid, model=True)
         dic_sparseP, dic_standard_platoon = self.p_sparse.find_sparse_platoon(dic_nonOversizedP, dic_id_preState)
         # sparseP => sparse_platoon = {av_leader: first_free_hv}
-        self.p_sparse.free_promote(dic_sparseP, dic_platoon_members)  # FREE_PROMOTE
+        # self.p_sparse.free_promote(dic_sparseP, dic_platoon_members)  # FREE_PROMOTE
         # filter out AV followers from sparse platoons
         dic_sparseP_filered = self.p_sparse.filter_out_AV_followers(dic_sparseP, dic_platoon_members)
         # Collect free followers - find nearby AVs and execute collection (NEW)
         dic_sparse_candidates = self.p_sparse.find_sparseP_nearbyAV(ls_ihB_av, dic_sparseP_filered)
         # Use free-insert RL agent
-        dic_free_insertedAV = self.free_insert_agent.run_free_insert_decision(
-            step, dic_platoon_members, dic_sparseP_filered, dic_sparse_candidates, ls_ihA,
-            gating_value=0.4)
+        # dic_free_insertedAV = self.free_insert_agent.run_free_insert_decision(
+        #     step, dic_platoon_members, dic_sparseP_filered, dic_sparse_candidates, ls_ihA,
+        #     gating_value=0.4)
         dic_free_score_reward = self.free_insert_agent.update_reward(step, st, dic_platoon_members)
         # self.free_insert_agent.plot_scores(step, st)
         # self.free_insert_agent.plot_loss(step, st)
@@ -103,7 +103,10 @@ class FormationController:
 
         # control gaps between platoons
         self.p_basic.form_platoon3(ls_vehid, ls_leader_AV, ls_follower_AV)
-        self.p_basic.restore_speed_limit2(ls_m_leader_up_asc) # ls_wsB_av; ls_centerA_av
+        self.p_basic.restore_speed_limit3(step, ls_leader_AV, ls_m_leader_up_asc)  # improve to 25 m/s if platoon formed
+        self.p_basic.restore_speed_limit2(ls_wsB_av)  # restore to 27.78 m/s on wsB
+        # set follower color as light green
+        self.p_basic.set_follower_color()
 
         # record dic_platoon_members
         dic_member_to_leader = self.p_basic.update_member_to_leader(dic_platoon_members)

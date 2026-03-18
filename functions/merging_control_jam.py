@@ -223,8 +223,10 @@ class MergingControlJam:
         '''
         use prediction model to get t
         get the remaining time to the weaving section
+
         :param  id:
                 type: 'leader', if its leader, max speed is faster
+                self.data_recorder.dic_platoon_info: {vid:[type, tail_id, length1, length2...]}
         :return: re_t (remaining time)
                  dis (remaining dis)
         '''
@@ -239,22 +241,20 @@ class MergingControlJam:
         else:
             # use prediction model
             # get its leader id
-            if id == 'mhv420':
+            if id == 'mhv228':
                 pass
             leader_id = self.data_recorder.get_hv_leader(id, m=True)
-            if leader_id == 'mhv420':
-                pass
-            if leader_id == None or id == leader_id or leader_id not in self.dic_mplatoon_et:
-                re_t2 = dis / v
+            (_, tail_id), _ = self.data_recorder.dic_platoon_info.get(leader_id, ([None, None], None))
+            if (leader_id == None or id == leader_id or leader_id not in self.dic_mplatoon_et
+                    or tail_id != id):
+                re_t2 = self.merge_regular.estimate_travel_time(v, dis)
             else:
                 re_t2 = self.dic_mplatoon_et[leader_id][2]-c_ts
         return re_t2, dis
 
     def _find_timing6(self, m_leader, action_m_leader, max_interval, rp_pass_time):
         """
-        t_merge = 7.5 # 100m acc
-        t_merge = 11 # 200m acc
-
+        find the resume timing for ramp leader
         :param
                 ls_m_veh_up: all veh on mainline before merging, descending order
                 ls_m_speed_up: speed of above vehicles
@@ -269,6 +269,8 @@ class MergingControlJam:
         ls_m_veh_up = self.dic_vid_groups.get('ls_m_veh_up', None)  # ['mhv700', 'mhv690', 'mavh680'] all veh on inflow_highway
         ls_m_speed_up = [self.dic_id_speed[id] for id in ls_m_veh_up] if ls_m_veh_up else None  # velocity of every veh
         self.timing = False
+        if m_leader == 'mav239':
+            pass
         # S1
         if (self.stop_state
                 and len(ls_m_veh_up) > 0
@@ -283,7 +285,7 @@ class MergingControlJam:
             return self.timing
 
         # S3
-        # only one fleet on the inflow_highway, no follower of fleet's last veh
+        # only one fleet on the mainline, no follower of fleet's last veh
         if self.stop_state and len(ls_m_veh_up) > 0 and m_leader is None:
             last_m_veh = ls_m_veh_up[0]  # last veh on the mainline
             remain_time_to_ws, dis = self._get_remaining_t2(last_m_veh)
@@ -338,7 +340,14 @@ class MergingControlJam:
                     return self.timing
         return self.timing
 
-    def _get_max_interval8(self, ls_m_leader_up_asc, ls_m_veh_up):
+    def _get_max_interval_upper(self, ml, ls_m_leader_up_asc, ls_m_veh_up):
+        '''get the max interval on the mainline, call different function according to ml or not'''
+        if ml:
+            return self._get_max_interval_ml(ls_m_leader_up_asc, ls_m_veh_up)
+        else:
+            return self._get_max_interval_single(ls_m_leader_up_asc, ls_m_veh_up)
+
+    def _get_max_interval_single(self, ls_m_leader_up_asc, ls_m_veh_up):
         '''
         get the max interval on the mainline
         241203 updated, consider the acc time
@@ -371,7 +380,7 @@ class MergingControlJam:
             first_m_leader = ls_m_leader_up_asc[0]
             first_veh = ls_m_veh_up[-1]
 
-            # 3.2 between the last platoon and the start point inflow_highway
+            # 3.1 between the last platoon and the start point inflow_highway
             last_mvb = ls_m_veh_up[0]
             veh_info = self.data_recorder.get_vid_states(last_mvb)
 
@@ -380,7 +389,7 @@ class MergingControlJam:
             thw = (self.merge_control_length - dis) / self.max_speed
             headway_differences[None] = thw
 
-            # 3.3 between the first platoon and the weaving section
+            # 3.2 between the first platoon and the weaving section
             if first_m_leader == first_veh:
                 dis = self.data_recorder.get_vid_states(first_m_leader)['dis']
                 first_veh_info = self.dic_mplatoon_et.get(first_m_leader, [None, None])  # first vehicle arrival time
@@ -390,7 +399,7 @@ class MergingControlJam:
                     else arrive_time - c_ts - self.r_leader_acc_dur
                 headway_differences[first_m_leader] = real_headway
 
-            # 3.1 between platoons
+            # 3.3 between platoons
             for i, head_id in enumerate(ls_m_leader_up_asc):
                 if head_id == 'mbav11196':
                     pass
@@ -419,6 +428,105 @@ class MergingControlJam:
                     else:
                         headway_differences[head_id] = ts_head_current - ts_tail_previous - (
                                 self.r_leader_acc_dur - ts_tail_remaining)
+
+            # get the max thw
+            m_leader, max_thw = max(headway_differences.items(), key=lambda x: x[1])
+
+        # last veh on inflow_highway
+        dic_result = {m_leader: [max_thw]}
+        return dic_result
+
+    def _get_max_interval_ml(self, ls_m_leader_up_asc, ls_m_veh_up):
+        '''
+        ml - multi-lane version
+        get the max interval on the mainline
+        241203 updated, consider the acc time
+        112624 updated, use prediction model
+
+        :param ls_m_leader_up_asc: min => max
+               ls_m_veh_up: ['mav839', 'mhv811', 'mhv795', 'mhv784', 'mhv765', 'mhv693']
+                            seems like all vehicles on the merging section (desc order)
+
+               self.r_leader_acc_dur: the time needed for r_leader moving from stop point to the merging section
+               dic_mplatoon_et: {m_leader:[platoon_type, ts_head, ts_tail, c_ts]}
+               thw: time headway window
+        :return
+
+        '''
+        c_ts = self.traci.simulation.getTime()
+
+        # 1. no vehicles on the merging section
+        if len(ls_m_veh_up) == 0:
+            m_leader = None
+            max_thw = self.merge_control_length / self.max_speed - self.r_leader_acc_dur  # the acc time(consider)
+        # 2. no leader on the merging section, but there are followers
+        elif len(ls_m_leader_up_asc) == 0:
+            m_leader = None
+            max_thw = 0
+        # 3. both leaders and followers exist
+        else:
+            # Dictionary to store the time differences for each head vehicle
+            headway_differences = {}
+            first_m_leader = ls_m_leader_up_asc[0]
+            first_veh = ls_m_veh_up[-1]
+
+            # 3.1 between the last platoon and the start point inflow_highway
+            last_mvb = ls_m_veh_up[0]
+            veh_info = self.data_recorder.get_vid_states(last_mvb)
+
+            dis = veh_info['dis']
+            # (self.merge_control_length - dis) => the distance between last veh and start point of merging control section
+            thw = (self.merge_control_length - dis) / self.max_speed
+            headway_differences[None] = thw
+
+            # 3.2 between the first platoon and the weaving section
+            if first_m_leader == first_veh:
+                dis = self.data_recorder.get_vid_states(first_m_leader)['dis']
+                first_veh_info = self.dic_mplatoon_et.get(first_m_leader, [None, None])  # first vehicle arrival time
+                arrive_time = first_veh_info[1]
+                # Calculate real headway using a ternary expression
+                real_headway = dis / self.max_speed - self.r_leader_acc_dur if arrive_time is None \
+                    else arrive_time - c_ts - self.r_leader_acc_dur
+                headway_differences[first_m_leader] = real_headway
+
+            # 3.3 between platoons
+            for i, head_id in enumerate(ls_m_leader_up_asc):
+                if head_id not in self.dic_mplatoon_et:
+                    headway_differences[head_id] = 0
+                elif i == 0 and head_id != first_veh:
+                    if head_id == 'mav3350':
+                        pass
+                    ts_head_current = self.dic_mplatoon_et[head_id][1]
+                    # get front vehicle id, then get ts_tail_previous
+                    this_index = ls_m_veh_up.index(head_id)
+                    front_index = this_index + 1
+                    front_id = ls_m_veh_up[front_index]
+                    front_veh_info = self.data_recorder.get_vid_states(front_id)
+                    dis_front_veh = front_veh_info['dis']
+                    v_front_veh = front_veh_info['v']
+                    ts_front = self.merge_regular.estimate_travel_time(v_front_veh, dis_front_veh) + c_ts
+
+                    headway_differences[head_id] = ts_head_current - ts_front
+                elif i > 0:
+                    # Get the arrival time of the current head vehicle
+                    ts_head_current = self.dic_mplatoon_et[head_id][1]
+
+                    # get front vehicle id, then get ts_tail_previous
+                    this_index = ls_m_veh_up.index(head_id)
+                    front_index = this_index + 1
+                    front_id = ls_m_veh_up[front_index]
+                    front_veh_info = self.data_recorder.get_vid_states(front_id)
+                    dis_front_veh = front_veh_info['dis']
+                    v_front_veh = front_veh_info['v']
+                    ts_front_remaining = self.merge_regular.estimate_travel_time(v_front_veh, dis_front_veh)
+                    ts_front = ts_front_remaining + c_ts
+
+                    if ts_front_remaining >= self.r_leader_acc_dur:
+                        # Calculate the time difference
+                        headway_differences[head_id] = ts_head_current - ts_front
+                    else:
+                        headway_differences[head_id] = ts_head_current - ts_front - (
+                                self.r_leader_acc_dur - ts_front_remaining)
 
             # get the max thw
             m_leader, max_thw = max(headway_differences.items(), key=lambda x: x[1])
@@ -519,6 +627,8 @@ class MergingControlJam:
             if v_r_leader_f > 0:
                 pass
             else:
+                if first_r_leader == 'ravh2410':
+                    pass
                 self.traci.vehicle.resume(first_r_leader)
                 self.first_resume_recorded.append(first_r_leader)
                 self.r_leader_stop = None
@@ -691,7 +801,7 @@ class MergingControlJam:
         self._check_resume_state4(dic_platoon_info) # 241003update
         # Get Ramp Platoon travel Time (from stop to pass intersection)
         dic_r_platoon_travel_time = self._get_ramp_platoon_merge_duration(dic_platoon_info)
-        dic_max_interval = self._get_max_interval8(ls_m_leader_up_asc, ls_m_veh_up)
+        dic_max_interval = self._get_max_interval_upper(self.ml, ls_m_leader_up_asc, ls_m_veh_up)
         m_leader, max_interval, final_rp_pass_time = self._compare3(dic_max_interval, dic_r_platoon_travel_time)
         # decide if m_leader need to take action
         dic_m_leader_action_params = self._get_m_leader_action(step, first_r_leader, final_rp_pass_time,

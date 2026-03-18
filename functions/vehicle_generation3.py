@@ -853,7 +853,7 @@ class VehGen:
             dp_v = 24.5  # depature velocity
         else:
             veh_route = 'route2'
-            dp_v = 10
+            dp_v = 10 # 10 m/s => 36 km/h
         for dt, type in dp_times_dict.items():
             r_step = step / 10  # r_step = time
             veh_num = len(type)  # the veh number of this platoon
@@ -944,7 +944,7 @@ class VehGen:
         # according to departure lane get route and departure speed
         if id_prefix == 'm':
             veh_route = 'route1'
-            dp_v = 24.5  # depature velocity
+            dp_v = 24.5  # depature velocity (24.5)// single lane
         else:
             veh_route = 'route2'
             dp_v = 10
@@ -1010,7 +1010,7 @@ class VehGen:
         dp_lane:
             departure lane
         '''
-        c_ts = step/10 # r_step = time
+        c_ts = step/10 + 0.1 # r_step = time
         if c_ts in dp_times_dict:
             vehicle_type = 'av' if dp_times_dict[c_ts] == 'AV' else 'hv'
             mode = 'av' if dp_times_dict[c_ts] == 'AV' else 'idm'
