@@ -39,7 +39,7 @@ class MergingController:
 
         :return:
         '''
-        c_ts = step * 0.1 + 0.1
+        c_ts = round(step/10 + 0.1, 1)
 
         if not self.ls_r_dep_times:
             for key, value in r_dpt_type.items():

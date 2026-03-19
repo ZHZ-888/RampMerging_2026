@@ -252,7 +252,7 @@ class MergingControlJam:
                 re_t2 = self.dic_mplatoon_et[leader_id][2]-c_ts
         return re_t2, dis
 
-    def _find_timing6(self, m_leader, action_m_leader, max_interval, rp_pass_time):
+    def _find_timing6(self, step, m_leader, action_m_leader, max_interval, rp_pass_time):
         """
         find the resume timing for ramp leader
         :param
@@ -265,7 +265,7 @@ class MergingControlJam:
 
         :return:
         """
-        c_ts = self.traci.simulation.getTime()
+        c_ts = round(step/10 + 0.1, 1)
         ls_m_veh_up = self.dic_vid_groups.get('ls_m_veh_up', None)  # ['mhv700', 'mhv690', 'mavh680'] all veh on inflow_highway
         ls_m_speed_up = [self.dic_id_speed[id] for id in ls_m_veh_up] if ls_m_veh_up else None  # velocity of every veh
         self.timing = False
@@ -808,7 +808,7 @@ class MergingControlJam:
                                                                m_leader, max_interval,
                                                                mpc_interval, delta_t)
         action_m_leader = self._apply_m_leader_control(step, dic_m_leader_action_params)
-        timing = self._find_timing6(m_leader, action_m_leader, max_interval, final_rp_pass_time)
+        timing = self._find_timing6(step, m_leader, action_m_leader, max_interval, final_rp_pass_time)
         if timing:
             pass
         ls_r_proper = self._get_r_proper()
@@ -849,7 +849,7 @@ class MergingControlJam:
                                                      self.action_buffer, 'last_action_payload')
         action_m_leader = self._apply_m_leader_control(step, action_pay_load) # pay_load = dic_m_leader_action_params
 
-        timing = self._find_timing6(m_leader, action_m_leader, max_interval, final_rp_pass_time)
+        timing = self._find_timing6(step, m_leader, action_m_leader, max_interval, final_rp_pass_time)
         timing_pay_load = self._push_if_not_redundant(step, timing,
                                                      self.timing_buffer, 'last_timing_payload')
 

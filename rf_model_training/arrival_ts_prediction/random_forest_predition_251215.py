@@ -18,13 +18,16 @@ import joblib
 # 1. Data
 # Feature data (platoon_type, distance, speed)
 # path = '/home/zzha/PycharmProjects/RampMerging4_250208/data/features/df_combined_mr_4f_241128.csv'
-path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/rf_at_data_rm.csv'
+# path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/rf_at_data_rm.csv'
+path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260318.csv'
 df_ft = pd.read_csv(path)
+print(df_ft.columns)
 print(len(df_ft))
 
 #%%
 # 2. Separate features and target variable
-feature_cols = ['platoon_type', 'dis_to_pv', 'speed_leader', 'remain_dis_leader', 'm']
+# feature_cols = ['platoon_type', 'dis_to_pv', 'speed_leader', 'remain_dis_leader', 'm']
+feature_cols = ['platoon_type', 'leader_to_pv_dis', 'leader_speed', 'leader_left_dis', 'm']
 
 X = df_ft[feature_cols].values
 y = df_ft['target'].values
@@ -47,7 +50,7 @@ rmse = mean_squared_error(y_test, y_pred, squared=False)
 mape = mean_absolute_percentage_error(y_test, y_pred)
 r2 = r2_score(y_test, y_pred)
 
-print(f"Mean Squared Error: {mse:.4f}")
+print(f"Mean Squared Error: {mse:.4f}") # RMSE^2
 print(f"Mean Absolute Error: {mae:.4f}")
 print(f"Root Mean Squared Error: {rmse:.4f}")
 print(f"Mean Absolute Percentate Error: {mape:.4f}")
@@ -69,7 +72,7 @@ predicted_time = model.predict(new_data)
 print(f"\nPredicted Arrival Time for new data: {predicted_time[0]:.2f} seconds")
 
 #%% save the model
-joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/mr_arrival_prediction_model260125_ndarray.pkl')
+joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/mr_arrival_prediction_model260319_ndarray.pkl')
 
 #%% load model
 loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging4_250208/models/mr_arrival_prediction_model241128.pkl')

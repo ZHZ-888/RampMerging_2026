@@ -88,7 +88,7 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
     # scripts loop
     while step < st * 10:
         # checkpoint
-        if step > 105 * 10:
+        if step > 1100 * 10:
              pass
         traci.simulationStep()  # start simulation
 
@@ -97,8 +97,8 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
             prc.print_message(f'************current_time, step:{c_ts, step}************')
 
         # main vehicle generation
-        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
         veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
         # ramp vehicle generation
         veh_gen.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
 
@@ -181,7 +181,7 @@ if __name__ == '__main__':
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path) = mpgc_main(
         av_p = 0.1, # 0.3
-        r_fr = 700, # 1000
+        r_fr = 1000, # 1000
         m_fr = 1500, # 1500
         seed = 1,
         r_autoFollow_p = 1,  # auto follow proportion
@@ -189,8 +189,8 @@ if __name__ == '__main__':
         loss_rate = 0,
         gui = True,
         plot = False,
-        display = False,
-        lc = False, # if consider HV lane-changing
+        display = True,
+        lc = True, # if consider HV lane-changing
         st = 1200
     )
     end = time.time()

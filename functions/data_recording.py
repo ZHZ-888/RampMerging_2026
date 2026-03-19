@@ -551,7 +551,7 @@ class DataRecording:
             leader_id = self.get_hv_leader(tail_id, m=False)
         dic_vid_states = self.get_vid_states(tail_id)
         lane = dic_vid_states['lane']
-        c_ts = step/10 + 0.1 # getTime() = c_ts + 0.1
+        c_ts = round(step/10 + 0.1, 1) # getTime() = c_ts + 0.1
         if lane in ('ws_0', 'ws_1', 'ws_2') and leader_id not in self.dic_tail_arrived_ws:
             # record only the first time
             self.dic_tail_arrived_ws[leader_id] = [tail_id, c_ts]

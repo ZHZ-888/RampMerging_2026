@@ -65,10 +65,10 @@ class FormationController:
         # SPLIT_INSERT agent
         dic_oversized_platoon_states, dic_leader_candidates \
             = self.p_oversized.find_oversizedP_nearbyAV(ls_ihB_av, dic_platoon_size)
-        # dic_insertedAV = self.split_agent.run_agent_decision(step, dic_platoon_members,
-        #                                                      dic_oversized_platoon_states,
-        #                                                      dic_leader_candidates,
-        #                                                      ls_ihA, gating_value=0.5)
+        dic_insertedAV = self.split_agent.run_agent_decision(step, dic_platoon_members,
+                                                             dic_oversized_platoon_states,
+                                                             dic_leader_candidates,
+                                                             ls_ihA, gating_value=0.5)
         # self.merge_regular.flashing_lane_changing(step, dic_insertedAV, ls_ihB)
         dic_score_reward = self.split_agent.update_reward(step, st, dic_platoon_members)
         # ahah.plot_scores(step, st)
@@ -85,9 +85,9 @@ class FormationController:
         # Collect free followers - find nearby AVs and execute collection (NEW)
         dic_sparse_candidates = self.p_sparse.find_sparseP_nearbyAV(ls_ihB_av, dic_sparseP_filered)
         # Use free-insert RL agent
-        # dic_free_insertedAV = self.free_insert_agent.run_free_insert_decision(
-        #     step, dic_platoon_members, dic_sparseP_filered, dic_sparse_candidates, ls_ihA,
-        #     gating_value=0.4)
+        dic_free_insertedAV = self.free_insert_agent.run_free_insert_decision(
+            step, dic_platoon_members, dic_sparseP_filered, dic_sparse_candidates, ls_ihA,
+            gating_value=0.4)
         dic_free_score_reward = self.free_insert_agent.update_reward(step, st, dic_platoon_members)
         # self.free_insert_agent.plot_scores(step, st)
         # self.free_insert_agent.plot_loss(step, st)

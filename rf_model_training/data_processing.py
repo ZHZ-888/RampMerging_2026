@@ -1,4 +1,6 @@
 import pandas as pd
+
+#%%
 df_main = pd.read_csv('/home/zzha/PycharmProjects/RampMerging_2026/data/features/rf_at_data_mainlane.csv')
 df_ramp = pd.read_csv('/home/zzha/PycharmProjects/RampMerging_2026/data/features/rf_at_data_ramp.csv')
 print(df_main.shape, df_ramp.shape)
@@ -25,3 +27,13 @@ print(df_mr_clean.columns)
 
 #%% save data
 df_mr_clean.to_csv('/home/zzha/PycharmProjects/RampMerging_2026/data/features/rf_at_data_rm.csv', index=False)
+
+
+#%% 260319
+df = pd.read_csv('/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260318_raw.csv')
+print(df.shape)
+df_clean = df.dropna().copy()
+df_clean['platoon_type'] = df_clean['platoon_type'].str.len()
+df_clean['target'] = df_clean['arrival_ts'] - df_clean['prediction_ts']
+print(df_clean)
+df_clean.to_csv('/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260318.csv', index=False)

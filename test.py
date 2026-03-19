@@ -1,47 +1,15 @@
-def get_platoon_info2(self, step, m_dpt_type={}, r_dpt_type={}):
-    """
-    IMPORTANT: recording platoon information
-    240929update: fixed length of platoon info
-    240622update: add tail_id
+dic = {4.3: 'HV', 5.3: 'HV', 7.3: 'AV', 9.6: 'HV', 13.7: 'HV', 18.1: 'HV', 20.5: 'HV',
+       21.7: 'HV', 26.0: 'HV', 28.0: 'AV', 39.0: 'HV', 42.3: 'HV', 56.3: 'HV', 57.8: 'AV',
+       60.0: 'HV', 61.6: 'HV', 82.3: 'HV', 90.6: 'HV', 98.8: 'HV', 99.9: 'HV', 128.8: 'HV',
+       131.8: 'HV', 133.5: 'HV', 149.3: 'AV', 152.4: 'AV', 153.5: 'HV', 156.0: 'AV', 161.2: 'AV',
+       167.5: 'AV', 174.0: 'HV', 175.7: 'HV', 184.0: 'HV', 185.3: 'HV', 193.1: 'HV', 212.0: 'HV',
+       227.5: 'AV', 229.5: 'HV', 233.6: 'AV', 250.9: 'HV', 260.5: 'HV', 274.8: 'HV', 284.4: 'HV',
+       287.4: 'HV', 291.8: 'HV', 299.6: 'HV'}
 
-    :param
-            ls_r_leader_up:
-            m_dpt_type: scripts lane veh departure schedule; {4: 'AHHHHHHHHH', 31: 'AHHHHHHHHHHH'}
-            r_dpt_type: ramp lane veh departure schedule; {4: 'AHHHHHHHHH', 58: 'AHHHHHHHHHHH'}
-    :return: dic_platoon_info:
-            {'mavh70': [['AHH', 'mhv90'], deque([platoon_length1, platoon_length2], maxlen=10)]}
-    """
-    # get info at this moment
-    dic_vid_groups = self.data_recorder.dic_vid_groups
-    ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']
-    ls_r_leader_up = dic_vid_groups['ls_r_leader_up']
-    ls_mr_leader_up = ls_m_leader_up_asc + ls_r_leader_up
+dic2 = {7.9: 'HV', 19.7: 'AV', 31.0: 'HV', 34.2: 'AV', 64.1: 'AV', 74.2: 'HV', 78.2: 'HV',
+        95.6: 'HV', 119.2: 'HV', 120.8: 'HV', 123.3: 'HV', 126.4: 'HV', 138.3: 'AV', 145.7: 'AV',
+        150.0: 'AV', 152.0: 'AV', 157.0: 'AV', 159.7: 'AV', 174.9: 'HV', 177.0: 'HV', 182.8: 'AV',
+        188.5: 'HV', 199.4: 'HV', 202.3: 'HV', 207.1: 'AV', 213.1: 'HV', 215.5: 'HV', 233.9: 'HV',
+        238.4: 'HV', 251.2: 'AV', 255.5: 'HV', 279.7: 'HV', 287.0: 'AV', 290.1: 'AV', 293.4: 'HV'}
 
-    for leader in ls_mr_leader_up:
-        platoon_type = self.data_recorder.dic_leader_ptype.get(leader)
-        if platoon_type is None:
-            continue  # jump
-        if leader not in self.dic_platoon_info:
-            # Part A: [platoon_type, tail_id];
-            # Part B: deque(maxlen=10) (fixed length is 10)
-            self.dic_platoon_info[leader] = [[platoon_type, None], deque(maxlen=10)]
-        veh_num = len(platoon_type)
-        # SPECIAL CASE: type 'A', no tail vehicle, no platoon length
-        if veh_num == 1:
-            self.dic_platoon_info[leader][0] = [platoon_type, None]
-            continue
-        tail_id = self._get_tail_id(dic_vid_groups, platoon_type, leader)
-        if tail_id in dic_vid_groups['ls_vehid']:
-            # update Tail ID
-            self.dic_platoon_info[leader][0] = [platoon_type, tail_id]
-            if tail_id not in self.data_recorder.ls_tail_ids:
-                self.data_recorder.ls_tail_ids.append(tail_id)  # ls_tail_ids (purpose?)
-            dic_head_states = self.data_recorder.get_vid_states(leader)
-            dic_tail_states = self.data_recorder.get_vid_states(tail_id)
-            pos_head = dic_head_states['pos']
-            pos_tail = dic_tail_states['pos']
-            platoon_length = pos_head - pos_tail
-            # record length
-            self.dic_platoon_info[leader][1].append(platoon_length)
-    self.data_recorder.dic_platoon_info = self.dic_platoon_info
-    return self.dic_platoon_info
+print(len(dic2))

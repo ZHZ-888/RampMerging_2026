@@ -1010,7 +1010,10 @@ class VehGen:
         dp_lane:
             departure lane
         '''
-        c_ts = step/10 + 0.1 # r_step = time
+
+        c_ts = round(step/10 + 0.1, 1) # this is a big bug!!! cost me more than 1.5 h to find this
+        if c_ts == 7.9:
+            pass
         if c_ts in dp_times_dict:
             vehicle_type = 'av' if dp_times_dict[c_ts] == 'AV' else 'hv'
             mode = 'av' if dp_times_dict[c_ts] == 'AV' else 'idm'
@@ -1042,7 +1045,7 @@ class VehGen:
             departure lane
         '''
         dic_prob = {'hv_cons': 0.51, 'hv_avg': 0.32, 'hv_agg': 0.17}  # probability
-        c_ts = step / 10  # r_step = time
+        c_ts = round(step/10 + 0.1, 1)  # r_step = time
         if c_ts in dp_times_dict:
             if dp_times_dict[c_ts] == 'AV':
                 vehicle_type = 'av'
