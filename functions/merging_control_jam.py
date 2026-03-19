@@ -219,7 +219,7 @@ class MergingControlJam:
                 self.stop_state = False
         return
 
-    def _get_remaining_t2(self, id, type='follower'):
+    def _get_remaining_t2(self, step, id, type='follower'):
         '''
         use prediction model to get t
         get the remaining time to the weaving section
@@ -230,7 +230,7 @@ class MergingControlJam:
         :return: re_t (remaining time)
                  dis (remaining dis)
         '''
-        c_ts = self.traci.simulation.getTime()
+        c_ts = round(step/10 + 0.1, 1)
         veh_info = self.data_recorder.get_vid_states(id)
         dis = veh_info['dis']
         v = veh_info['v']
@@ -288,7 +288,7 @@ class MergingControlJam:
         # only one fleet on the mainline, no follower of fleet's last veh
         if self.stop_state and len(ls_m_veh_up) > 0 and m_leader is None:
             last_m_veh = ls_m_veh_up[0]  # last veh on the mainline
-            remain_time_to_ws, dis = self._get_remaining_t2(last_m_veh)
+            remain_time_to_ws, dis = self._get_remaining_t2(step, last_m_veh)
             if remain_time_to_ws <= self.r_leader_acc_dur:  # condition 8
                 self.timing = True
                 return self.timing
@@ -300,7 +300,7 @@ class MergingControlJam:
             if pv_info is not None:  # condition 6
                 pv_id = pv_info[0]
                 pv_lane_id = self.traci.vehicle.getRoadID(pv_id)
-                remain_time_pv, dis = self._get_remaining_t2(pv_id)
+                remain_time_pv, dis = self._get_remaining_t2(step, pv_id)
                 desire_reaching_time = self.dic_disire_reach_ts[action_m_leader]
                 rp_tail_reach_time = c_ts + rp_pass_time + self.r_leader_acc_dur  # last veh of ramp platoon reaching time
 
@@ -318,7 +318,7 @@ class MergingControlJam:
             if pv_info is not None:  # condition 6
                 pv_id = pv_info[0]
                 pv_lane_id = self.traci.vehicle.getRoadID(pv_id)
-                remain_time_pv, dis = self._get_remaining_t2(pv_id)
+                remain_time_pv, dis = self._get_remaining_t2(step, pv_id)
                 diff = self.r_leader_acc_dur - remain_time_pv
                 if (pv_lane_id == 'inflow_highway'  # codition 7
                         and remain_time_pv <= self.r_leader_acc_dur  # condition 8
@@ -605,7 +605,7 @@ class MergingControlJam:
         else:
             return None, None, None
 
-    def _restart_ramp_fleet(self, first_r_leader, timing):
+    def _restart_ramp_fleet(self, step, first_r_leader, timing):
         """
         250613 update, avoid r_leader stopped before stop point (self.stop_pos = 203.5)
         :param dic_mavhb_hinfo:
@@ -613,7 +613,7 @@ class MergingControlJam:
                first_r_leader: first ramp platoon leader (head)
         :return:
         """
-        c_ts = self.traci.simulation.getTime()
+        c_ts = round(step/10 + 0.1, 1)
         pos = self.data_recorder.dic_pos[first_r_leader] if first_r_leader else 0
         if (timing
                 and first_r_leader not in self.first_resume_recorded
@@ -691,7 +691,7 @@ class MergingControlJam:
         m_dis = dic_m_leader_info['dis']  # m_leader distance to ws
         m_v0 = dic_m_leader_info['v']
 
-        pv_rem_dur, _ = self._get_remaining_t2(pv_m_leader)  # remaining time of preceding vehicle
+        pv_rem_dur, _ = self._get_remaining_t2(step, pv_m_leader)  # remaining time of preceding vehicle
         pv_reach_ts = c_ts + pv_rem_dur  # reaching time of preceding vehicle
 
         if m_leader == 'mavh310':
@@ -743,7 +743,7 @@ class MergingControlJam:
         if (action_m_leader in self.mavh_action_dic
                 and action_m_leader in ls_m_leader_up):
             # apply action
-            self.merge_regular.apply_leader_action(dic_m_leader_action_params)
+            self.merge_regular.apply_leader_action(step, dic_m_leader_action_params)
             # flash
             self.merge_regular.flashing_merging(step, [action_m_leader])
             self.m_leader_acting = True
@@ -814,7 +814,7 @@ class MergingControlJam:
         ls_r_proper = self._get_r_proper()
         # record ramp queue length
         queue_log = self.data_recorder.get_queue_length(step, ls_r_proper, ls_r_dep_times)
-        self._restart_ramp_fleet(first_r_leader, timing) # Resume r_leader
+        self._restart_ramp_fleet(step, first_r_leader, timing) # Resume r_leader
         return queue_log
 
     def _jam_control_disturbed(self, step, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up,
@@ -857,7 +857,7 @@ class MergingControlJam:
         ls_r_proper = self._get_r_proper()
         queue_log = self.data_recorder.get_queue_length(step, ls_r_proper, ls_r_dep_times)
         # Resume r_leader
-        self._restart_ramp_fleet(first_r_leader, timing)
+        self._restart_ramp_fleet(step, first_r_leader, timing)
         return queue_log
 
 class ShiftMode:
@@ -870,6 +870,9 @@ class ShiftMode:
 
     def determine_mode4(self, ls_m_veh_up, ls_r_veh_up, ls_r_leader_up):
         '''
+        determine_mode_fixed_merge_point
+
+        for fixed merging point scenario
         241122 update: as platoon become longer, 1 lead 7
         params:
             ls_m_veh_up: mainline veh before merging
@@ -903,6 +906,42 @@ class ShiftMode:
             self.jam_mode = True
 
         if self.jam_mode and len(ls_r_leader_up) < 1 and len(ls_Mjam_veh) < jam_threshold and len(ls_Rjam_veh) < jam_threshold: # new condtion: len(ls_veh_f) < max_jam_vnum
+            self.regular_mode = True
+            self.jam_mode = False
+
+        return self.regular_mode, self.jam_mode
+
+    def determine_mode_flexible_merge_point(self, ls_wsB, ls_wsA, ls_r_leader_up):
+        '''
+        for flexible-merging-point scenario
+        params:
+            ls_wsB: weaving section veh (from mainline)
+            ls_wsA: weaving section veh (from ramp)
+            ls_r_leader_up: list of rav leader (head) before merging
+        :return:
+        '''
+        rho_jam = 90 # 90 veh/km.lane
+        check_length = 100 # the last 100m on mainline
+        jam_threshold = rho_jam * check_length / 1000  # → 9 vehicles
+
+        # Count vehicles number in the first 100 m on wsA and wsB
+        ls_wsB_jam_veh = [
+            vid for vid in ls_wsB
+            if self.data_recorder.dic_pos[vid] <= check_length
+        ] # from mainlane
+
+        ls_wsA_jam_veh = [
+            vid for vid in ls_wsA
+            if self.data_recorder.dic_pos[vid] <= check_length
+        ] # from ramp
+
+
+        if self.regular_mode and (len(ls_wsB_jam_veh) >= jam_threshold or len(ls_wsA_jam_veh) >= jam_threshold):
+            # on jam condition
+            self.regular_mode = False
+            self.jam_mode = True
+
+        if self.jam_mode and len(ls_r_leader_up) < 1 and len(ls_wsB_jam_veh) < jam_threshold and len(ls_wsA_jam_veh) < jam_threshold: # new condtion: len(ls_veh_f) < max_jam_vnum
             self.regular_mode = True
             self.jam_mode = False
 

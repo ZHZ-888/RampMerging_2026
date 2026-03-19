@@ -28,7 +28,7 @@ class ActionManager:
 
     def execute_action(self, step, dic, ls, ls_veh_id):
         try:
-            self.merge_regular.apply_leader_action(dic)
+            self.merge_regular.apply_leader_action(step, dic)
             ls_valid = [veh_id for veh_id in ls if veh_id in ls_veh_id]
             self.merge_regular.flashing_merging(step, ls_valid)
         except:
@@ -49,9 +49,9 @@ class ActionManager:
         """
         update_payload = None
         if step % interval == 0:
-            dic_rm_leader_map, dic_rm_leader_actor = self.merge_regular.find_rm_leader_map()
-            dic_leader_action, ls_action_leader = self.merge_regular.get_leader_action()
-            dic_m_leader_followup_action, ls_m_leaders_followup = self.merge_regular.get_m_leader_followup_action()
+            dic_rm_leader_map, dic_rm_leader_actor = self.merge_regular.find_rm_leader_map(step)
+            dic_leader_action, ls_action_leader = self.merge_regular.get_leader_action(step)
+            dic_m_leader_followup_action, ls_m_leaders_followup = self.merge_regular.get_m_leader_followup_action(step)
             self._print_decision(dic_rm_leader_actor, ls_m_leaders_followup)
             update_payload = (dic_rm_leader_map, dic_leader_action, ls_action_leader, dic_m_leader_followup_action, ls_m_leaders_followup)
         return update_payload

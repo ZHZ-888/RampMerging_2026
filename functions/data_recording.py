@@ -265,6 +265,15 @@ class DataRecording:
             ls_upB_av = []
 
         # weaving section
+        if 'ws_0' in self.traci.lane.getIDList():
+            ls_wsA = list(self.traci.lane.getLastStepVehicleIDs("ws_0"))
+            ls_wsA_av = [vid for vid in ls_wsA if 'av' in vid]
+            ls_wsA_hv = [vid for vid in ls_wsA if 'hv' in vid]  # decrease
+        else:
+            ls_wsB = []
+            ls_wsB_av = []
+            ls_wsB_hv = []
+
         if 'ws_1' in self.traci.lane.getIDList():
             ls_wsB = list(self.traci.lane.getLastStepVehicleIDs("ws_1"))
             ls_wsB_av = [vid for vid in ls_wsB if 'av' in vid]
@@ -344,6 +353,8 @@ class DataRecording:
         self.dic_vid_groups['ls_upB_av'] = ls_upB_av
 
         # veh on weaving section (ws)
+        self.dic_vid_groups['ls_wsA'] = ls_wsA
+        self.dic_vid_groups['ls_wsB'] = ls_wsB
         self.dic_vid_groups['ls_wsB_av'] = ls_wsB_av
         self.dic_vid_groups['ls_wsB_hv'] = ls_wsB_hv
         self.dic_vid_groups['ls_wsC_hv'] = ls_wsC_hv

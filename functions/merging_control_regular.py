@@ -70,7 +70,7 @@ class MergingControlRegular:
             dic_mplatoon_et ={m_vid, [platoon_type, ts_head, ts_tail, c_ts]}
         '''
         if step % interval == 0:
-            c_ts = step/10 + 0.1 # c_ts = self.traci.simulation.getTime()
+            c_ts = round(step / 10 + 0.1, 1)
             for leader in ls_leader_up:
                 platoon_type = self.data_recorder.dic_leader_ptype.get(leader, "A")
                 if platoon_type is None:
@@ -175,7 +175,7 @@ class MergingControlRegular:
         self.data_recorder.dic_platoon_info = self.dic_platoon_info
         return self.dic_platoon_info
 
-    def find_rm_leader_map(self):
+    def find_rm_leader_map(self, step):
         """
         Params:
             self.dic_mplatoon_et: {m_vid, [platoon_type, ts_head, ts_tail, c_ts]}
@@ -186,7 +186,7 @@ class MergingControlRegular:
         Return:
             self.dic_rm_leader_map
         """
-        c_ts = self.traci.simulation.getTime()
+        c_ts = round(step / 10 + 0.1, 1)
 
         dic_vid_groups = self.data_recorder.dic_vid_groups
         ls_r_leader_up = dic_vid_groups['ls_r_leader_up']
@@ -287,7 +287,7 @@ class MergingControlRegular:
             prc.print_message(f'action: apply_acc {self.amax}')
             return ls_acc_profile
 
-    def get_leader_action(self, gap=2):
+    def get_leader_action(self, step, gap=2):
         """
         calls 'self.get_action_params()'
         both R_LEADER and M_LEADER may take action.
@@ -301,7 +301,7 @@ class MergingControlRegular:
 
         :return: self.dic_leader_action = {leader: [ls_r, c_ts]}
         """
-        c_ts = self.traci.simulation.getTime()
+        c_ts = round(step / 10 + 0.1, 1)
 
         # m_leader and r_leader before merging
         dic_vid_groups = self.data_recorder.dic_vid_groups
@@ -359,7 +359,7 @@ class MergingControlRegular:
         self.ls_action_leader.append(action_leader)  # list of vid need to action
         return ls_acc_profile
 
-    def get_m_leader_followup_action(self, gap=2):
+    def get_m_leader_followup_action(self, step, gap=2):
         """
         when r_leader taking action, m_leader after cor m_leader may needs to take action to create space
         for this act ramp platoon
@@ -369,7 +369,7 @@ class MergingControlRegular:
         :return:
         """
         dic_vid_groups = self.data_recorder.dic_vid_groups
-        c_ts = self.traci.simulation.getTime()
+        c_ts = round(step / 10 + 0.1, 1)
         ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']
         ls_mr_leader_up = dic_vid_groups['ls_mr_leader_up']  # all av id that before merging
         ls_action_r_leader = [vid for vid in self.ls_action_leader if 'r' in vid]
@@ -399,8 +399,8 @@ class MergingControlRegular:
         self.ls_m_leaders_followup = list(dict.fromkeys(self.ls_m_leaders_followup)) # remove duplicates
         return(self.dic_m_leader_followup_action, self.ls_m_leaders_followup)
 
-    def apply_leader_action(self, dic_leader_action):
-        c_ts = self.traci.simulation.getTime()
+    def apply_leader_action(self, step, dic_leader_action):
+        c_ts = round(step / 10 + 0.1, 1)
         dic_vid_groups = self.data_recorder.dic_vid_groups
 
         ls_mr_leader_up = dic_vid_groups['ls_mr_leader_up'] # all avid that before merging
