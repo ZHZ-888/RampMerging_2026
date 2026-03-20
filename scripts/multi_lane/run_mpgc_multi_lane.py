@@ -17,7 +17,7 @@ from functions import hpc_utils
 
 
 def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate=0,
-         gui=False, plot=False, display=False, lc=False, st=1000):
+         gui=False, plot=False, display=False, lc=True, st=1200):
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
     sumo_config_path = (ROOT
