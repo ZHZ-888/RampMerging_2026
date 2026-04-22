@@ -5,8 +5,11 @@ import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt  # Required for loss plotting
 import pandas as pd
+import os
+from torch.utils.tensorboard import SummaryWriter
+from datetime import datetime
 
-from platoon_split_rl_model.state_builder import StateBuilder
+from rl_model.state_builder import StateBuilder
 
 class SimpleMLP(nn.Module):
     """
@@ -33,7 +36,7 @@ class RLScoringAgent:
     This module predicts the score of inserting a candidate AV,
     and learns to regress the expected reward based on observed outcomes.
     """
-    def __init__(self, traci, data_recorder, model_path=None, lr=5e-4, gamma=0.99):
+    def __init__(self, traci, data_recorder, exp_name, model_path=None, lr=5e-4, gamma=0.99):
         """
         Initialize the scoring model and training components.
 
@@ -54,20 +57,33 @@ class RLScoringAgent:
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr) # for auto optimising parameters
         # self.loss_fn = nn.MSELoss() # Mean Squared Error Loss
         self.loss_fn = nn.SmoothL1Loss()
-
         self.memory = []  # Buffer to store (state, reward) tuples
         self.loss_history = []  # Track training loss over time
 
-        if model_path:
+        # **** Define project root (rl_model folder) ****
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        # Create a unique folder name for this specific experiment
+        # Example: CA_LR0.0005_B16_E5_S21_20260422_1830
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        self.run_id = f"{exp_name}_{timestamp}"
+        # All-in-one run directory for logs AND models
+        self.run_dir = os.path.join(self.base_dir, "rl_logs", self.run_id)
+        os.makedirs(self.run_dir, exist_ok=True)
+        # Model saving directory (optional: same as logs or a subfolder)
+        self.model_save_dir = os.path.join(self.run_dir, "models")
+        os.makedirs(self.model_save_dir, exist_ok=True)
+        # Initialize TensorBoard SummaryWriter
+        self.writer = SummaryWriter(log_dir=self.run_dir)
+        print(f"[TensorBoard] Logging to {self.run_dir}")
+
+        if model_path: # predict mode, load the model
             self.load_model(model_path)
 
     def predict_score(self, state: np.ndarray) -> float:
         """
         Predict a scalar score for a given AV insertion state.
-
         Args:
             state: 8-dimensional normalized state vector.
-
         Returns:
             float: predicted score (higher means more suitable for insertion).
         """
@@ -79,17 +95,15 @@ class RLScoringAgent:
     def record_transition(self, state: np.ndarray, reward: float):
         """
         Record one transition (state and observed reward).
-
         Args:
             state: state vector used in the scoring decision.
             reward: actual reward observed after AV insertion outcome.
         """
         self.memory.append((state, reward))
 
-    def train_on_recorded(self, epochs=1, batch_size=32):
+    def train_on_recorded(self, current_step, epochs=1, batch_size=32):
         """
         Train the model using all recorded transitions (state, reward pairs).
-
         Args:
             epochs: number of training epochs per batch.
             batch_size: size of each training mini-batch.
@@ -120,22 +134,73 @@ class RLScoringAgent:
 
             self.loss_history.append(loss.item()) # Record current loss
 
+        # --- TensorBoard Logging ---
+        self.writer.add_scalar('Loss/Training_Loss', loss.item(), current_step)
+
         print(f"[Train] Fitted on {len(self.memory)} samples, final loss = {loss.item():.4f}")
         self.memory.clear()
 
+    def log_training_metrics(self, current_step):
+        """
+        SAVE (Records) training performance data to a CSV file.
+        Triggered every time a training session is initiated.
+        """
+        if len(self.memory) < 32:
+            return
+
+        # Extract the last 32 rewards to calculate current model performance
+        # before the weights are updated by the upcoming training session.
+        recent_samples = self.memory[-32:]
+        recent_rewards = [m[1] for m in recent_samples]
+
+        avg_reward = np.mean(recent_rewards)
+        max_reward = np.max(recent_rewards)
+        min_reward = np.min(recent_rewards)
+
+        # --- [NEW] TensorBoard Logging ---
+        self.writer.add_scalar('Reward/Average', avg_reward, current_step)
+        self.writer.add_scalar('Reward/Max', max_reward, current_step)
+        self.writer.add_scalar('Reward/Min', min_reward, current_step)
+
+        # Construct the data entry for academic plotting
+        log_entry = {
+            'session_id': len(self.loss_history),  # Index of the training iteration
+            'sim_step': current_step,  # Current simulation time-step
+            'avg_reward': round(float(avg_reward), 4),
+            'max_reward': round(float(max_reward), 4),
+            'min_reward': round(float(min_reward), 4),
+            'sample_size': 32}  # Number of transitions in this batch
+
+        # Save to CSV using append mode to ensure data persistence
+        # file_path = os.path.join(self.log_dir, "training_reward_log.csv")
+        file_path = os.path.join(self.run_dir, "reward_log.csv")
+        file_exists = os.path.isfile(file_path)
+
+        try:
+            # Use pandas for structured data logging
+            df = pd.DataFrame([log_entry])
+            df.to_csv(file_path, mode='a', header=not file_exists, index=False)
+            # Consistent console logging for real-time monitoring
+            print(f"[Log] Session {log_entry['session_id']} at Step {current_step}: "
+                  f"Mean Reward = {avg_reward:.3f}")
+
+        except Exception as e:
+            print(f"[Error] Failed to log training metrics: {e}")
+
     def plot_loss_curve(self):
         """
+        SAVE loss history CSV
         Plot the loss curve based on recorded training history.
         """
         if not self.loss_history:
             print("[Plot] No loss history to show.")
             return
         # save loss data
+        # loss_csv_path = os.path.join(self.log_dir, "loss_history.csv")
+        loss_csv_path = os.path.join(self.run_dir, "loss_log.csv")
         df_loss = pd.DataFrame({'step': list(range(len(self.loss_history))), 'loss': self.loss_history})
-        # df_loss.to_csv(f"/home/zzha/PycharmProjects/RampMerging_2026"
-        #                f"/platoon_split_rl_model/plot_data/loss_data_step.csv", index=False)
-        df_loss.to_csv(f"/home/zzha/PycharmProjects/RampMerging_2026"
-                       f"/platoon_split_rl_model/plot_data/loss_data_step_FREE_INSERT_260302.csv", index=False)
+        df_loss.to_csv(loss_csv_path, index=False)
+        print(f"[Plot] Loss data saved to {loss_csv_path}")
 
         plt.plot(self.loss_history, label="Training Loss", color='blue', linewidth=1, alpha=0.3)
         # Smoothed loss line (moving average)
@@ -150,15 +215,32 @@ class RLScoringAgent:
         plt.tight_layout()
         plt.show()
 
-    def save_model(self, path):
+    def plot_score_scatter(self, ls_score):
+        """
+        save score history CSV
+        """
+        # Save data
+        score_csv_path = os.path.join(self.run_dir, "score_log.csv")
+        df_scores = pd.DataFrame({'index': list(range(len(ls_score))), 'score': ls_score})
+        df_scores.to_csv(score_csv_path, index=False)
+        # plot
+        plt.figure(figsize=(8, 4))
+        plt.scatter(range(len(ls_score)), ls_score, s=3, c='blue', label='Score', alpha=0.5)
+        plt.title('Score Distribution per Decision')
+        plt.xlabel('Decision Index')
+        plt.ylabel('Predicted Score')
+        plt.grid(True)
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+    def save_model(self, filename):
         """
         Save the model parameters to a file.
-
-        Args:
-            path: path to save .pt model.
         """
-        torch.save(self.model.state_dict(), path)
-        print(f"[Model] Saved model to {path}")
+        full_path = os.path.join(self.model_save_dir, filename)
+        torch.save(self.model.state_dict(), full_path)
+        print(f"[Model] Saved model to {full_path}")
 
     def load_model(self, path):
         """

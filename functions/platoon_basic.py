@@ -159,8 +159,6 @@ class PlatoonBasic:
                         if 'b' in id:
                             self.dic_AVroleChange[id] = 'split_insert'
                         else:
-                            if id == 'mav4686':
-                                pass
                             self.dic_AVroleChange[id] = 'split_promote'
                         self.dic_tags[id] = 1  # Mark as leader
                         current_leader = id
@@ -472,7 +470,7 @@ class PlatoonBasic:
         minGap = 4.5
         tau = 1
         following_headway_factor = 2.2
-        v_except = self.speed_level2
+        v_expect = self.speed_level2
         p_veh_info = self.traci.vehicle.getLeader(id)
         if p_veh_info is None:
             # no leader
@@ -481,10 +479,10 @@ class PlatoonBasic:
         pv_id, dis = p_veh_info
         # when its leader arrive at the end of upstream_0, the dis between this veh and its preceding veh
         dis_real = dis + minGap
-        dis_except = v_except * tau + minGap
-        if dis_real > dis_except * following_headway_factor:
+        dis_expect = v_expect * tau + minGap
+        if dis_real > dis_expect * following_headway_factor:
             state = 'free_mode'
-        else: # dis_real <= dis_except * factor
+        else: # dis_real <= dis_expect * factor
             state = 'following_mode'
         return state
 

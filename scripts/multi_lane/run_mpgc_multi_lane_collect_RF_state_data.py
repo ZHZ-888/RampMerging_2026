@@ -23,8 +23,8 @@ from functions import platoon_lane_manager as plane
 import argparse # for changing parameter setting on HPC
 
 # RL modules
-# from platoon_split_rl_model.rl_module import RLScoringAgent
-# from platoon_split_rl_model import main_agent_handler as ah
+# from rl_model.rl_module import RLScoringAgent
+# from rl_model import main_agent_handler as ah
 
 def main(av_p, r_fr, m_fr, seed, loss_rate=0, gui=False, plot=False, display=False, lc_hv=False, lc_av=False, st=1000):
     # SUMO SETTING

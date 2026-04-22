@@ -23,27 +23,27 @@ class PlatoonSparseHandler:
         self.dic_id_features = {}  # {id:[f1, f2,..., ], ...}
         self.dic_id_preState = {}  # Predicted state of each follower
         # Track last leader for each follower to detect leader changes
-        self.dic_id_last_leader = {}
+        self.dic_fol_last_leader = {}
         self.dic_leader_free_triggered = {}
 
-    # TODO: Optimize prediction efficiency—consider batch processing or caching leader lookups to reduce computational burden when processing many HV followers
+    # TODO: Optimise prediction efficiency—consider batch processing or caching leader lookups to reduce computational burden when processing many HV followers
     def predict_flw_state(self, dic_id_type, ls_vehid, model=False):
         """
         Updated platoon-wise prediction:
-        - Add per-follower last leader mapping in `self.dic_id_last_leader`.
+        - Add per-follower last leader mapping in `self.dic_fol_last_leader`.
         - Add per-leader free cascade flag in `self.dic_leader_free_triggered`.
         - Scan vehicles newest -> oldest and (re)predict any follower that is new or whose leader changed.
 
         Params:
-        - ls_vehid:
-        - dic_id_last_leader: {follower : last_leader, ...}
+        - ls_vehid: tuple, all vehicle in this step
+        - dic_fol_last_leader: {follower : last_leader, ...}
         """
         if not dic_id_type:
             return self.dic_id_preState, self.dic_id_features
         # Clean / reset when a vehicle becomes leader
         for vid, tag in dic_id_type.items():
             if tag == 1:
-                self.dic_id_last_leader.pop(vid, None)
+                self.dic_fol_last_leader.pop(vid, None)
                 self.dic_id_features.pop(vid, None)  # removes id from the dictionary; returns None if id doesn't exist.
                 self.dic_id_preState.pop(vid, None)  # removes the prediction state for id.
                 self.dic_leader_free_triggered[vid] = False
@@ -52,15 +52,13 @@ class PlatoonSparseHandler:
         # items = list(dic_id_type.items())[::-1] # seems has a problem in this sequence!
         items = list(dic_id_type.items())
         for vid, tag in items:
-            if vid == 'mhv805':
-                pass
             # only handle followers (both AV and HV)
             if tag == 1:
                 continue
 
             # if left network, remove records so we can re-evaluate later
             if vid not in ls_vehid:
-                self.dic_id_last_leader.pop(vid, None)
+                self.dic_fol_last_leader.pop(vid, None)
                 self.dic_id_features.pop(vid, None)
                 self.dic_id_preState.pop(vid, None)
                 continue
@@ -69,22 +67,21 @@ class PlatoonSparseHandler:
             leader_id, _ = self.p_basic.get_cor_leader(vid)
             if leader_id is None:
                 # no leader mapping now; clear last leader so it will be retried later
-                self.dic_id_last_leader.pop(vid, None)
+                self.dic_fol_last_leader.pop(vid, None)
                 continue
 
             # skip if already predicted for this leader
-            if vid in self.dic_id_last_leader and self.dic_id_last_leader[vid] == leader_id:
+            if vid in self.dic_fol_last_leader and self.dic_fol_last_leader[vid] == leader_id:
                 continue
 
             # extract features (this also stores features in self.dic_id_features)
             arr_select_features = self.get_RFfeatures(vid)
             if arr_select_features is None:
                 # missing data now; clear last-leader to try again later
-                self.dic_id_last_leader.pop(vid, None)
+                self.dic_fol_last_leader.pop(vid, None)
                 continue
-
             # record mapping that this follower was evaluated for this leader
-            self.dic_id_last_leader[vid] = leader_id
+            self.dic_fol_last_leader[vid] = leader_id
 
             # perform prediction if requested
             if model:
@@ -93,13 +90,9 @@ class PlatoonSparseHandler:
                     pre_state = 0
                 else:
                     pre_state = int(self.fs_model.predict(arr_select_features)[0])
-
                 self.dic_id_preState[vid] = pre_state
-
                 # if this follower is free, subsequent followers in same platoon are free
                 if pre_state == 0:
-                    if leader_id == 'mav4686':
-                        pass
                     self.dic_leader_free_triggered[leader_id] = True
 
         return self.dic_id_preState, self.dic_id_features

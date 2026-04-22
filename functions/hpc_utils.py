@@ -24,6 +24,21 @@ def standard_arg_parser():
     parser.add_argument('--av_p', type=float, default=0, help='AV Penetration Rate')
     return parser
 
+def training_arg_parser():
+    """Parser for RL Training"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--av_p", type=float, default=0.3)
+    parser.add_argument("--seed", type=int, default=21)
+    parser.add_argument("--gui", action="store_true")
+    parser.add_argument("--st", type=int, default=1200*100)
+    parser.add_argument("--train_agent", type=str, choices=['SA', 'CA'], default='CA')
+    parser.add_argument("--lr", type=float, default=0.0005)
+    # Use nargs='+' to allow multiple integers: --batch_epoch 16 5
+    parser.add_argument("--batch_epoch", type=int, nargs='+', default=[16, 5])
+    parser.add_argument("--hidden_layer", type=int, nargs='+', default=[32, 32])
+    # Note: Training usually doesn't need out_csv for traffic KPIs
+    return parser
+
 def get_mc_indicator(speed_log, tp, xml_path, runtime):
     """Calculates performance indicators after simulation."""
     ttc_ratio, avg_speed_std = calc_ttc_sd_exposure.calc_ttc_and_speed_std(xml_path)

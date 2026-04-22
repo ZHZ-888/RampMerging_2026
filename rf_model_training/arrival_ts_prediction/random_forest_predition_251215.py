@@ -35,6 +35,7 @@ y = df_ft['target'].values
 # 3. Split the dataset into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
+#%%
 # 4. Create and train the Random Forest Regressor model
 model = RandomForestRegressor(n_estimators=800, random_state=36)
 model.fit(X_train, y_train)
@@ -72,7 +73,7 @@ predicted_time = model.predict(new_data)
 print(f"\nPredicted Arrival Time for new data: {predicted_time[0]:.2f} seconds")
 
 #%% save the model
-joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/mr_arrival_prediction_model260319_ndarray.pkl')
+# joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/mr_arrival_prediction_model260319_ndarray.pkl')
 
 #%% load model
 loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging4_250208/models/mr_arrival_prediction_model241128.pkl')
@@ -89,34 +90,96 @@ predicted_time = loaded_model.predict(new_data)
 print(predicted_time)
 print(f"\nPredicted Arrival Time for new data: {predicted_time[0]:.2f} seconds")
 
+#%% save data
+data = np.column_stack((y_pred, y_test))
+print(data)
+np.savetxt('rf_arrival_time.csv',
+    data,
+    delimiter=",",
+    header="y_pred,y_test",
+    comments=""
+)
+
 #%% Plot
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-# plot two curves
-# plt.scatter(y_pred, y_test, s=3, marker='s', c='gray', label='comparsion')
-plt.figure(figsize=(5, 4))
-plt.scatter(y_pred, y_test, s=25, edgecolor='blue', facecolor='none', label='comparsion')
 
-# Calculate the fit curve (linear regression)
-coefficients = np.polyfit(y_pred, y_test, 1)  # Perform first-order (linear) fitting
-fit_line = np.poly1d(coefficients)  # Create a polynomial object from the coefficients
+# Create figure and axis
+fig, ax = plt.subplots(figsize=(5, 4), dpi=600)
 
-# Plot the fit curve (green dashed line)
-x_fit = np.linspace(min_val, max_val, 100)  # Generate x values for the fit curve
-y_fit = fit_line(x_fit)  # Compute corresponding y values
-plt.plot(x_fit, y_fit, 'r', label='Fit curve')  # Plot the fit curve
-plt.xlim(0, 40)
-plt.ylim(0, 40)
-# title and label
-plt.title('Comparison of predicted value and true value')
-plt.xlabel('Predicted value (s)')
-plt.ylabel('True value (s)')
-# legend
-plt.legend()
-# grid
-# plt.grid(True)
+textstr = (
+    f"{'RMSE':<4}: 1.693 s\n"
+    f"{'MAE':<4}: 0.792 s\n"
+    f"{'R²':<4}: 0.973  "
+)
 
-# Add a zoomed inset
+ax.text(
+    0.95, 0.05,
+    textstr,
+    transform=ax.transAxes,
+    fontsize=10,
+    fontfamily='monospace',   # ✅ 核心
+    horizontalalignment='right',
+    verticalalignment='bottom',
+    # bbox=dict(boxstyle='round', facecolor='white', alpha=0.8)
+)
+
+# Scatter plot: predicted vs true values
+ax.scatter(
+    y_pred,
+    y_test,
+    s=25,
+    edgecolor='blue',
+    facecolor='none',
+    label='Prediction'
+)
+
+# Linear regression (first-order polynomial fit)
+coefficients = np.polyfit(y_pred, y_test, 1)
+fit_line = np.poly1d(coefficients)
+
+# Determine plotting range automatically
+min_val = min(y_pred.min(), y_test.min())
+max_val = max(y_pred.max(), y_test.max())
+upper = np.ceil(max_val / 10) * 10  # Round up to nearest 10 for better visualization
+
+ax.set_xlim(0, 55)
+ax.set_ylim(0, 55)
+
+ax.set_xticks([0, 10, 20, 30, 40, 50, 55])
+ax.set_yticks([0, 10, 20, 30, 40, 50, 55])
+
+# Generate fitted line
+x_fit = np.linspace(min_val, max_val, 600)
+y_fit = fit_line(x_fit)
+
+# Plot fitted line
+ax.plot(x_fit, y_fit, 'r', label='Linear fit')
+
+# Automatic margins for better visualization
+ax.margins(0.05)
+
+# Axis labels
+ax.set_xlabel('Predicted value (s)')
+ax.set_ylabel('True value (s)')
+
+# Legend
+ax.legend()
+
+# Save figure as a PDF (vector format, suitable for publications)
+plt.savefig(
+    "/home/zzha/PycharmProjects/RampMerging_2026/figures/rf_arrival_times.pdf",
+    format="pdf",
+    bbox_inches="tight"
+)
+# plt.savefig("/home/zzha/PycharmProjects/RampMerging_2026/figures/rf_arrival_times.svg",
+#             format="svg", bbox_inches="tight")
+
+# Display the figure
+plt.show()
+
+
+#%% Add a zoomed inset
 ax_inset = inset_axes(plt.gca(), width="35%", height="35%", loc='lower right', borderpad=2)  # Adjust size and location
 ax_inset.scatter(y_pred, y_test, s=30, edgecolor='blue', facecolor='none')  # Replot the scatter points in the inset
 ax_inset.plot([10, 14], [10, 14], 'r-', label='Diagonal line')  # Diagonal in zoomed view

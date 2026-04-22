@@ -96,9 +96,10 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
         if c_ts % 1 == 0:
             prc.print_message(f'************current_time, step:{c_ts, step}************')
 
-        # main vehicle generation
-        veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+        # main vehicle generation (1 => inner lane; 0 => outer lane)
         veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
+        veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+
         # ramp vehicle generation
         veh_gen.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
 
@@ -181,13 +182,13 @@ if __name__ == '__main__':
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path) = mpgc_main(
         av_p = 0.1, # 0.3
-        r_fr = 1000, # 1000
+        r_fr = 990, # 1000
         m_fr = 1500, # 1500
         seed = 1,
         r_autoFollow_p = 1,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles
         loss_rate = 0,
-        gui = False,
+        gui = True,
         plot = False,
         display = True,
         lc = True, # if consider HV lane-changing

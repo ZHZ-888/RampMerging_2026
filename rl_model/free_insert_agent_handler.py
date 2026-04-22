@@ -5,14 +5,14 @@ from datetime import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from platoon_split_rl_model.rl_module import RLScoringAgent
+from rl_model.rl_module import RLScoringAgent
 
 # Model path for free-insert agent
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 # model_name = 'free_insert_score_model_260302_1646_first_round.pt'
 model_name = 'free_insert_score_model_260303_2333_second_version.pt'
-path_pt = os.path.join(project_root, 'platoon_split_rl_model', 'saved_models', model_name)
+path_pt = os.path.join(project_root, 'rl_model', 'saved_models', model_name)
 
 
 class FreeInsertAgentHandler:
@@ -23,7 +23,8 @@ class FreeInsertAgentHandler:
     """
 
     def __init__(self, traci, data_recorder, p_basic,
-                 scoring_interval=10, mode='train'):
+                 scoring_interval=10, mode='train', exp_name='default_run',
+                 lr=5e-4):
         """
         Initialize the free-insert agent.
 
@@ -38,13 +39,16 @@ class FreeInsertAgentHandler:
         self.data_recorder = data_recorder
         self.p_basic = p_basic
         self.mode = mode
-        # self.merge_regular = merge_regular
+
+        active_exp_name = exp_name if mode == 'train' else f"EVAL_{exp_name}"
 
         # Initialize RL scoring agent
         self.agent = RLScoringAgent(
             traci,
             data_recorder,
-            model_path=path_pt if mode == "predict" else None
+            exp_name=active_exp_name,
+            model_path=path_pt if mode == "predict" else None,
+            lr=5e-4 # 0.0005
         )
 
         # Configuration
@@ -132,7 +136,8 @@ class FreeInsertAgentHandler:
 
                         # Trigger training after warmup
                         if self.collected >= 32 and current_step > self.training_warmup_steps:
-                            self.agent.train_on_recorded(epochs=5, batch_size=16)
+                            self.agent.log_training_metrics(current_step) # log performance metrics BEFORE updating model
+                            self.agent.train_on_recorded(current_step, epochs=5, batch_size=16)
                             self.collected = 0
 
                     # Update reward tracking
@@ -163,7 +168,7 @@ class FreeInsertAgentHandler:
 
         REWARD LOGIC:
         - Goal: Maximize number of free followers converted to following mode
-        - Success: (captured_followers / total_free) * quality_bonus
+        - Success: captured_free_fol / total_free - captured_norm_fol * 0.01 (penalty for capturing non-free followers)
         - Failure: -0.1 (wrong lane, no followers, exception)
 
         Args:
@@ -178,8 +183,6 @@ class FreeInsertAgentHandler:
         penalty = -0.1
 
         try:
-            if lc_av == 'mbav1149' or lc_av == 'mbav1166':
-                pass
             # Check if AV is on correct lane
             lane_id = self.traci.vehicle.getLaneID(lc_av)
             if 'inflow_highway_0' not in lane_id:
@@ -284,10 +287,6 @@ class FreeInsertAgentHandler:
             if any(entry['sparse_leader'] == sparse_leader for entry in self.insert_buffer):
                 # print(f"[FreeInsert] {sparse_leader} already being tracked, skipping insertion")
                 return
-            if selected_av == 'mbav2802':
-                pass
-            if selected_av in ['mbav565', 'mbav2802']:
-                pass
             self.traci.vehicle.changeLane(selected_av, self.target_lane, duration=100)
             print(f"[FreeInsert] {selected_av} selected with score {score:.3f}")
 
@@ -320,39 +319,20 @@ class FreeInsertAgentHandler:
         save_interval = 30000
         if current_step > self.next_save_step or current_step == st * 10 - 1:
             timestamp = datetime.now().strftime("%y%m%d_%H%M")
-            save_path = os.path.join(
-                os.path.dirname(path_pt),
-                f'free_insert_score_model_{timestamp}.pt'
-            )
-            self.agent.save_model(save_path)
+            filename = f'free_insert_score_model_{timestamp}.pt'
+            # save_path = os.path.join(
+            #     os.path.dirname(path_pt),
+            #     f'free_insert_score_model_{timestamp}.pt'
+            # )
+            self.agent.save_model(filename)
+            print(f"[Model] Auto-saved at step {current_step}")
             self.next_save_step += save_interval
 
     def plot_scores(self, current_step, st):
         """Plot distribution of predicted scores."""
         if current_step != st * 10 - 1:
             return
-
-        # Save data
-        df_scores = pd.DataFrame({
-            'index': list(range(len(self.ls_score))),
-            'score': self.ls_score
-        })
-        df_scores.to_csv(
-            f"{project_root}/platoon_split_rl_model/plot_data/free_insert_scores.csv",
-            index=False
-        )
-
-        # Plot
-        plt.figure(figsize=(8, 4))
-        plt.scatter(range(len(self.ls_score)), self.ls_score, s=3, c='green',
-                    label='Free Insert Score', alpha=0.5)
-        plt.title('Free Insert Score Distribution per Decision')
-        plt.xlabel('Decision Index')
-        plt.ylabel('Predicted Score')
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
+        self.agent.plot_score_scatter(self.ls_score)
 
     def plot_loss(self, current_step, st):
         if current_step != st * 10 - 1:

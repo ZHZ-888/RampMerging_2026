@@ -78,6 +78,9 @@ class PlatoonLaneManager:
                 self.no_lc_av.add(vid)
 
     def manage_lc_behaviour(self, lc, dic_tags):
+        '''
+        manage hv lane changing behavior
+        '''
         ls_AV_followers = [v for v, t in dic_tags.items() if t == 2]
         ls_HV_followers = [v for v, t in dic_tags.items() if t == 0]
 
@@ -89,7 +92,25 @@ class PlatoonLaneManager:
             to_disable = set(ls_followers) - self.no_lc_av
             for vid in to_disable:
                 try:
-                    self.traci.vehicle.setLaneChangeMode(vid, 0)
+                    self.traci.vehicle.setLaneChangeMode(vid, 0) # disables all automatic lane changes
+                except Exception:
+                    pass
+                self.no_lc_av.add(vid)
+        else: # lc == True
+            pass
+
+    def manage_hv_lc_behaviour(self, lc, dic_tags):
+        '''
+        manage hv lane changing behavior
+        '''
+        ls_HV_followers = [v for v, t in dic_tags.items() if t == 0]
+
+        if not lc: # lc == False
+            # Only disable lane changing for followers that haven't been processed yet
+            to_disable = set(ls_HV_followers) - self.no_lc_av
+            for vid in to_disable:
+                try:
+                    self.traci.vehicle.setLaneChangeMode(vid, 0) # disables all automatic lane changes
                 except Exception:
                     pass
                 self.no_lc_av.add(vid)
@@ -110,8 +131,9 @@ class PlatoonLaneManager:
         # self._cancel_pending_changes_on_center()
         # self._restore_keepRight_outside_weaving(length_ih, weaving_influence_range)
 
-    def move_av_no_followers(self, ls_leader_AV, dic_platoon_members):
+    def move_leader_no_fol_to_inner(self, ls_leader_AV, dic_platoon_members):
         """
+        move_av_no_followers
         Encourage an AV leader with no followers to move from the outter lane to the inner lane.
 
         :param ls_leader_AV: AV leader list, ascending order
@@ -152,9 +174,9 @@ class PlatoonLaneManager:
                 self.traci.vehicle.setLaneChangeMode(vid, 256)
                 self.no_strategic_lc_veh.add(vid)
 
-    def encourage_av_fol_to_out_lane(self, ls_leader_AV, dic_standard_platoon):
+    def move_av_fol_to_inner(self, ls_leader_AV, dic_standard_platoon):
         '''
-
+        encourage_av_fol_to_out_lane
         Parameters
         ----------
         dic_standard_platoon

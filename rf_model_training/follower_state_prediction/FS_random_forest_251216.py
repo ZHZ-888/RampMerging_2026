@@ -18,8 +18,7 @@ print(df.columns)
 print(df.head())
 # filter out 'unknown' type
 df_filtered = df.loc[df['state']!='unknown']
-# convert state string into '0' or '1'
-# following_mode = 1, free_mode = 0
+# convert state string into '0' or '1'; following_mode = 1, free_mode = 0
 df_filtered2 = df_filtered.copy()
 df_filtered2['state'] = df_filtered['state'].replace({'following_mode': 1, 'free_mode': 0})
 df_filtered3 = df_filtered2.loc[:,["id", "dis_to_pv", "v_pv", "dis_leaderAV", "size", "state"]]
@@ -35,6 +34,7 @@ y = data[:, 5].astype(int) # should be int instead of object
 # 3. Split the dataset into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
+#%%
 # 4. Create and train the Random Forest Regressor model
 model = RandomForestClassifier(n_estimators=800, random_state=36)
 model.fit(X_train, y_train)
@@ -68,10 +68,9 @@ joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging4_250208/models/follow
 #%% load model
 # loaded_model = joblib.load('Models/follower_state_prediction_model_250415.pkl')
 # loaded_model = joblib.load('Models/follower_state_prediction_model_250501.pkl')
-loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging4_250208/models/follower_state_prediction_model_251121_ndarray.pkl')
+loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging4_250208/models/follower_state_prediction_model_251121_ndarray.pkl') # employed
 ls_new_features = [126.610488, 27.531120, 543.562369, 7]
-# df_new_data = pd.DataFrame([ls_new_features],
-#                         columns=['dis_to_pv', 'v_pv', 'dis_leaderAV', 'size'])
+
 X_new = np.array(ls_new_features, dtype=float).reshape(1, -1)
 new_state = loaded_model.predict(X_new)
 print(new_state)
@@ -80,6 +79,13 @@ print(new_state)
 # Import necessary libraries
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+
+main_blue = "#0000FF"
+custom_blues = LinearSegmentedColormap.from_list(
+    'custom_blues',
+    ['white', main_blue]
+)
 
 # Convert predicted probabilities to binary class (0 or 1)
 y_pred_class = (y_pred >= 0.5).astype(int)
@@ -88,11 +94,31 @@ y_pred_class = (y_pred >= 0.5).astype(int)
 cm = confusion_matrix(y_test, y_pred_class)
 
 # Plot the confusion matrix with a color map
+fig, ax = plt.subplots(figsize=(5, 4), dpi=600)
+
+textstr = (
+    f"{'Precision':<9}: 0.930\n"
+    f"{'Recall':<9}: 0.941\n"
+    f"{'F1-score':<9}: 0.936"
+)
+
+ax.text(
+    0.97, 0.03,
+    textstr,
+    transform=ax.transAxes,
+    fontsize=10,
+    # color='white',
+    fontfamily='monospace',
+    horizontalalignment='right',
+    verticalalignment='bottom',
+    bbox=dict(boxstyle='round', facecolor='white', alpha=1)
+)
+
 disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-disp.plot(cmap='Blues')  # You can also try 'Greens', 'Purples', 'Oranges', etc.
+disp.plot(cmap=custom_blues, ax=ax)  # You can also try 'Greens', 'Purples', 'Oranges', etc.
 
-# Add title
-plt.title("Confusion Matrix")
-
-# Show the plot
+# save as pdf
+plt.savefig("/home/zzha/PycharmProjects/RampMerging_2026/figures/rf_following_states1.pdf",
+            format='pdf', bbox_inches='tight')
+# plt.savefig("/home/zzha/PycharmProjects/RampMerging_2026/figures/rf_following_states.svg", format="svg", bbox_inches="tight")
 plt.show()

@@ -5,22 +5,26 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import pandas as pd
 
-from platoon_split_rl_model.rl_module import RLScoringAgent
+from rl_model.rl_module import RLScoringAgent
 
 current_dir = os.path.dirname(os.path.abspath(__file__)) # Get the absolute path of the current script's directory
 project_root = os.path.dirname(current_dir) # Get the parent directory as the project root
 # split_score_model_250517_1131.pt; split_score_model_251124_1900.pt
-path_pt = os.path.join(project_root, 'platoon_split_rl_model', 'saved_models', 'split_score_model_251124_1900.pt')
+path_pt = os.path.join(project_root, 'rl_model', 'saved_models', 'split_score_model_251124_1900.pt')
 
 class AgentHandler:
-    def __init__(self, traci, data_recorder, scoring_interval=10, mode='train'):
+    def __init__(self, traci, data_recorder, scoring_interval=10, mode='train',
+                 exp_name='default_run'):
         self.traci = traci
         self.data_recorder = data_recorder
         self.mode = mode
-        # self.merge_regular = merge_regular
+
+        active_exp_name = exp_name if mode == 'train' else f"EVAL_{exp_name}"
 
         self.agent = RLScoringAgent(traci, data_recorder,
+                                    exp_name=active_exp_name,
                                     model_path=path_pt if mode == "predict" else None)
+
         self.scoring_interval = scoring_interval  # Minimum interval (in steps) between scoring attempts
         self.training_warmup_steps = 20000
         self.next_save_step = 10000
@@ -189,20 +193,7 @@ class AgentHandler:
     def plot_scores(self, current_step, st):
         if current_step != st*10-1:
             return
-        # save data
-        df_scores = pd.DataFrame({'index': list(range(len(self.ls_score))), 'score': self.ls_score})
-        df_scores.to_csv(f"/home/zzha/PycharmProjects/RampMerging4_250208"
-                         f"/platoon_split_rl_model/plot_data/score_data_step{current_step}.csv", index=False)
-
-        plt.figure(figsize=(8, 4))
-        plt.scatter(range(len(self.ls_score)), self.ls_score, s=3, c='blue', label='Score', alpha=0.5)
-        plt.title('Score Distribution per Insert Decision')
-        plt.xlabel('Decision Index')
-        plt.ylabel('Predicted Score')
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
+        self.agent.plot_score_scatter(self.ls_score)
 
     def plot_loss(self, current_step, st):
         if current_step != st*10-1:
@@ -215,11 +206,11 @@ class AgentHandler:
         """
         save_interval = 30000  # every 10k steps
         if current_step > self.next_save_step or current_step == st*10-1:
-            os.makedirs("saved_models", exist_ok=True)
+            # os.makedirs("saved_models", exist_ok=True)
             timestamp = datetime.now().strftime("%y%m%d_%H%M")  # e.g. 250517_1915
             filename = f"split_score_model_{timestamp}.pt"
-            full_path = os.path.join("/home/zzha/PycharmProjects/RampMerging4_250208/platoon_split_rl_model/saved_models", filename)
-            self.agent.save_model(full_path)
+            # full_path = os.path.join("/home/zzha/PycharmProjects/RampMerging4_250208/platoon_split_rl_model/saved_models", filename)
+            self.agent.save_model(filename)
             print(f"[Model] Auto-saved at step {current_step}")
             self.next_save_step += save_interval  # set next checkpoint
 

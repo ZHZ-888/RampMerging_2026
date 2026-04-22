@@ -97,7 +97,7 @@ def loop(traci, st, vgvg, data_recorder,
 
         # mainlane vehicle generation
         vgvg.veh_gen_hetero(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
-        # vgvg.veh_gen_hetero(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+        vgvg.veh_gen_hetero(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
         # ramp vehicle generation
         vgvg.veh_gen_hetero(step, r_dpt_type, 'r', 'route2', 10, '0')
         # performance indicator
@@ -169,7 +169,7 @@ if __name__ == '__main__':
     start = time.time()
     speed_log, tp, xml_path = fifo_main(
         av_p = 0,
-        r_fr = 0,
+        r_fr = 1300,
         m_fr = 1500,
         seed = 5,
         gui = True,
