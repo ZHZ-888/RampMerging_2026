@@ -53,7 +53,7 @@ echo "STARTING TRAINING: ID=$TASK_ID | LR=$LR | SEED=$SEED | AGENT=$AGENT_TYPE"
 # Use 'stdbuf -oL' to ensure real-time logging output to the .txt file
 # Simulation time set to 120000 (1200 * 100)
 stdbuf -oL python run.py \
-  --algo mpgc_train \
+  --algo mpgc_multi_lane_RL_agent_training \
   --train_agent "$AGENT_TYPE" \
   --lr "$LR" \
   --seed "$SEED" \
