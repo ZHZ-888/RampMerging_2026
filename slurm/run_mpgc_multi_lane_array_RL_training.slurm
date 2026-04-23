@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=mpgc_training            # Job name for tracking
 #SBATCH --time=12:00:00                     # Increased time limit for longer simulation
-#SBATCH --cpus-per-task=4                   # CPU cores per task for Torch/SUMO
-#SBATCH --mem=12G                           # Memory allocation for Replay Buffer
+#SBATCH --cpus-per-task=8                   # CPU cores per task for Torch/SUMO
+#SBATCH --mem=32G                           # Memory allocation for Replay Buffer
 #SBATCH --output=train-logs/out_%A_%a.txt   # Standard output log
 #SBATCH --error=train-logs/err_%A_%a.txt     # Error log
 # NOTE: Submit with --array=0-8 (for 3 LRs * 3 Seeds)
