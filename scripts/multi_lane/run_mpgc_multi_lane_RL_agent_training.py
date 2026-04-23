@@ -179,14 +179,14 @@ if __name__ == '__main__':
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      xml_path) = mpgc_main(
-        av_p = 0.3, # 0.3
+        av_p = 0.1, # 0.3
         r_fr = 0,
         m_fr = 1200,
         seed = 21, # 1
         gui = False,
-        st = 1200*100, # 50
-        train_agent = 'CA',
-        lr = '0.0005',
+        st = 1200*5, # 50; 100
+        train_agent = 'SA',
+        lr = 0.0001, # 0.0005
         batch_epoch = [16, 5],
         hidden_layer = [32, 32]
     )

@@ -2,8 +2,6 @@
 
 import os
 from datetime import datetime
-import pandas as pd
-import matplotlib.pyplot as plt
 
 from rl_model.rl_module import RLScoringAgent
 
@@ -43,13 +41,10 @@ class FreeInsertAgentHandler:
         active_exp_name = exp_name if mode == 'train' else f"EVAL_{exp_name}"
 
         # Initialize RL scoring agent
-        self.agent = RLScoringAgent(
-            traci,
-            data_recorder,
-            exp_name=active_exp_name,
-            model_path=path_pt if mode == "predict" else None,
-            lr=5e-4 # 0.0005
-        )
+        self.agent = RLScoringAgent(traci, data_recorder,
+                                    exp_name=active_exp_name,
+                                    model_path=path_pt if mode == "predict" else None,
+                                    lr=lr) # 0.0005
 
         # Configuration
         self.scoring_interval = scoring_interval
@@ -108,6 +103,52 @@ class FreeInsertAgentHandler:
 
     def update_reward(self, current_step, st, dic_platoon_members):
         """
+        Check insert_buffer for completed insertions and calculate rewards.
+        Safely iterates using a shallow copy to remove vehicles.
+        """
+        for entry in self.insert_buffer:
+            sparse_leader = entry['sparse_leader']
+            # Check if original leader has exited control zone or disappeared
+            try:
+                lane_id = self.traci.vehicle.getLaneID(sparse_leader)
+            except self.traci.TraCIException:
+                # Leader already exited or removed
+                self.insert_buffer.remove(entry)
+                continue
+
+            if lane_id != 'ws_1':  # Exit lane
+                continue
+
+            # --- Leader exited → evaluate reward ---
+            lc_av = entry['lc_av']
+            reward = self.evaluate_free_insert_reward(lc_av, entry['first_free_follower'],
+                                                      entry['sparse_snapshot'], dic_platoon_members)
+
+            # Update reward tracking & print
+            if lc_av in self.dic_score_reward:
+                self.dic_score_reward[lc_av].append(reward)
+            print(f"[FreeInsert] {lc_av} reward: {reward:+.3f}")
+
+            # Record transition for learning
+            if self.mode == 'train':
+                self.agent.record_transition(entry['state'], reward)
+                self.collected += 1
+
+                # Trigger training after warmup
+                if self.collected >= 32 and current_step > self.training_warmup_steps:
+                    self.agent.log_training_metrics(current_step) # log performance metrics BEFORE updating model
+                    self.agent.train_on_recorded(current_step, epochs=5, batch_size=16)
+                    self.collected = 0
+            # Clean up processed entry
+            self.insert_buffer.remove(entry)
+
+        if self.mode == 'train': # Periodic model saving
+            self._save_model_if_needed(current_step, st)
+
+        return self.dic_score_reward
+
+    def update_reward_ori(self, current_step, st, dic_platoon_members):
+        """
         Check for completed insertions and calculate rewards.
         Remove vehicles that have exited or completed their insertion.
         """
@@ -115,14 +156,12 @@ class FreeInsertAgentHandler:
 
         for entry in self.insert_buffer:
             sparse_leader = entry['sparse_leader']
-
             # Check if original leader has exited control zone
             try:
                 lane_id = self.traci.vehicle.getLaneID(sparse_leader)
                 if lane_id == 'ws_1':  # Exit lane
                     # Leader exited → evaluate reward
                     lc_av = entry['lc_av']
-                    state = entry['state']
                     first_free_follower = entry['first_free_follower']
                     sparse_snapshot = entry['sparse_snapshot']
 
@@ -131,7 +170,7 @@ class FreeInsertAgentHandler:
 
                     # Record transition for learning
                     if self.mode == 'train':
-                        self.agent.record_transition(state, reward)
+                        self.agent.record_transition(entry['state'], reward)
                         self.collected += 1
 
                         # Trigger training after warmup
@@ -155,8 +194,7 @@ class FreeInsertAgentHandler:
         for entry in to_remove:
             self.insert_buffer.remove(entry)
 
-        if self.mode == 'train':
-            # Periodic model saving
+        if self.mode == 'train': # Periodic model saving
             self._save_model_if_needed(current_step, st)
 
         return self.dic_score_reward
@@ -328,13 +366,13 @@ class FreeInsertAgentHandler:
             print(f"[Model] Auto-saved at step {current_step}")
             self.next_save_step += save_interval
 
-    def plot_scores(self, current_step, st):
-        """Plot distribution of predicted scores."""
-        if current_step != st * 10 - 1:
+    def record_loss(self, current_step, st):
+        if current_step != st * 10 - 1 or self.mode != 'train':
             return
-        self.agent.plot_score_scatter(self.ls_score)
+        self.agent.record_plot_loss()  # plot loss curve
 
-    def plot_loss(self, current_step, st):
-        if current_step != st * 10 - 1:
+    def record_scores(self, current_step, st):
+        """Plot distribution of predicted scores."""
+        if current_step != st * 10 - 1 or self.mode != 'train':
             return
-        self.agent.plot_loss_curve()  # plot loss curve
+        self.agent.record_plot_scores(self.ls_score)

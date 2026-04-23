@@ -1,9 +1,7 @@
 # split_insert_agent_handler.py
 
 import os
-import matplotlib.pyplot as plt
 from datetime import datetime
-import pandas as pd
 
 from rl_model.rl_module import RLScoringAgent
 
@@ -14,7 +12,7 @@ path_pt = os.path.join(project_root, 'rl_model', 'saved_models', 'split_score_mo
 
 class AgentHandler:
     def __init__(self, traci, data_recorder, scoring_interval=10, mode='train',
-                 exp_name='default_run'):
+                 exp_name='default_run', lr=5e-4):
         self.traci = traci
         self.data_recorder = data_recorder
         self.mode = mode
@@ -23,7 +21,8 @@ class AgentHandler:
 
         self.agent = RLScoringAgent(traci, data_recorder,
                                     exp_name=active_exp_name,
-                                    model_path=path_pt if mode == "predict" else None)
+                                    model_path=path_pt if mode == "predict" else None,
+                                    lr=lr)
 
         self.scoring_interval = scoring_interval  # Minimum interval (in steps) between scoring attempts
         self.training_warmup_steps = 20000
@@ -68,16 +67,15 @@ class AgentHandler:
         updated = False
         # iterate over a shallow copy to safely remove items during loop
         for record in self.insert_buffer[:]:
-            platoon_snapshot = record["platoon_snapshot"]
             leader_id = record['leader_id']
-            tail_id = platoon_snapshot[-1] # platoon tail id at the moment of insertion decision
-            lc_av = record['av_id']
             try:
                 lane_id = self.traci.vehicle.getLaneID(leader_id)
             except self.traci.TraCIException:
                 lane_id = None
 
             if lane_id == 'ws_1': # inflow_highway_0
+                lc_av = record['av_id']
+                platoon_snapshot = record["platoon_snapshot"]
                 reward = self.evaluate_insertion_reward(lc_av, platoon_snapshot, dic_platoon_members)
                 self.dic_score_reward[lc_av].append(reward)
                 if self.mode == 'train':
@@ -88,7 +86,8 @@ class AgentHandler:
         if updated and self.mode == 'train':
             self.collected += 1
             if self.collected >= 32:
-                self.agent.train_on_recorded(epochs=5, batch_size=16)
+                self.agent.log_training_metrics(current_step)  # log performance metrics BEFORE updating model
+                self.agent.train_on_recorded(current_step, epochs=5, batch_size=16)
                 self.collected = 0
                 self._save_model_if_needed(current_step, st)
         return self.dic_score_reward
@@ -190,15 +189,15 @@ class AgentHandler:
         except self.traci.TraCIException:
             return -0.1
 
-    def plot_scores(self, current_step, st):
-        if current_step != st*10-1:
+    def record_loss(self, current_step, st):
+        if current_step != st*10-1 or self.mode != 'train':
             return
-        self.agent.plot_score_scatter(self.ls_score)
+        self.agent.record_plot_loss()  # plot loss curve
 
-    def plot_loss(self, current_step, st):
-        if current_step != st*10-1:
+    def record_scores(self, current_step, st):
+        if current_step != st*10-1 or self.mode != 'train':
             return
-        self.agent.plot_loss_curve()  # plot loss curve
+        self.agent.record_plot_scores(self.ls_score)
 
     def _save_model_if_needed(self, current_step, st):
         """
@@ -248,7 +247,8 @@ class AgentHandler:
         self.ls_score.append(score)
         return selected_av, selected_state, best_score
 
-    def _execute_insertion(self, step, leader_id, selected_av, selected_state, dic_platoon_members, score):
+    def _execute_insertion(self, step, leader_id, selected_av, selected_state,
+                           dic_platoon_members, score):
         """
         Execute the lane change for the selected AV and update tracking structures.
         """

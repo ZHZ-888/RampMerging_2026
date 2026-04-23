@@ -23,6 +23,8 @@ class FormationController:
         self.p_lane = plane.PlatoonLaneManager(traci, data_recorder)
 
         # RL Agents
+        self.sa_gating = 0.5 if splitting_agent == 'predict' else 0
+        self.ca_gating = 0.4 if collecting_agent == 'predict' else 0
         self.split_agent = agent.AgentHandler(
             traci, data_recorder, mode=splitting_agent,
             exp_name=exp_name, lr=learning_rate) if splitting_agent else None
@@ -76,10 +78,10 @@ class FormationController:
             dic_split_insertedAV = self.split_agent.run_agent_decision(step, dic_platoon_members,
                                                                  dic_oversized_platoon_states,
                                                                  dic_leader_candidates,
-                                                                 ls_ihA, gating_value=0.5)
+                                                                 ls_ihA, gating_value=self.sa_gating)
             dic_score_reward = self.split_agent.update_reward(step, st, dic_platoon_members)
-            # self.split_agent.plot_scores(step, st)
-            # self.split_agent.plot_loss(step, st)
+            self.split_agent.record_scores(step, st)
+            self.split_agent.record_loss(step, st)
 
         # ******** HANDLE SPARSE PLATOONS ********
         dic_nonOversizedP = self.p_oversized.non_oversized_platoon(dic_platoon_members, dic_oversized_platoon_states)
@@ -95,10 +97,10 @@ class FormationController:
             dic_free_insertedAV = self.free_insert_agent.run_free_insert_decision(step, dic_platoon_members,
                                                                               dic_sparseP_filered,
                                                                               dic_sparse_candidates,
-                                                                              ls_ihA, gating_value=0) # 0.4 for predict
+                                                                              ls_ihA, gating_value=self.ca_gating) # 0.4 for predict
             dic_free_score_reward = self.free_insert_agent.update_reward(step, st, dic_platoon_members)
-            # self.free_insert_agent.plot_scores(step, st)
-            # self.free_insert_agent.plot_loss(step, st)
+            self.free_insert_agent.record_scores(step, st)
+            self.free_insert_agent.record_loss(step, st)
 
         # Flashing lane change side AVs
         # self.merge_regular.flashing_lane_changing(step, dic_insertedAV, ls_ihB)

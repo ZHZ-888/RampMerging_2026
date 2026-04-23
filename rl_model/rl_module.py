@@ -54,12 +54,14 @@ class RLScoringAgent:
 
         # self.model = SimpleMLP(input_dim=8).to(self.device)
         self.model = SimpleMLP(input_dim=10).to(self.device)
+        print(f"***** Learning rate: {lr} *****")
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr) # for auto optimising parameters
         # self.loss_fn = nn.MSELoss() # Mean Squared Error Loss
         self.loss_fn = nn.SmoothL1Loss()
         self.memory = []  # Buffer to store (state, reward) tuples
         self.loss_history = []  # Track training loss over time
 
+        self.IS_HPC = "RUN_DIR" in os.environ  # Simple check for HPC environment variable
         # **** Define project root (rl_model folder) ****
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         # Root directory for logs and models (HPC-aware)
@@ -193,7 +195,7 @@ class RLScoringAgent:
         except Exception as e:
             print(f"[Error] Failed to log training metrics: {e}")
 
-    def plot_loss_curve(self):
+    def record_plot_loss(self):
         """
         SAVE loss history CSV
         Plot the loss curve based on recorded training history.
@@ -202,26 +204,26 @@ class RLScoringAgent:
             print("[Plot] No loss history to show.")
             return
         # save loss data
-        # loss_csv_path = os.path.join(self.log_dir, "loss_history.csv")
         loss_csv_path = os.path.join(self.run_dir, "loss_log.csv")
         df_loss = pd.DataFrame({'step': list(range(len(self.loss_history))), 'loss': self.loss_history})
         df_loss.to_csv(loss_csv_path, index=False)
         print(f"[Plot] Loss data saved to {loss_csv_path}")
 
-        plt.plot(self.loss_history, label="Training Loss", color='blue', linewidth=1, alpha=0.3)
-        # Smoothed loss line (moving average)
-        smoothed = pd.Series(self.loss_history).rolling(window=10).mean()
-        plt.plot(smoothed, label="Smoothed Loss (window=15)", color='red', linewidth=2)
+        if not self.IS_HPC:
+            # plot
+            plt.plot(self.loss_history, label="Training Loss", color='blue', linewidth=1, alpha=0.3)
+            # Smoothed loss line (moving average)
+            smoothed = pd.Series(self.loss_history).rolling(window=10).mean()
+            plt.plot(smoothed, label="Smoothed Loss (window=15)", color='red', linewidth=2)
+            plt.xlabel("Training Step")
+            plt.ylabel("MSE Loss")
+            plt.title("Loss Curve of Scoring Model")
+            plt.grid(True)
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
 
-        plt.xlabel("Training Step")
-        plt.ylabel("MSE Loss")
-        plt.title("Loss Curve of Scoring Model")
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
-
-    def plot_score_scatter(self, ls_score):
+    def record_plot_scores(self, ls_score):
         """
         save score history CSV
         """
@@ -230,15 +232,16 @@ class RLScoringAgent:
         df_scores = pd.DataFrame({'index': list(range(len(ls_score))), 'score': ls_score})
         df_scores.to_csv(score_csv_path, index=False)
         # plot
-        plt.figure(figsize=(8, 4))
-        plt.scatter(range(len(ls_score)), ls_score, s=3, c='blue', label='Score', alpha=0.5)
-        plt.title('Score Distribution per Decision')
-        plt.xlabel('Decision Index')
-        plt.ylabel('Predicted Score')
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
+        if not self.IS_HPC:
+            plt.figure(figsize=(8, 4))
+            plt.scatter(range(len(ls_score)), ls_score, s=3, c='blue', label='Score', alpha=0.5)
+            plt.title('Score Distribution per Decision')
+            plt.xlabel('Decision Index')
+            plt.ylabel('Predicted Score')
+            plt.grid(True)
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
 
     def save_model(self, filename):
         """
