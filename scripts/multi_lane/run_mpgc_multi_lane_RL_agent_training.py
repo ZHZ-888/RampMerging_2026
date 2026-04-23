@@ -50,7 +50,7 @@ def mpgc_main(av_p=0.3, r_fr=0, m_fr=1200, seed=21, r_platoon_p=1, loss_rate=0,
     file_name = f'trj_{r_fr}_{av_p}_{seed}_{loss_rate}.xml'
     xml_path = os.path.join(traj_dir, file_name)
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
-                "--fcd-output", str(xml_path), # save path
+                # "--fcd-output", str(xml_path), # save path (no need to save xml)
                 "--no-warnings"]
     sumo_options = ["--step-length", str(sim_step)]
 

@@ -13,6 +13,13 @@ set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
 
 # ================================
+# HPC Storage Configuration
+# ================================
+export RUN_DIR="/nesi/nobackup/uoa04480/RL_Training_${SLURM_ARRAY_JOB_ID}"
+mkdir -p "$RUN_DIR"
+echo "All heavy logs and models will be saved to: $RUN_DIR"
+
+# ================================
 # Load Environment
 # ================================
 # Load Python module and activate virtual environment
@@ -26,7 +33,7 @@ export PYTHONPATH="${PYTHONPATH:-}:${SLURM_SUBMIT_DIR}"
 # export SUMO_HOME="/path/to/your/sumo" 
 
 # Create necessary directories for logging and data
-mkdir -p train-logs data/raw/training
+mkdir -p train-logs
 
 # ================================
 # Parameter Mapping (Grid Search)
@@ -52,7 +59,7 @@ echo "STARTING TRAINING: ID=$TASK_ID | LR=$LR | SEED=$SEED | AGENT=$AGENT_TYPE"
 # ================================
 # Use 'stdbuf -oL' to ensure real-time logging output to the .txt file
 # Simulation time set to 120000 (1200 * 100)
-stdbuf -oL python run.py \
+stdbuf -oL python -u run.py \
   --algo mpgc_multi_lane_RL_agent_training \
   --train_agent "$AGENT_TYPE" \
   --lr "$LR" \

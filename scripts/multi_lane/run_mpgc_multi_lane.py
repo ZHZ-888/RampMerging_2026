@@ -36,8 +36,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
     '''
     traj_dir = Path(os.environ.get(
                     "TRAJ_DIR",
-                    ROOT / "data" / "multi_lane" / "algo"
-                ))
+                    ROOT / "data" / "multi_lane" / "algo"))
     file_name = f'trj_{r_fr}_{av_p}_{seed}_{loss_rate}.xml'
     xml_path = os.path.join(traj_dir, file_name)
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),

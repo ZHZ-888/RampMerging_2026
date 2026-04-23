@@ -62,17 +62,23 @@ class RLScoringAgent:
 
         # **** Define project root (rl_model folder) ****
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
-        # Create a unique folder name for this specific experiment
-        # Example: CA_LR0.0005_B16_E5_S21_20260422_1830
+        # Root directory for logs and models (HPC-aware)
+        run_root = os.environ.get("RUN_DIR", os.path.join(self.base_dir, "rl_logs")) # environ (environment)
+
+        # Create a unique folder name for this exp (e.g. CA_LR0.0005_B16_E5_S21_20260422_1830)
+        array_id = os.environ.get("SLURM_ARRAY_TASK_ID", "")
+        suffix = f"_task{array_id}" if array_id else ""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        self.run_id = f"{exp_name}_{timestamp}"
+        self.run_id = f"{exp_name}_{timestamp}_{suffix}"
         # All-in-one run directory for logs AND models
-        self.run_dir = os.path.join(self.base_dir, "rl_logs", self.run_id)
+        # self.run_dir = os.path.join(self.base_dir, "rl_logs", self.run_id)
+        self.run_dir = os.path.join(run_root, self.run_id)
+
         os.makedirs(self.run_dir, exist_ok=True)
         # Model saving directory (optional: same as logs or a subfolder)
         self.model_save_dir = os.path.join(self.run_dir, "models")
         os.makedirs(self.model_save_dir, exist_ok=True)
-        # Initialize TensorBoard SummaryWriter
+        # Initialise TensorBoard SummaryWriter
         self.writer = SummaryWriter(log_dir=self.run_dir)
         print(f"[TensorBoard] Logging to {self.run_dir}")
 
