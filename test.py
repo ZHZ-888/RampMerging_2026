@@ -1,15 +1,12 @@
-dic = {4.3: 'HV', 5.3: 'HV', 7.3: 'AV', 9.6: 'HV', 13.7: 'HV', 18.1: 'HV', 20.5: 'HV',
-       21.7: 'HV', 26.0: 'HV', 28.0: 'AV', 39.0: 'HV', 42.3: 'HV', 56.3: 'HV', 57.8: 'AV',
-       60.0: 'HV', 61.6: 'HV', 82.3: 'HV', 90.6: 'HV', 98.8: 'HV', 99.9: 'HV', 128.8: 'HV',
-       131.8: 'HV', 133.5: 'HV', 149.3: 'AV', 152.4: 'AV', 153.5: 'HV', 156.0: 'AV', 161.2: 'AV',
-       167.5: 'AV', 174.0: 'HV', 175.7: 'HV', 184.0: 'HV', 185.3: 'HV', 193.1: 'HV', 212.0: 'HV',
-       227.5: 'AV', 229.5: 'HV', 233.6: 'AV', 250.9: 'HV', 260.5: 'HV', 274.8: 'HV', 284.4: 'HV',
-       287.4: 'HV', 291.8: 'HV', 299.6: 'HV'}
+dataset_size = 32
+batch_size = 16
 
-dic2 = {7.9: 'HV', 19.7: 'AV', 31.0: 'HV', 34.2: 'AV', 64.1: 'AV', 74.2: 'HV', 78.2: 'HV',
-        95.6: 'HV', 119.2: 'HV', 120.8: 'HV', 123.3: 'HV', 126.4: 'HV', 138.3: 'AV', 145.7: 'AV',
-        150.0: 'AV', 152.0: 'AV', 157.0: 'AV', 159.7: 'AV', 174.9: 'HV', 177.0: 'HV', 182.8: 'AV',
-        188.5: 'HV', 199.4: 'HV', 202.3: 'HV', 207.1: 'AV', 213.1: 'HV', 215.5: 'HV', 233.9: 'HV',
-        238.4: 'HV', 251.2: 'AV', 255.5: 'HV', 279.7: 'HV', 287.0: 'AV', 290.1: 'AV', 293.4: 'HV'}
+for start in range(0, dataset_size, batch_size):
+    end = start + batch_size
+    print(start, end)
+    # batch_idx = indices[start:end]
+    # X_batch = X_all[batch_idx]
+    # y_batch = y_all[batch_idx]
 
-print(len(dic2))
+    # preds = self.model(X_batch)
+    # loss = self.loss_fn(preds, y_batch)

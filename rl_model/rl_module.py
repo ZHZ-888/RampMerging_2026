@@ -109,7 +109,7 @@ class RLScoringAgent:
         """
         self.memory.append((state, reward))
 
-    def train_on_recorded(self, current_step, epochs=1, batch_size=32):
+    def train_on_recorded(self, current_step, epochs=5, batch_size=16):
         """
         Train the model using all recorded transitions (state, reward pairs).
         Args:
@@ -126,6 +126,9 @@ class RLScoringAgent:
         dataset_size = len(X_all)
         indices = np.arange(dataset_size)
 
+        total_loss = 0.0
+        batch_count = 0
+
         for _ in range(epochs):
             np.random.shuffle(indices) # Shuffle the data at each epoch
             for start in range(0, dataset_size, batch_size):
@@ -140,12 +143,16 @@ class RLScoringAgent:
                 loss.backward()
                 self.optimizer.step()
 
-            self.loss_history.append(loss.item()) # Record current loss
+                total_loss += loss.item()
+                batch_count += 1
 
+
+        avg_loss = total_loss / batch_count if batch_count > 0 else 0.0
+        self.loss_history.append((current_step, avg_loss))  # Record loss
         # --- TensorBoard Logging ---
-        self.writer.add_scalar('Loss/Training_Loss', loss.item(), current_step)
-
-        print(f"[Train] Fitted on {len(self.memory)} samples, final loss = {loss.item():.4f}")
+        self.writer.add_scalar('Loss/Avg_Training_Loss', avg_loss, current_step)
+        # print(f"[Train] Fitted on {len(self.memory)} samples, final loss = {loss.item():.4f}")
+        print(f"[Train] Fitted on {len(self.memory)} samples, at step {current_step}, Avg_loss = {avg_loss:.4f}")
         self.memory.clear()
 
     def log_training_metrics(self, current_step):
@@ -199,21 +206,24 @@ class RLScoringAgent:
         """
         SAVE loss history CSV
         Plot the loss curve based on recorded training history.
+        self.loss_histrory = [(step, loss), ...]
         """
         if not self.loss_history:
             print("[Plot] No loss history to show.")
             return
         # save loss data
+        steps, losses = zip(*self.loss_history)
         loss_csv_path = os.path.join(self.run_dir, "loss_log.csv")
-        df_loss = pd.DataFrame({'step': list(range(len(self.loss_history))), 'loss': self.loss_history})
+        df_loss = pd.DataFrame({'step': steps, 'loss': losses})
         df_loss.to_csv(loss_csv_path, index=False)
         print(f"[Plot] Loss data saved to {loss_csv_path}")
 
         if not self.IS_HPC:
             # plot
-            plt.plot(self.loss_history, label="Training Loss", color='blue', linewidth=1, alpha=0.3)
+            plt.plot(steps, losses, label="Training Loss", color='blue', linewidth=1, alpha=0.3)
             # Smoothed loss line (moving average)
-            smoothed = pd.Series(self.loss_history).rolling(window=10).mean()
+            loss_series = pd.Series(losses)
+            smoothed = loss_series.rolling(window=10).mean()
             plt.plot(smoothed, label="Smoothed Loss (window=15)", color='red', linewidth=2)
             plt.xlabel("Training Step")
             plt.ylabel("MSE Loss")

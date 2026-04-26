@@ -101,7 +101,7 @@ class FreeInsertAgentHandler:
 
         return self.dic_insertedAV
 
-    def update_reward(self, current_step, st, dic_platoon_members):
+    def update_reward(self, current_step, st, dic_platoon_members, update_interval):
         """
         Check insert_buffer for completed insertions and calculate rewards.
         Safely iterates using a shallow copy to remove vehicles.
@@ -135,9 +135,9 @@ class FreeInsertAgentHandler:
                 self.collected += 1
 
                 # Trigger training after warmup
-                if self.collected >= 32 and current_step > self.training_warmup_steps:
+                if self.collected >= update_interval and current_step > self.training_warmup_steps:
                     self.agent.log_training_metrics(current_step) # log performance metrics BEFORE updating model
-                    self.agent.train_on_recorded(current_step, epochs=5, batch_size=16)
+                    self.agent.train_on_recorded(current_step, epochs=5, batch_size=int(update_interval/2))
                     self.collected = 0
             # Clean up processed entry
             self.insert_buffer.remove(entry)

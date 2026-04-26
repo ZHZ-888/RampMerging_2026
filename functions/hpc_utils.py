@@ -33,8 +33,8 @@ def training_arg_parser():
     parser.add_argument("--st", type=int, default=1200*100)
     parser.add_argument("--train_agent", type=str, choices=['SA', 'CA'], default='CA')
     parser.add_argument("--lr", type=float, default=0.0005)
+    parser.add_argument("--update_interval", type=int, default=32) # update_interval = batch_size*2
     # Use nargs='+' to allow multiple integers: --batch_epoch 16 5
-    parser.add_argument("--batch_epoch", type=int, nargs='+', default=[16, 5])
     parser.add_argument("--hidden_layer", type=int, nargs='+', default=[32, 32])
     # Note: Training usually doesn't need out_csv for traffic KPIs
     return parser

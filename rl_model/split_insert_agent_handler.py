@@ -60,7 +60,7 @@ class AgentHandler:
 
         return self.dic_insertedAV
 
-    def update_reward(self, current_step, st, dic_platoon_members):
+    def update_reward(self, current_step, st, dic_platoon_members, update_interval):
         '''
         Check insert_buffer and issue rewards if leader has exited control zone.
         '''
@@ -85,9 +85,9 @@ class AgentHandler:
                 updated = True
         if updated and self.mode == 'train':
             self.collected += 1
-            if self.collected >= 32:
+            if self.collected >= update_interval: # update interval/2 = batch_size
                 self.agent.log_training_metrics(current_step)  # log performance metrics BEFORE updating model
-                self.agent.train_on_recorded(current_step, epochs=5, batch_size=16)
+                self.agent.train_on_recorded(current_step, epochs=5, batch_size=int(update_interval/2))
                 self.collected = 0
                 self._save_model_if_needed(current_step, st)
         return self.dic_score_reward

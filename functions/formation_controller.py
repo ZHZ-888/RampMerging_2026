@@ -8,7 +8,7 @@ from rl_model import free_insert_agent_handler as free_agent
 
 class FormationController:
     def __init__(self, data_recorder, traci, splitting_agent='predict', collecting_agent='predict',
-                 exp_name='default_run', learning_rate=5e-4):
+                 exp_name='default_run', learning_rate=5e-4, update_interval=32):
         '''
         If train split_agent, "splitting_agent='train', collecting_agent=None"
         If train free_insert_agent, "splitting_agent=None, collecting_agent='train'"
@@ -22,12 +22,14 @@ class FormationController:
         self.p_sparse = psparse.PlatoonSparseHandler(traci, data_recorder, self.p_basic)
         self.p_lane = plane.PlatoonLaneManager(traci, data_recorder)
 
+        self.update_interval = update_interval
+
         # RL Agents
         self.sa_gating = 0.5 if splitting_agent == 'predict' else 0
         self.ca_gating = 0.4 if collecting_agent == 'predict' else 0
         self.split_agent = agent.AgentHandler(
-            traci, data_recorder, mode=splitting_agent,
-            exp_name=exp_name, lr=learning_rate) if splitting_agent else None
+            traci, data_recorder, mode=splitting_agent, exp_name=exp_name,
+            lr=learning_rate) if splitting_agent else None
         self.free_insert_agent = free_agent.FreeInsertAgentHandler(
             traci, data_recorder, self.p_basic,
             mode=collecting_agent, exp_name=exp_name,
@@ -79,7 +81,7 @@ class FormationController:
                                                                  dic_oversized_platoon_states,
                                                                  dic_leader_candidates,
                                                                  ls_ihA, gating_value=self.sa_gating)
-            dic_score_reward = self.split_agent.update_reward(step, st, dic_platoon_members)
+            dic_score_reward = self.split_agent.update_reward(step, st, dic_platoon_members, update_interval=self.update_interval)
             self.split_agent.record_scores(step, st)
             self.split_agent.record_loss(step, st)
 
@@ -98,7 +100,7 @@ class FormationController:
                                                                               dic_sparseP_filered,
                                                                               dic_sparse_candidates,
                                                                               ls_ihA, gating_value=self.ca_gating) # 0.4 for predict
-            dic_free_score_reward = self.free_insert_agent.update_reward(step, st, dic_platoon_members)
+            dic_free_score_reward = self.free_insert_agent.update_reward(step, st, dic_platoon_members, update_interval=self.update_interval)
             self.free_insert_agent.record_scores(step, st)
             self.free_insert_agent.record_loss(step, st)
 
