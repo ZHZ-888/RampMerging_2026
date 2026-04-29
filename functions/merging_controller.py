@@ -124,8 +124,7 @@ class MergingController:
             (dic_rm_leader_map,
              dic_leader_action, ls_action_leader,
              dic_m_leader_followup_action, ls_m_leaders_followup) = self.action_mgr.get_action_info(
-                step,
-                interval=self.mpc_interval)
+                step, interval=self.mpc_interval)
             # execute actions
             self.action_mgr.execute_action(step, dic_leader_action, ls_action_leader, ls_veh_id)
             self.action_mgr.execute_action(step, dic_m_leader_followup_action, ls_m_leaders_followup, ls_veh_id)

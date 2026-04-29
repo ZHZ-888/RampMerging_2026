@@ -16,7 +16,7 @@ from functions import data_recording as dr
 from functions import hpc_utils
 
 
-def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate=0,
+def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate=0.15,
          gui=False, plot=False, display=False, lc=True, st=1200):
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
@@ -66,9 +66,9 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
         data_recorder = dr.DataRecording(traci)
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
-        formation_controller = fc.FormationController(data_recorder, traci)
+        formation_controller = fc.FormationController(data_recorder, traci, loss_rate=loss_rate)
         merging_controller = mc.MergingController(data_recorder, traci, av_p,
-                                                  platoon_formation=True, ml=True)
+                                                  platoon_formation=True, ml=True, loss_rate=loss_rate)
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size,
          dic_id_features, tp, speed_log, queue_log) = \
@@ -175,7 +175,7 @@ def _set_dynamic_traffic(step, start_t, r_dpt_type, dynamic=True):
     return r_dpt_type
 
 if __name__ == '__main__':
-    prc.PRINT_ENABLED = False
+    prc.PRINT_ENABLED = True
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path) = mpgc_main(
@@ -185,11 +185,11 @@ if __name__ == '__main__':
         seed = 1,
         r_autoFollow_p = 1,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles
-        loss_rate = 0,
-        gui = True,
+        loss_rate = 0.15,
+        gui = False,
         plot = False,
         display = True,
-        lc = False, # if consider HV lane-changing; True
+        lc = True, # if consider HV lane-changing; True
         st = 1200
     )
     end = time.time()

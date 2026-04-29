@@ -44,27 +44,71 @@ class AgentHandler:
         # dic_insertedAV = {AV_id: type, ...} record promotedAV and its type; here type = 'split'
         self.dic_score_reward = {} # record lc_av and [score, reward], dic = {lc_av:[score, reward]}
 
-    def run_agent_decision(self, step, dic_platoon_members, dic_oversized_platoon_states,
+        self.last_update_payload_pair = None # {target leader: candidate leader}
+        self.payload = None
+
+    def run_agent_decision_ori(self, step, laneChange_buffer, dic_platoon_members, dic_oversized_platoon_states,
                            dic_leader_candidates, ls_upA, gating_value=None):
         """
         Main function to handle AV insertion decisions.
         """
         if not dic_oversized_platoon_states:
             return {}
-
-        for leader_id in dic_oversized_platoon_states:
-            if leader_id in self.ls_splited_platoon or leader_id not in dic_leader_candidates:
+        for oversize_leader in dic_oversized_platoon_states:
+            if oversize_leader in self.ls_splited_platoon or oversize_leader not in dic_leader_candidates:
                 continue
-
-            selected_av, selected_state, score = self._evaluate_candidates(step,
-                leader_id, dic_platoon_members, dic_leader_candidates, dic_oversized_platoon_states, ls_upA,
-                gating_value
-            )
-
+            selected_av, selected_state, score = (
+                self._evaluate_candidates(step, oversize_leader, dic_platoon_members,
+                                          dic_leader_candidates, dic_oversized_platoon_states,
+                                          ls_upA, gating_value))
             if selected_av:
-                self._execute_insertion(step, leader_id, selected_av, selected_state, dic_platoon_members, score)
+                payload = (oversize_leader, selected_av, selected_state, dic_platoon_members, score)
+                laneChange_buffer.push(step, payload)  # Add to buffer for delayed execution
+                delayed_payload = laneChange_buffer.maybe_release(step)
+
+                self._execute_insertion(step, oversize_leader, selected_av, selected_state, dic_platoon_members, score)
 
         return self.dic_insertedAV
+
+    def run_agent_decision(self, step, dic_platoon_members, dic_oversized_platoon_states,
+                           dic_leader_candidates, ls_upA, gating_value=None):
+        """
+        Main function to handle AV insertion decisions.
+        """
+        self.payload = None
+        if not dic_oversized_platoon_states:
+            return {}
+
+        for oversize_leader in dic_oversized_platoon_states:
+            if oversize_leader in self.ls_splited_platoon or oversize_leader not in dic_leader_candidates:
+                continue
+
+            selected_av, selected_state, score = (
+                self._evaluate_candidates(step, oversize_leader, dic_platoon_members,
+                                          dic_leader_candidates, dic_oversized_platoon_states,
+                                          ls_upA, gating_value))
+
+            if selected_av and (self.last_update_payload_pair != {oversize_leader:selected_av}):
+                self.payload = (oversize_leader, selected_av, selected_state, dic_platoon_members, score)
+                self.last_update_payload_pair = {oversize_leader: selected_av}
+
+        # self._release_insertion(step, payload, laneChange_buffer)
+        return self.dic_insertedAV
+
+    def release_insertion(self, step, laneChange_buffer):
+        payload = self.payload
+        if laneChange_buffer:
+            if payload:
+                laneChange_buffer.push(step, payload)  # Add to buffer for delayed execution
+                self.payload = None
+            delayed_payload = laneChange_buffer.maybe_release(step)
+            if delayed_payload:
+                self._execute_insertion(step, *delayed_payload)
+        else:
+            if payload:
+                self._execute_insertion(step, *payload)
+                self.payload = None
+
 
     def update_reward(self, current_step, st, dic_platoon_members, train_interval):
         '''
@@ -263,13 +307,15 @@ class AgentHandler:
             print(f"[SplitInsert] {selected_av} selected with score {score:.3f}")
             platoon_snapshot = dic_platoon_members[leader_id]
             self.ls_splited_platoon.append(leader_id)
+
             self.insert_buffer.append({
                 "leader_id": leader_id,
                 "platoon_snapshot": platoon_snapshot,
                 "av_id": selected_av,
                 "state": selected_state,
                 "step": step
-            })
+            }) # this data is for training
+
             self.dic_insertedAV[selected_av] = 'split_insert'
             print(f'dic_insertedAVcands: {self.dic_insertedAV}')
         except self.traci.TraCIException:

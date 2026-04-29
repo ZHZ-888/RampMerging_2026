@@ -82,7 +82,5 @@ if __name__ == '__main__':
     dic_steps = {v: k for k, v in dic_command.items()}
     for step in range(100):
         cmd = dic_steps.get(step)
-        delay_buffer.push(step, cmd)
-        pay_load = delay_buffer.maybe_release(step)
-        if pay_load:
-            pass
+        delay_buffer.push(step, cmd) # step 1: push command into buffer
+        pay_load = delay_buffer.maybe_release(step) # step 2: check if any command is ready to be executed

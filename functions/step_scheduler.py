@@ -35,6 +35,17 @@ class StepScheduler:
                 task["callback"](step)
 
 
+def task_fast(step):
+
+    print(f"  task_fast running at step {step}")
+
+def task_medium(step):
+    print(f"  task_medium running at step {step}")
+
+def task_slow(step):
+    print(f"  task_slow running at step {step}")
+
+
 if __name__ == "__main__":
     scheduler = StepScheduler()
 

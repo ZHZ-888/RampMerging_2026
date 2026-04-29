@@ -12,9 +12,6 @@ project_root = os.path.dirname(current_dir)
 # model_name = 'free_insert_score_model_260303_2333_second_version.pt'
 # path_pt = os.path.join(project_root, 'rl_model', 'saved_models', model_name)
 
-# model_name = 'ca_i32_0.0005.pt'
-# path_pt = os.path.join(project_root, 'rl_model', 'saved_models', 'ca_5732367', model_name)
-
 class FreeInsertAgentHandler:
     """RL agent for free-insert scenario: Score side-lane AVs for inserting
     ahead of free followers in sparse platoons.
@@ -68,7 +65,10 @@ class FreeInsertAgentHandler:
         self.dic_insertedAV = {}  # {av_id: 'free_insert'}
         self.dic_score_reward = {}  # {av_id: [score, reward]}
 
-    def run_free_insert_decision(self, step, dic_platoon_members, dic_sparse_platoons,
+        self.last_update_payload_pair = None  # {target leader: candidate leader}
+        self.payload = None
+
+    def run_free_insert_decision_ori(self, step, dic_platoon_members, dic_sparse_platoons,
                                  dic_sparse_candidates, ls_upA, gating_value=0):
         """
         Main decision loop: Score candidate AVs and select best one for each sparse platoon.
@@ -92,8 +92,7 @@ class FreeInsertAgentHandler:
             # Evaluate candidates and select best
             result = self._evaluate_candidates(
                 step, sparse_leader, dic_platoon_members, dic_sparse_platoons,
-                ls_candidates, ls_upA, gating_value
-            )
+                ls_candidates, ls_upA, gating_value)
 
             if result is None:
                 continue
@@ -103,10 +102,56 @@ class FreeInsertAgentHandler:
             # Execute insertion
             self._execute_insertion(
                 step, sparse_leader, selected_av, selected_state,
-                dic_platoon_members, dic_sparse_platoons, best_score
-            )
+                dic_platoon_members, dic_sparse_platoons, best_score)
 
         return self.dic_insertedAV
+
+    def run_free_insert_decision(self, step, dic_platoon_members, dic_sparse_platoons,
+                                 dic_sparse_candidates, ls_upA, gating_value=0):
+        """
+        Main decision loop: Score candidate AVs and select best one for each sparse platoon.
+
+        Args:
+            step: Current simulation step
+            dic_platoon_members: {leader_id: [members]}
+            dic_sparse_platoons: {sparse_leader: first_free_follower_id}
+            dic_sparse_candidates: {sparse_leader: [candidate_av_ids]}
+            ls_upA: Upstream vehicle list on inner lane
+            gating_value: Minimum score threshold for insertion
+
+        Returns:
+            dic_insertedAV: {av_id: 'free_insert'}
+        """
+        if not dic_sparse_candidates:
+            return {}
+        for sparse_leader, ls_candidates in dic_sparse_candidates.items():
+            if sparse_leader not in dic_sparse_platoons:
+                continue
+            # Evaluate candidates and select best
+            selected_av, selected_state, best_score  = self._evaluate_candidates(
+                step, sparse_leader, dic_platoon_members, dic_sparse_platoons,
+                ls_candidates, ls_upA, gating_value)
+
+            if selected_av and (self.last_update_payload_pair != {sparse_leader:selected_av}):
+                self.payload = (sparse_leader, selected_av, selected_state,
+                                dic_platoon_members, dic_sparse_platoons, best_score)
+                self.last_update_payload_pair = {sparse_leader: selected_av}
+
+        return self.dic_insertedAV
+
+    def release_insertion(self, step, laneChange_buffer):
+        payload = self.payload
+        if laneChange_buffer:
+            if payload:
+                laneChange_buffer.push(step, payload)  # Add to buffer for delayed execution
+                self.payload = None
+            delayed_payload = laneChange_buffer.maybe_release(step)
+            if delayed_payload:
+                self._execute_insertion(step, *delayed_payload)
+        else:
+            if payload:
+                self._execute_insertion(step, *payload)
+                self.payload = None
 
     def update_reward(self, current_step, st, dic_platoon_members, train_interval):
         """
@@ -278,11 +323,11 @@ class FreeInsertAgentHandler:
         # Cooldown check
         last_step = self.last_score_step.get(sparse_leader, -999)
         if step - last_step < self.scoring_interval:
-            return None
+            return None, None, None
         self.last_score_step[sparse_leader] = step
 
         if not ls_candidates:
-            return None
+            return None, None, None
 
         best_score = -float('inf')
         selected_av = None
@@ -313,7 +358,7 @@ class FreeInsertAgentHandler:
         # Gating mechanism
         if gating_value is not None and best_score < gating_value:
             print(f"[FreeInsert] {selected_av} got best score {best_score:.3f} below threshold {gating_value}")
-            return None
+            return None, None, None
 
         self.dic_score_reward[selected_av] = [best_score]
         self.ls_score.append(best_score)
