@@ -837,12 +837,15 @@ class MergingControlJam:
         self._check_resume_state4(dic_platoon_info) # 241003update
         # Get ramp fleet travel time (from stop to pass intersection)
         dic_r_platoon_travel_time = self._get_ramp_platoon_merge_duration(dic_platoon_info)
-        dic_max_interval = self._get_max_interval8(ls_m_leader_up_asc, ls_m_veh_up)
+        # dic_max_interval = self._get_max_interval8(ls_m_leader_up_asc, ls_m_veh_up)
+        dic_max_interval = self._get_max_interval_upper(self.ml, ls_m_leader_up_asc, ls_m_veh_up)
         m_leader, max_interval, final_rp_pass_time = self._compare3(dic_max_interval, dic_r_platoon_travel_time)
 
         # m_leader take action; m_leader_acting = True/False
-        action_params = self._get_mavh_action(step, first_r_leader, final_rp_pass_time, m_leader,
-                                                 max_interval, mpc_interval, delta_t) # MPC interval = 7s
+        # action_params = self._get_mavh_action(step, first_r_leader, final_rp_pass_time, m_leader,
+        #                                          max_interval, mpc_interval, delta_t) # MPC interval = 6s
+        action_params = self._get_m_leader_action(step, first_r_leader, final_rp_pass_time, m_leader,
+                                                  max_interval, mpc_interval, delta_t)  # MPC interval = 7s
         action_pay_load = self._push_if_not_redundant(step, action_params,
                                                      self.action_buffer, 'last_action_payload')
         action_m_leader = self._apply_m_leader_control(step, action_pay_load) # pay_load = dic_m_leader_action_params
