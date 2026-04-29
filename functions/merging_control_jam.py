@@ -833,7 +833,7 @@ class MergingControlJam:
         self.dic_vid_groups = dic_vid_groups
         prc.print_message('**in jam mode**')
         # Stop r_leader (the first one)
-        first_r_leader = self._stop_ramp_fleet3()  # first r_leader id
+        first_r_leader = self._stop_ramp_fleet3(dic_platoon_info)  # first r_leader id
         self._check_resume_state4(dic_platoon_info) # 241003update
         # Get ramp fleet travel time (from stop to pass intersection)
         dic_r_platoon_travel_time = self._get_ramp_platoon_merge_duration(dic_platoon_info)
