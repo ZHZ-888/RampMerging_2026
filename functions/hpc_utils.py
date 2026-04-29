@@ -64,14 +64,17 @@ def get_fc_indicator(dic_follower_state, his_dic_platoon_size):
     num_follower = len(dic_follower_state)
     num_platoon_follower = len([k for k, v in dic_follower_state.items() if v[0] == 'following_mode'])
     print("\n           ---formation control performance indicators---")
+
     print(f"index1: {num_platoon_follower} platoon_followers, {num_follower} followers, "
           f"ratio: {num_platoon_follower / num_follower * 100:.1f}%")
+    ca_indicator = round(num_platoon_follower / num_follower, 3)
     # indicator 2: num.normal_size_platoon/num.platoon
     num_platoon = len(his_dic_platoon_size)
     num_normal_size_platoon = len([k for k, v in his_dic_platoon_size.items() if v <= 11])
     print(f"index2: {num_platoon} num_platoon, {num_normal_size_platoon} num_normal_size_platoon, "
           f"ratio: {num_normal_size_platoon / num_platoon * 100:.1f}%, ")
-    return
+    sa_indicator = round(num_normal_size_platoon / num_platoon, 3)
+    return ca_indicator, sa_indicator
 
 def write_one_row_csv(path: str, row: dict):
     """Writes a single row to a CSV file safely."""
@@ -86,4 +89,6 @@ def write_one_row_csv(path: str, row: dict):
         if not file_exists:
             w.writeheader()
         w.writerow(row)
+
+
 

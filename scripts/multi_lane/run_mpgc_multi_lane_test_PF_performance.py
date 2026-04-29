@@ -1,11 +1,12 @@
 '''
-run_mpgc_multi_lane.py
+run_mpgc_multi_lane_test_PF_performance.py
 multi-lane simulation
-test longer platoon
+test the performance of platoon formation
 '''
 import os
 import time
 from pathlib import Path
+import itertools
 
 from functions import vehicle_generation3 as vg
 from functions import print_control as prc  # the shared fuction of print control
@@ -17,7 +18,9 @@ from functions import hpc_utils
 
 
 def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate=0,
-         gui=False, plot=False, display=False, lc=True, st=1200):
+              deploy_agent = None,
+              gui=False, plot=False, display=False, lc=True, st=1200,
+              model_name=None):
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
     sumo_config_path = (ROOT
@@ -66,7 +69,17 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
         data_recorder = dr.DataRecording(traci)
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
-        formation_controller = fc.FormationController(data_recorder, traci)
+        if deploy_agent == 'SA':
+            SA_mode, CA_mode = 'predict', None
+        elif deploy_agent == 'CA':
+            SA_mode, CA_mode = None, 'predict'
+        elif deploy_agent is None: # If None, both agents remain in 'predict'
+            SA_mode, CA_mode = None, None
+        elif deploy_agent == 'both':
+            SA_mode, CA_mode = 'predict', 'predict'
+        print(f'***** evaluate {deploy_agent} *****')
+        formation_controller = fc.FormationController(data_recorder, traci, splitting_agent=SA_mode,
+                                                      collecting_agent=CA_mode, model_name=model_name)
         merging_controller = mc.MergingController(data_recorder, traci, av_p,
                                                   platoon_formation=True, ml=True)
 
@@ -175,27 +188,45 @@ def _set_dynamic_traffic(step, start_t, r_dpt_type, dynamic=True):
     return r_dpt_type
 
 if __name__ == '__main__':
+
     prc.PRINT_ENABLED = False
-    start = time.time()
-    (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
-     tp, speed_log, queue_log, xml_path) = mpgc_main(
-        av_p = 0.1, # 0.3
-        r_fr = 800, # 1000
-        m_fr = 1500, # 1500
-        seed = 1,
-        r_autoFollow_p = 1,  # auto follow proportion
-        r_platoon_p = 1, # percentage of platoon vehicles
-        loss_rate = 0,
-        gui = True,
-        plot = False,
-        display = True,
-        lc = False, # if consider HV lane-changing; True
-        st = 1200
-    )
-    end = time.time()
-    runtime = end - start
 
-    hpc_utils.get_fc_indicator(dic_follower_state, his_dic_platoon_size)
+    dic_res = {} # {model_name: [ca_indicator_avg, sa_indicator_avg]}
 
-    tp, average_v, ttc_ratio, avg_speed_std, runtime = (
-        hpc_utils.get_mc_indicator(speed_log, tp, xml_path, runtime))
+    update_intervals = [8, 16, 32, 64]
+    lrs = [0.0005, 0.001, 0.005, 0.01]
+    seeds = [0, 1, 2, 3, 4] # for each model, run 5 times with different seeds and calculate the average performance
+
+    for ui, lr in itertools.product(update_intervals, lrs):
+        model_name = f'sa_i{ui}_{lr}.pt' # example: sa_i16_0.005
+
+        ls_ca_idc = []
+        ls_sa_idc = []
+        for seed in seeds:
+            (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
+             tp, speed_log, queue_log, xml_path) = mpgc_main(
+                av_p = 0.1, # 0.3
+                r_fr = 0, # 1000
+                m_fr = 1200, # 1500
+                seed = seed,
+                r_autoFollow_p = 1,  # auto follow proportion
+                r_platoon_p = 1, # percentage of platoon vehicles
+                loss_rate = 0,
+                deploy_agent = 'SA', # 'CA', 'SA', 'both', None
+                gui = False,
+                plot = False,
+                display = True,
+                lc = False, # if consider HV lane-changing; True
+                st = 1200,
+                model_name = model_name)
+            ca_idc, sa_idc = hpc_utils.get_fc_indicator(dic_follower_state, his_dic_platoon_size)
+            ls_ca_idc.append(ca_idc)
+            ls_sa_idc.append(sa_idc)
+
+        print(f"\n***********************{model_name}************************")
+        ca_indicator_avg = round(sum(ls_ca_idc) / len(ls_ca_idc), 3) if ls_ca_idc else 0.0
+        sa_indicator_avg = round(sum(ls_sa_idc) / len(ls_sa_idc), 3) if ls_sa_idc else 0.0
+        print(f"ca_indicator_detail: {ls_ca_idc}, sa_indicator_detail: {ls_sa_idc}")
+        print(f"ca_indicator_avg: {ca_indicator_avg:.3f}, sa_indicator_avg: {sa_indicator_avg:.3f}")
+        dic_res[model_name] = [ca_indicator_avg, sa_indicator_avg]
+        print(dic_res)

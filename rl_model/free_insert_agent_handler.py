@@ -1,4 +1,4 @@
-# free_insert_agent_handler.py
+# free_insert_agent_handler.py (also collect agent)
 
 import os
 from datetime import datetime
@@ -8,10 +8,12 @@ from rl_model.rl_module import RLScoringAgent
 # Model path for free-insert agent
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
-# model_name = 'free_insert_score_model_260302_1646_first_round.pt'
-model_name = 'free_insert_score_model_260303_2333_second_version.pt'
-path_pt = os.path.join(project_root, 'rl_model', 'saved_models', model_name)
 
+# model_name = 'free_insert_score_model_260303_2333_second_version.pt'
+# path_pt = os.path.join(project_root, 'rl_model', 'saved_models', model_name)
+
+# model_name = 'ca_i32_0.0005.pt'
+# path_pt = os.path.join(project_root, 'rl_model', 'saved_models', 'ca_5732367', model_name)
 
 class FreeInsertAgentHandler:
     """RL agent for free-insert scenario: Score side-lane AVs for inserting
@@ -22,7 +24,7 @@ class FreeInsertAgentHandler:
 
     def __init__(self, traci, data_recorder, p_basic,
                  scoring_interval=10, mode='train', exp_name='default_run',
-                 lr=5e-4):
+                 lr=5e-4, model_name=None):
         """
         Initialize the free-insert agent.
 
@@ -40,6 +42,11 @@ class FreeInsertAgentHandler:
 
         active_exp_name = exp_name if mode == 'train' else f"EVAL_{exp_name}"
 
+        if model_name: # 'sa_i8_0.0005'
+            path_pt = os.path.join(project_root, 'rl_model', 'saved_models', 'ca_5732367', model_name)
+        else:
+            default_model = 'free_insert_score_model_260303_2333_second_version.pt'
+            path_pt = os.path.join(project_root, 'rl_model', 'saved_models', default_model)
         # Initialize RL scoring agent
         self.agent = RLScoringAgent(traci, data_recorder,
                                     exp_name=active_exp_name,
@@ -101,7 +108,7 @@ class FreeInsertAgentHandler:
 
         return self.dic_insertedAV
 
-    def update_reward(self, current_step, st, dic_platoon_members, update_interval):
+    def update_reward(self, current_step, st, dic_platoon_members, train_interval):
         """
         Check insert_buffer for completed insertions and calculate rewards.
         Safely iterates using a shallow copy to remove vehicles.
@@ -135,9 +142,9 @@ class FreeInsertAgentHandler:
                 self.collected += 1
 
                 # Trigger training after warmup
-                if self.collected >= update_interval and current_step > self.training_warmup_steps:
+                if self.collected >= train_interval and current_step > self.training_warmup_steps:
                     self.agent.log_training_metrics(current_step) # log performance metrics BEFORE updating model
-                    self.agent.train_on_recorded(current_step, epochs=5, batch_size=int(update_interval/2))
+                    self.agent.train_on_recorded(current_step, epochs=5, batch_size=int(train_interval/2))
                     self.collected = 0
             # Clean up processed entry
             self.insert_buffer.remove(entry)

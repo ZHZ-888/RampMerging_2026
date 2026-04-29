@@ -45,7 +45,8 @@ class ActionManager:
         """
         :param step: the step number to check if it's a multiple of the interval
         :param interval: MPC interval, default is 70
-        :return: a tuple containing dictionaries and lists representing various action-related data if the step is a multiple of the interval, otherwise None
+        :return: a tuple containing dictionaries and lists representing various action-related data
+                 if the step is a multiple of the interval, otherwise None
         """
         update_payload = None
         if step % interval == 0:
@@ -56,11 +57,12 @@ class ActionManager:
             update_payload = (dic_rm_leader_map, dic_leader_action, ls_action_leader, dic_m_leader_followup_action, ls_m_leaders_followup)
         return update_payload
 
-    def _get_action_disturbed(self, step, interval=70):
+    def _get_action_disturbed(self, step, interval=60):
         """
         consider v2x disturbance
         :param step: time step
-        :param interval: MPC interval, default is 70
+               interval: MPC interval, default is 60
+               self.delay_buffer:
         :return: a tuple containing the current state of action info, including dictionaries and lists
         """
         # Generate action commands at each interval
@@ -68,9 +70,10 @@ class ActionManager:
         if update_payload:
             # Step 3: Check if it's a new (non-empty) command
             is_redundant = (update_payload == self.last_update_payload or
-                            all(not x for x in update_payload))
-            if not is_redundant:  # new command
+                            all(not x for x in update_payload)) # True => if payload is either a repeat of the last one or is entirely empty
+            if not is_redundant:  # update_payload is new and non-empty; is_redundant is False
                 self.last_update_payload = update_payload  # store for next comparison
+                # delay_buffer => v2x.UpdateDelayBuffer(loss_rate)
                 self.delay_buffer.push(step, update_payload)  # <<< drop or delay here
             else:
                 prc.print_message("empty or redundant command")

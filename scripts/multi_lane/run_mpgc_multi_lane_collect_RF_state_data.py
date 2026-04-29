@@ -128,11 +128,10 @@ def loop(traci, st, vgvg, vcfunc, drdr, vch, vcjfunc, p_basic, p_oversized, p_sp
             = p_basic.tag_vehicles13(ls_ihA, max_team_size=11) # SPLIT_PROMOTE
         his_dic_platoon_size, dic_platoon_size, dic_platoon_members \
             = p_basic.get_platoon_size3(ls_ihA, ls_leader_AV)
-        dic_current_oversizedP, dic_current_upBav \
-            = p_oversized.find_oversizedP_nearbyAV(ls_ihB_av, dic_platoon_size)
+        dic_current_oversizedP, dic_current_upBav, dic_nonOversizedP \
+            = p_oversized.find_oversizedP_nearbyAV(ls_ihB_av, dic_platoon_size, dic_platoon_members)
 
         # SC2: Predict (find) free followers
-        dic_nonOversizedP = p_oversized.non_oversized_platoon(dic_platoon_members, dic_current_oversizedP)
         dic_id_preState, dic_id_features = p_sparse.predict_flw_state(dic_id_type, ls_vehid, model=True)
         dic_sparseP = p_sparse.find_sparse_platoon(dic_nonOversizedP, dic_id_preState)
         # sparseP => sparse_platoon = {av_leader:first_free_hv}

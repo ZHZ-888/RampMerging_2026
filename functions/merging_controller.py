@@ -14,8 +14,8 @@ from functions import merging_control_jam as mcj
 
 
 class MergingController:
-    def __init__(self, data_recorder, traci, av_p, platoon_formation=False, ml=False, loss_rate=0, mpc_interval=60,
-                 delta_t=12):  # ml: multi-lane
+    def __init__(self, data_recorder, traci, av_p, platoon_formation=False, ml=False, loss_rate=0,
+                 mpc_interval=60, delta_t=12):  # ml: multi-lane
         self.data_recorder = data_recorder
         self.merge_regular = mcr.MergingControlRegular(traci, self.data_recorder, ml)
         self.action_mgr = act_mgr.ActionManager(self.data_recorder, self.merge_regular, loss_rate)
@@ -120,8 +120,6 @@ class MergingController:
             # find head rav; if can be ingored
             r_leader = self.merge_regular.find_r_leader(ls_r_veh_net_asc, ls_r_veh_net_last_asc)
 
-            if r_leader == 'ravh700':
-                pass
             # get action information
             (dic_rm_leader_map,
              dic_leader_action, ls_action_leader,

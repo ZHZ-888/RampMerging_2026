@@ -19,12 +19,12 @@ from functions import hpc_utils
 
 def mpgc_main(av_p=0.3, r_fr=0, m_fr=1200, seed=21, r_platoon_p=1, loss_rate=0,
               gui=False, plot=False, display=False, lc=False, st=1000, train_agent=None,
-              lr=0.0005, update_interval=32, hidden_layer=[64, 64]):
+              lr=0.0005, train_interval=32, hidden_layer=[64, 64]):
     '''
     SA: splitting agent; CA: collecting agent
     LR: learning rate; batch_epoch: B, E; hidden_layer: HA, HB; seed: S
     '''
-    exp_name = f"{train_agent or 'EVAL_ONLY'}_LR{lr}_I{update_interval}_HA{hidden_layer[0]}HB{hidden_layer[1]}_S{seed}"
+    exp_name = f"{train_agent or 'EVAL_ONLY'}_LR{lr}_I{train_interval}_HA{hidden_layer[0]}HB{hidden_layer[1]}_S{seed}"
 
     set_global_seed(seed, enable=True) # set global random seed (especially for RL training)
     print(f"global random seed: {seed}")
@@ -88,7 +88,7 @@ def mpgc_main(av_p=0.3, r_fr=0, m_fr=1200, seed=21, r_platoon_p=1, loss_rate=0,
         else:
             raise ValueError(f"[Error] Unknown train_model parameter: {train_agent}")
         formation_controller = fc.FormationController(data_recorder, traci, splitting_agent=SA_mode,
-            collecting_agent=CA_mode, exp_name=exp_name, learning_rate=lr, update_interval=update_interval)  # Passes the unique folder name down
+            collecting_agent=CA_mode, exp_name=exp_name, learning_rate=lr, train_interval=train_interval)  # Passes the unique folder name down
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size,
          dic_id_features) = \
@@ -167,7 +167,7 @@ def main(args=None, root=None):
         st=parsed_args.st,
         train_agent=parsed_args.train_agent,
         lr=parsed_args.lr,
-        update_interval=parsed_args.update_interval,
+        train_interval=parsed_args.train_interval,
         hidden_layer=parsed_args.hidden_layer,
         )
     end = time.time()
@@ -187,7 +187,7 @@ if __name__ == '__main__':
         st = 1200*5, # 50; 100
         train_agent = 'CA',
         lr = 0.0001, # 0.0005
-        update_interval = 16, # default => update_interval (I): 32; batch_size (I/2): 16; epoch: 5
+        train_interval = 16, # default => train_interval (I): 32; batch_size (I/2): 16; epoch: 5
         hidden_layer = [64, 64] # default: [64, 64]
     )
     end = time.time()

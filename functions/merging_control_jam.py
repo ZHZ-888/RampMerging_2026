@@ -766,8 +766,6 @@ class MergingControlJam:
         if isinstance(value, (list, tuple)):
             is_redundant = (value == last_value or all(not x for x in value))
         else:
-            if step == 493:
-                pass
             last_push_step = update_queue.buffer[0][1] if update_queue.buffer else None
             is_redundant = (value is False or step == last_push_step)
 

@@ -2,7 +2,7 @@
 v2x_disturbance.py
 This module implements a lightweight communication disturbance simulator
 for V2X-based control systems. It simulates stochastic packet loss and
-randomized communication latency, allowing evaluation of algorithm
+randomised communication latency, allowing evaluation of algorithm
 robustness under imperfect communication conditions.
 '''
 
@@ -17,8 +17,11 @@ class UpdateDelayBuffer:
         self.buffer = deque()  # store (payload, release_step)
 
     def push(self, current_step, payload):
-        """Decide delay (release_step) and store payload if not dropped
-        latency (delay): 0.05~0.2 s
+        """
+        Decide delay (release_step) and store payload if not dropped
+            latency (delay): 0.05~0.2 s
+
+        self.buffer: (payload, release_step)
         """
         if payload:
             prc.print_message(f"\n[SEND] Step {current_step}: Generated command → {payload}")
@@ -33,7 +36,7 @@ class UpdateDelayBuffer:
             release_step = current_step + delay
             self.buffer.append((payload, release_step))
 
-    def push2(self, current_step, payload):
+    def push2(self, current_step, payload): # only in jam_control
         """Decide delay (release_step) and store payload if not dropped
         latency (delay): 0.05~0.2 s
         """

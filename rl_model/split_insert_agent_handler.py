@@ -7,18 +7,24 @@ from rl_model.rl_module import RLScoringAgent
 
 current_dir = os.path.dirname(os.path.abspath(__file__)) # Get the absolute path of the current script's directory
 project_root = os.path.dirname(current_dir) # Get the parent directory as the project root
-# split_score_model_250517_1131.pt; split_score_model_251124_1900.pt
-path_pt = os.path.join(project_root, 'rl_model', 'saved_models', 'split_score_model_251124_1900.pt')
+
+# model_name = 'split_score_model_251124_1900.pt'
+# path_pt = os.path.join(project_root, 'rl_model', 'saved_models', model_name)
 
 class AgentHandler:
     def __init__(self, traci, data_recorder, scoring_interval=10, mode='train',
-                 exp_name='default_run', lr=5e-4):
+                 exp_name='default_run', lr=5e-4, model_name=None):
         self.traci = traci
         self.data_recorder = data_recorder
         self.mode = mode
 
         active_exp_name = exp_name if mode == 'train' else f"EVAL_{exp_name}"
 
+        if model_name: # 'sa_i8_0.0005'
+            path_pt = os.path.join(project_root, 'rl_model', 'saved_models', 'sa_5732367', model_name)
+        else:
+            default_model = 'split_score_model_251124_1900.pt'
+            path_pt = os.path.join(project_root, 'rl_model', 'saved_models', default_model)
         self.agent = RLScoringAgent(traci, data_recorder,
                                     exp_name=active_exp_name,
                                     model_path=path_pt if mode == "predict" else None,
@@ -60,7 +66,7 @@ class AgentHandler:
 
         return self.dic_insertedAV
 
-    def update_reward(self, current_step, st, dic_platoon_members, update_interval):
+    def update_reward(self, current_step, st, dic_platoon_members, train_interval):
         '''
         Check insert_buffer and issue rewards if leader has exited control zone.
         '''
@@ -85,9 +91,9 @@ class AgentHandler:
                 updated = True
         if updated and self.mode == 'train':
             self.collected += 1
-            if self.collected >= update_interval: # update interval/2 = batch_size
+            if self.collected >= train_interval: # update interval/2 = batch_size
                 self.agent.log_training_metrics(current_step)  # log performance metrics BEFORE updating model
-                self.agent.train_on_recorded(current_step, epochs=5, batch_size=int(update_interval/2))
+                self.agent.train_on_recorded(current_step, epochs=5, batch_size=int(train_interval/2))
                 self.collected = 0
                 self._save_model_if_needed(current_step, st)
         return self.dic_score_reward
