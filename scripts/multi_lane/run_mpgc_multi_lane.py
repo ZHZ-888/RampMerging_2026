@@ -66,14 +66,16 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
         data_recorder = dr.DataRecording(traci)
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
-        formation_controller = fc.FormationController(data_recorder, traci, loss_rate=loss_rate)
+        formation_controller = fc.FormationController(data_recorder, traci,
+                                                      loss_rate=loss_rate)
         merging_controller = mc.MergingController(data_recorder, traci, av_p,
-                                                  platoon_formation=True, ml=True, loss_rate=loss_rate)
+                                                  platoon_formation=True, ml=True,
+                                                  loss_rate=loss_rate)
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size,
          dic_id_features, tp, speed_log, queue_log) = \
-            loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller, lc,
-                 r_autoFollow_p, m0_dpt_type, m1_dpt_type, r_dpt_type)
+            loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller,
+                 lc, r_autoFollow_p, m0_dpt_type, m1_dpt_type, r_dpt_type)
     finally:
         traci.close()
     return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,

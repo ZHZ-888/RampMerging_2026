@@ -8,3 +8,7 @@
         # ******** HANDLE SPARSE PLATOONS ********
         dic_standard_platoon, dic_id_features = self.collecting(st, step, ls_ihA, ls_ihB_av, dic_nonOversizedP,
                                                                 dic_platoon_members, dic_tags, ls_vehid)
+
+#%%
+dic = {'a' : [1, 2]}
+print(dic.keys())

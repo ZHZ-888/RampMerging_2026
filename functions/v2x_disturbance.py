@@ -16,7 +16,7 @@ class UpdateDelayBuffer:
         self.sim_step = sim_step
         self.buffer = deque()  # store (payload, release_step)
 
-    def push(self, current_step, payload):
+    def push_ori(self, current_step, payload):
         """
         Decide delay (release_step) and store payload if not dropped
             latency (delay): 0.05~0.2 s
@@ -32,11 +32,11 @@ class UpdateDelayBuffer:
             min_steps = int(0.05 / self.sim_step)
             max_steps = int(0.2 / self.sim_step)
             delay = random.randint(min_steps, max_steps)
-            prc.print_message(f"[DELAY] {delay} for command → {payload}")
             release_step = current_step + delay
+            prc.print_message(f"[DELAY] {delay} for command → {payload}")
             self.buffer.append((payload, release_step))
 
-    def push2(self, current_step, payload): # only in jam_control
+    def push(self, current_step, payload): # only in jam_control
         """Decide delay (release_step) and store payload if not dropped
         latency (delay): 0.05~0.2 s
         """
@@ -45,8 +45,11 @@ class UpdateDelayBuffer:
             max_steps = int(0.2 / self.sim_step)
             delay = random.randint(min_steps, max_steps)
             release_step = current_step + delay
-
-            if (payload, release_step) in self.buffer:
+            # this is the only difference between push_ori and push
+            # if (payload, release_step) in self.buffer:
+            #     prc.print_message(f"[SKIP] Duplicate entry: ({payload}, {release_step})")
+            #     return
+            if any(p == payload for p, _ in self.buffer):
                 prc.print_message(f"[SKIP] Duplicate entry: ({payload}, {release_step})")
                 return
 
@@ -64,6 +67,8 @@ class UpdateDelayBuffer:
            release commands at the release_step
            self.buffer[0][1] => release_step
         """
+        if current_step == 601:
+            pass
         if self.buffer and self.buffer[0][1] == current_step:
             payload = self.buffer.popleft()[0]
             prc.print_message(f"[EXECUTE] Step {current_step}: AV executes → {payload}")

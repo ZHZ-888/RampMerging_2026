@@ -87,8 +87,7 @@ class MergingController:
         regular_mode, jam_mode = self.mode_switch.determine_mode_flexible_merge_point(
             ls_wsB,
             ls_wsA,
-            ls_r_leader_up
-        )
+            ls_r_leader_up)
 
         # jam_mode = True
         # regular_mode = False

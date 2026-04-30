@@ -761,7 +761,7 @@ class MergingControlJam:
         """
         if value == True:
             pass
-        last_value = getattr(self, last_value_attr, None)
+        last_value = getattr(self, last_value_attr, None) # last_value_attr = last_value
         # is_redundant = (value == last_value or all(not x for x in value))
         if isinstance(value, (list, tuple)):
             is_redundant = (value == last_value or all(not x for x in value))
@@ -769,9 +769,9 @@ class MergingControlJam:
             last_push_step = update_queue.buffer[0][1] if update_queue.buffer else None
             is_redundant = (value is False or step == last_push_step)
 
-        if not is_redundant:
-            setattr(self, last_value_attr, value)
-            update_queue.push2(step, value)
+        if not is_redundant: # only push when is not redundant => is_redundant = False
+            setattr(self, last_value_attr, value) # last_value_attr = value
+            update_queue.push(step, value)
         return update_queue.maybe_release(step)
 
     def _jam_control_clean(self, step, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up,
@@ -846,14 +846,18 @@ class MergingControlJam:
         #                                          max_interval, mpc_interval, delta_t) # MPC interval = 6s
         action_params = self._get_m_leader_action(step, first_r_leader, final_rp_pass_time, m_leader,
                                                   max_interval, mpc_interval, delta_t)  # MPC interval = 7s
-        action_pay_load = self._push_if_not_redundant(step, action_params,
-                                                     self.action_buffer, 'last_action_payload')
+        if action_params and any(action_params.values()):
+            self.action_buffer.push(step, action_params)
+        # action_pay_load = self._push_if_not_redundant(step, action_params,
+        #                                               self.action_buffer, 'last_action_payload')
+
+        action_pay_load = self.action_buffer.maybe_release(step)
+        if action_pay_load and any(action_pay_load.values()):
+            pass
         action_m_leader = self._apply_m_leader_control(step, action_pay_load) # pay_load = dic_m_leader_action_params
-
         timing = self._find_timing6(step, m_leader, action_m_leader, max_interval, final_rp_pass_time)
-        timing_pay_load = self._push_if_not_redundant(step, timing,
-                                                     self.timing_buffer, 'last_timing_payload')
-
+        if timing:
+            pass
         # record ramp queue length
         ls_r_proper = self._get_r_proper()
         queue_log = self.data_recorder.get_queue_length(step, ls_r_proper, ls_r_dep_times)
