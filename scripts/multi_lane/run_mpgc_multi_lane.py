@@ -20,7 +20,7 @@ from functions import data_recording as dr
 from functions import hpc_utils
 
 
-def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate=0.15,
+def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate=0,
          gui=False, plot=False, display=False, lc=True, st=1200):
     set_global_seed(seed, enable=True)  # set global random seed (especially for RL training)
     # SUMO SETTING
@@ -207,7 +207,7 @@ if __name__ == '__main__':
         seed = 1,
         r_autoFollow_p = 1,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles
-        loss_rate = 0.15, # 0.15
+        loss_rate = 0, # 0.15
         gui = True,
         plot = False,
         display = True,
