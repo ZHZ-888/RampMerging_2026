@@ -97,7 +97,7 @@ class AgentHandler:
 
     def release_insertion(self, step, laneChange_buffer):
         payload = self.payload
-        if laneChange_buffer:
+        if laneChange_buffer: # loss_rate != 0
             if payload:
                 laneChange_buffer.push(step, payload)  # Add to buffer for delayed execution
                 self.payload = None

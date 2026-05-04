@@ -155,7 +155,7 @@ class DataRecording:
         self._build_step_cache(ls_vehid)
 
         # current leader on net from mainlane
-        # head MAV on mainlane merging control section; self.ls_m_leader_his_asc, ls_ms_veh_up
+        # m_leader on mainlane merging control section; self.ls_m_leader_his_asc, ls_ms_veh_up
         ls_m_leader_net = [
             vid for vid in self.ls_m_leader_his_asc
             if vid in ls_vehid
@@ -181,7 +181,7 @@ class DataRecording:
                             vid for vid in ls_m_leader_net
                             if vid not in ls_pf_leader
                         ]
-        # Head mav Before merging
+        # m leader Before merging
         ls_ms_leader_up = [vid for vid in ls_ms_veh_up if vid in self.ls_m_leader_his_asc]
         ls_ms_leader_up_asc = sorted(ls_ms_leader_up, key=lambda x: int(''.join(filter(str.isdigit, x))))  # min=>max; asc (ascending)
         ls_m_veh_net = [vid for vid in ls_vehid if 'm' in vid]
@@ -200,7 +200,7 @@ class DataRecording:
                            'avh' in id]  # list of rav leader (head) before merging (large=>small/new=>old/max=>min)
         ls_r_leader_up_asc = sorted(ls_r_leader_up, key=lambda x: int(''.join(filter(str.isdigit, x))))  # min=>max
 
-        # head AV before merging (mainline and ramp)
+        # m leader before merging (mainline and ramp)
         ls_mr_leader_up = ls_ms_leader_up + ls_r_leader_up  # ls_mr_leader_up
 
         # info of last step

@@ -28,7 +28,7 @@ class MergingControlJam:
         self.rp_type_resume_completed = {} # ramp platoon, format: {leader_id: [type, resume_time, tail_completed_time]}
 
         self.ls_skip_stop = [] # those r_leader can pass with it's preceding r_leader platoon doesn't need to stop
-        self.mavh_action_dic = {} # the action dic of m_leader
+        self.m_leader_action_dic = {} # the action dic of m_leader
         self.dic_disire_reach_ts = {} # drt => desire reaching timestamp
         # m_leader and its action parameters; self.dic_mavh_actionP => self.dic_m_leader_action_params
         self.dic_m_leader_action_params = {'':[]}
@@ -44,6 +44,8 @@ class MergingControlJam:
         self.dic_mplatoon_et = {}  # dic_mplatoon_et: {m_leader:[platoon_type, ts_head, ts_tail, c_ts]}
         self.merge_control_length = self.data_recorder.merge_control_length
         self.max_speed = self.data_recorder.max_speed
+        self.last_action_params = None
+        self.m_action_params = None
 
         if ml:
             # the time needed for ramp AV leader moving from stop point to the merging section (weaving section)
@@ -59,11 +61,11 @@ class MergingControlJam:
             self.stop_pos = 203.5 # stop pos of ramp platoon
 
 
-
     def jam_control(self, step, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up,
-                          dic_mplatoon_et, dic_vid_groups, ls_r_dep_times, mpc_interval, delta_t):
+                          dic_mplatoon_et, dic_vid_groups, ls_r_dep_times, mpc_interval, delta_t, pf):
         disturb = self.loss_rate != 0
         self.dic_mplatoon_et = dic_mplatoon_et
+        self.pf = pf
         if disturb:
             return self._jam_control_disturbed(step, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up,
                           dic_vid_groups, ls_r_dep_times, mpc_interval, delta_t)
@@ -139,7 +141,6 @@ class MergingControlJam:
                 self.ls_r_leader_pre_stop.append(id)
 
         return self.ls_r_leader_pre_stop
-
 
     def _get_r_proper(self): # _get_rvb_acc => _get_r_proper(self)
         '''
@@ -640,7 +641,7 @@ class MergingControlJam:
         _get_mavh_action => _get_m_leader_action
         Decide whether a MAVH (mainline leader) should take action to match the desired merging time.
     
-        Args:
+        Params:
             step: current simulation step
             first_r_leader: first ramp leader ID
             pv_m_leader: preceding vehicle of m_leader (short as pv)
@@ -658,7 +659,7 @@ class MergingControlJam:
     
         Returns:
             self.dic_mavh_actionP: dict of MAVH (m_leader) and its action parameters
-            => self.dic_m_leader_action_params
+            => self.dic_m_leader_action_params = {m_leader: [, c_ts]}
         """
         allowable_error = delta_t  # 0, 2, 4, 6, 8, 10
         last_stop_ts = list(self.stop_times.items())[-1][-1] if self.stop_times else None
@@ -668,8 +669,8 @@ class MergingControlJam:
         if not (step % interval == 0 or (last_stop_ts is not None and step == last_stop_ts * 10)): # *10 because sim_step=0.1
             return self.dic_m_leader_action_params
 
-        c_ts = self.traci.simulation.getTime()
-        if not m_leader or m_leader in self.mavh_action_dic:
+        c_ts = round(step / 10 + 0.1, 1)
+        if not m_leader or m_leader in self.m_leader_action_dic:
             return self.dic_m_leader_action_params
 
         pv_m_leader_info = self.traci.vehicle.getLeader(m_leader)
@@ -681,12 +682,16 @@ class MergingControlJam:
         if not self.stop_state or pv_m_leader_lane != 'inflow_highway_0':
             return self.dic_m_leader_action_params
 
-        dic_vid_groups = self.data_recorder.record_vehinfo()
+        dic_vid_groups = (
+            self.data_recorder.dic_vid_groups
+            if self.pf
+            else self.data_recorder.record_vehinfo()
+        ) # dic_vid_groups = self.data_recorder.record_vehinfo()
+
         ls_m_veh_up = dic_vid_groups.get('ls_m_veh_up', [])
         has_zero_speed = any(self.data_recorder.dic_speed[veh_id] == 0 for veh_id in ls_m_veh_up)
 
         r_leader_waiting_dur = c_ts - self.stop_times[first_r_leader]
-        # diff = rp_pass_dur - max_interval
         dic_m_leader_info = self.data_recorder.get_vid_states(m_leader)
         m_dis = dic_m_leader_info['dis']  # m_leader distance to ws
         m_v0 = dic_m_leader_info['v']
@@ -694,8 +699,6 @@ class MergingControlJam:
         pv_rem_dur, _ = self._get_remaining_t2(step, pv_m_leader)  # remaining time of preceding vehicle
         pv_reach_ts = c_ts + pv_rem_dur  # reaching time of preceding vehicle
 
-        if m_leader == 'mavh310':
-            pass
         r_leader_pv_differ = max(0, self.r_leader_acc_dur - pv_rem_dur)
         desired_reach_ts = pv_reach_ts + rp_pass_dur + r_leader_pv_differ + buffer
         self.dic_disire_reach_ts[m_leader] = desired_reach_ts  # dic_drt => dic_desire_reach_ts
@@ -712,7 +715,7 @@ class MergingControlJam:
             return self.dic_m_leader_action_params
         action_params = []  # get action parameters/ls_action
 
-        # Case 1: If r_leader has been waiting too long, allow looser error margin to avoid indefinite waiting
+        # Case 1: If r_leader has been waiting too long, allow looser error margin to avoid long waiting
         mavh_des_reach_dur = None
         if r_leader_waiting_dur > 30 and real_error < allowable_error + 10:
             # Looser threshold due to long waiting time
@@ -724,7 +727,7 @@ class MergingControlJam:
         if mavh_des_reach_dur is not None:
             action_params = list(self.merge_regular.get_action_params(mavh_des_reach_dur, m_dis, m_v0))
             action_params.append(c_ts)
-            self.mavh_action_dic[m_leader] = action_params
+            self.m_leader_action_dic[m_leader] = action_params
 
         self.dic_m_leader_action_params = {m_leader: action_params}
         return self.dic_m_leader_action_params
@@ -740,7 +743,7 @@ class MergingControlJam:
         ls_m_leader_up = self.dic_vid_groups.get('ls_m_leader_up', None)
         action_m_leader = next(iter(dic_m_leader_action_params or {}), None)
         self.m_leader_acting = False # should be m_leader_acting
-        if (action_m_leader in self.mavh_action_dic
+        if (action_m_leader in self.m_leader_action_dic
                 and action_m_leader in ls_m_leader_up):
             # apply action
             self.merge_regular.apply_leader_action(step, dic_m_leader_action_params)
@@ -816,20 +819,25 @@ class MergingControlJam:
         return queue_log
 
     def _jam_control_disturbed(self, step, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up,
-                     dic_vid_groups, ls_r_dep_times, mpc_interval, delta_t):
+                               dic_vid_groups, ls_r_dep_times, mpc_interval, delta_t):
         '''
         add v2x disturbance
         update 25.1.30
-        :param step:
-        :param dic_platoon_info:
-        :param ls_m_leader_up_asc: dic_m_leader_action_params
-        :param ls_m_veh_up:
-        :param dic_vid_groups:
-        :param dic_id_speed:
-        :param ls_r_dep_times:
-        :param mpc_interval:
-        :return:
+        param
+            step:
+            dic_platoon_info:
+            ls_m_leader_up_asc: dic_m_leader_action_params
+            ls_m_veh_up:
+            dic_vid_groups:
+            dic_id_speed:
+            ls_r_dep_times:
+            mpc_interval:
+
+        return
+            action_params: [t_dec, a_dec, t_acc, a_acc, reach_v, t_recorded]
+
         '''
+        c_ts = round(step / 10 + 0.1, 1)
         self.dic_vid_groups = dic_vid_groups
         prc.print_message('**in jam mode**')
         # Stop r_leader (the first one)
@@ -845,16 +853,16 @@ class MergingControlJam:
         # action_params = self._get_mavh_action(step, first_r_leader, final_rp_pass_time, m_leader,
         #                                          max_interval, mpc_interval, delta_t) # MPC interval = 6s
         action_params = self._get_m_leader_action(step, first_r_leader, final_rp_pass_time, m_leader,
-                                                  max_interval, mpc_interval, delta_t)  # MPC interval = 7s
-        if action_params and any(action_params.values()):
+                                                  max_interval, mpc_interval, delta_t)  # MPC interval = 6s
+        if action_params and any(action_params.values()) and action_params != self.last_action_params:
             self.action_buffer.push(step, action_params)
         # action_pay_load = self._push_if_not_redundant(step, action_params,
         #                                               self.action_buffer, 'last_action_payload')
-
         action_pay_load = self.action_buffer.maybe_release(step)
         if action_pay_load and any(action_pay_load.values()):
+            self.m_action_params = action_pay_load
             pass
-        action_m_leader = self._apply_m_leader_control(step, action_pay_load) # pay_load = dic_m_leader_action_params
+        action_m_leader = self._apply_m_leader_control(step, self.m_action_params) # pay_load = dic_m_leader_action_params
         timing = self._find_timing6(step, m_leader, action_m_leader, max_interval, final_rp_pass_time)
         if timing:
             pass
@@ -863,6 +871,7 @@ class MergingControlJam:
         queue_log = self.data_recorder.get_queue_length(step, ls_r_proper, ls_r_dep_times)
         # Resume r_leader
         self._restart_ramp_fleet(step, first_r_leader, timing)
+        self.last_action_params = action_params
         return queue_log
 
 class ShiftMode:

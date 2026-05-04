@@ -7,6 +7,10 @@ import os
 import time
 from pathlib import Path
 
+import torch
+import numpy as np
+import random
+
 from functions import vehicle_generation3 as vg
 from functions import print_control as prc  # the shared fuction of print control
 from functions import formation_controller as fc
@@ -18,6 +22,7 @@ from functions import hpc_utils
 
 def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate=0.15,
          gui=False, plot=False, display=False, lc=True, st=1200):
+    set_global_seed(seed, enable=True)  # set global random seed (especially for RL training)
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
     sumo_config_path = (ROOT
@@ -88,7 +93,7 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
     # scripts loop
     while step < st * 10:
         # checkpoint
-        if step > 1100 * 10:
+        if step > 69.4 * 10:
              pass
         traci.simulationStep()  # start simulation
 
@@ -159,6 +164,21 @@ def main(args=None, root=None):
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
 
+def set_global_seed(seed, enable=True):
+    """Fix all sources of randomness globally
+    (external traffic-environment constraints + internal neural-network constraints)"""
+    if not enable:
+        return
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 def _set_dynamic_traffic(step, start_t, r_dpt_type, dynamic=True):
     '''
     set dynamic traffic. For example: default r_demands=720 veh/h; start_t=5 min, new_fr=180 veh/h;
@@ -177,22 +197,22 @@ def _set_dynamic_traffic(step, start_t, r_dpt_type, dynamic=True):
     return r_dpt_type
 
 if __name__ == '__main__':
-    prc.PRINT_ENABLED = True
+    prc.PRINT_ENABLED = False
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path) = mpgc_main(
         av_p = 0.1, # 0.3
-        r_fr = 1200, # 1000
+        r_fr = 200, # 1000
         m_fr = 1500, # 1500
         seed = 1,
         r_autoFollow_p = 1,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles
-        loss_rate = 0.15,
+        loss_rate = 0.15, # 0.15
         gui = False,
         plot = False,
         display = True,
         lc = True, # if consider HV lane-changing; True
-        st = 1200
+        st = 1200 #
     )
     end = time.time()
     runtime = end - start

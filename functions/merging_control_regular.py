@@ -50,6 +50,9 @@ class MergingControlRegular:
         self.dic_rplatoon_et = {}  # ramp platoon estimate time// {leader_id : [platoon_type, ts_head, ts_tail, update_time]}
         self.dic_mplatoon_et = {}  # mainline platoon estimate time//
 
+        self.dic_leader_action_emerged = {} # record the emerged leader and its action
+        self.dic_leader_action_updated = {} # update action start time
+
         # random forest arrival time prediction model
         if ml:
             self.rf_at_model = joblib.load(
@@ -242,7 +245,7 @@ class MergingControlRegular:
         -------
         ls_acc_profile : list
             the acc/dec strategy.
-            (t1, a1, t3, a3, v_rem) or (T, a) v_rem => velocity of reach moment
+            (t1, a1, t3, a3, v_reach) or (T, a) v_reach => velocity of reaching moment
         '''
         fomula = '2*v0*t+2*a*t*t1-a*t1**2-2*self.dis'
 
@@ -251,21 +254,21 @@ class MergingControlRegular:
 
         t2 = t - t1
         x2 = t2 * self.max_speed
-        xx = x1 + x2  # farthest dis could run in t
+        xx = x1 + x2  # farthest driving distance in period t
 
         if xx >= dis:  # TODO: this part should be replaced
-            prc.print_message(f"S1: avh will arrive WS in {t} (eg: r_platoon will encounter m_platoon),\n "
+            prc.print_message(f"S1: leader will arrive WS in {t} (eg: r_platoon will encounter m_platoon),\n "
                               f"max_travel_dis_in_t {xx} >= current_dis_to_WS {dis}")
             if self.optimizer:
                 # new add min speed
                 optm = GetBVCurve2(v0, t, dis=dis, min_speed=5)
-                # v_rem: velocity of reach moment
-                r, v_rem = optm.optimize()  # r.x = (t1, a1, t3, a3)
+                # v_reach: velocity of reaching moment
+                r, v_reach = optm.optimize()  # r.x = (t1, a1, t3, a3)
                 # r.x[3] < 0.01 updated 110824, to avoid stop at the end of ramp caused by conflict
-                if v_rem < 1 or r.x[3] < 0.01: # to avoid sudden stop; 241003update, avoid stop can start
+                if v_reach < 1 or r.x[3] < 0.01: # to avoid sudden stop; 241003update, avoid stop can start
                     prc.print_message("**Too big sacrifice, can't avoid encounter**")
                     return [None, self.amax]
-                ls_acc_profile = list(np.append(r.x, v_rem))  # ls_acc_profile = (t1, a1, t3, a3, v_rem)
+                ls_acc_profile = list(np.append(r.x, v_reach))  # ls_acc_profile = (t1, a1, t3, a3, v_reach)
                 return ls_acc_profile
             else:
                 self.ls_v0.append(v0)
@@ -399,14 +402,68 @@ class MergingControlRegular:
         self.ls_m_leaders_followup = list(dict.fromkeys(self.ls_m_leaders_followup)) # remove duplicates
         return(self.dic_m_leader_followup_action, self.ls_m_leaders_followup)
 
-    def apply_leader_action(self, step, dic_leader_action):
+    def apply_leader_action_ori(self, step, dic_leader_action):
+        '''
+
+        Parameters
+        ----------
+        step
+        dic_leader_action: {leader: [t1, a1, t3, a3, c_ts], ...}
+        '''
         c_ts = round(step / 10 + 0.1, 1)
         dic_vid_groups = self.data_recorder.dic_vid_groups
 
-        ls_mr_leader_up = dic_vid_groups['ls_mr_leader_up'] # all avid that before merging
+        ls_mr_leader_up = dic_vid_groups['ls_mr_leader_up'] # all AVid that before merging
         dic_leader_up_action = {leader: v for leader, v in dic_leader_action.items() if leader in ls_mr_leader_up}  # action_before Merging
 
         for leader, ls_action in dic_leader_up_action.items():
+            if len(ls_action) > 3:
+                t1 = ls_action[0]
+                a1 = ls_action[1]
+                t3 = ls_action[2]
+                a3 = ls_action[3]
+                if c_ts < t1 + ls_action[-1]: # ls_action[-1] => the action start time
+                    dec_st = ls_action[-1] # dec start time
+                    if c_ts % 1 == 0:
+                        prc.print_message(f"{leader} in dec_phase!\n a1:{a1}, start_time:{dec_st}, current_time:{c_ts}")
+                    if a1 < 1:
+                        pass
+                    self._apply_acceleration(leader, a1, smooth=True)
+                else:
+                    acc_st = t1 + ls_action[-1] # acc started time
+                    if c_ts % 1 == 0:
+                        prc.print_message(f"{leader} in acc_phase!\n a3:{a3}, start_time:{acc_st}, current_time:{c_ts}") #\n => line break
+                    self._apply_acceleration(leader, a3, smooth=True)
+            else:
+                acc2 = 2.6
+                if c_ts % 1 == 0:
+                    prc.print_message(f"{leader} full speed up!\n acc:{acc2}, current_time:{c_ts}")
+                self._apply_acceleration(leader, acc2, smooth=True)
+
+    def apply_leader_action(self, step, dic_leader_action):
+        '''
+
+        Parameters
+        ----------
+        step
+        dic_leader_action: {leader: [t1, a1, t3, a3, c_ts], ...}
+        '''
+        c_ts = round(step / 10 + 0.1, 1)
+        dic_vid_groups = self.data_recorder.dic_vid_groups
+
+        ls_mr_leader_up = dic_vid_groups['ls_mr_leader_up'] # all AVid that before merging
+        dic_leader_up_action = {leader: v for leader, v in dic_leader_action.items() if leader in ls_mr_leader_up}  # action_before Merging
+
+        for leader, ls_action in dic_leader_up_action.items():
+            if self.dic_leader_action_emerged.get(leader) == ls_action:
+                # this leader and its action params already emerged
+                ls_action = self.dic_leader_action_updated.get(leader)
+            else: # first time to emerge, align the action start time (ls_action[-1]) to c_ts
+                self.dic_leader_action_emerged[leader] = ls_action  # record this emerged
+                if ls_action[-1] != c_ts:
+                    ls_action[-1] = c_ts # update action start time to current time
+                self.dic_leader_action_updated[leader] = ls_action # record updated version
+
             if len(ls_action) > 3:
                 t1 = ls_action[0]
                 a1 = ls_action[1]

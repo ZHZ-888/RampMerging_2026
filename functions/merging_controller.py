@@ -39,6 +39,8 @@ class MergingController:
 
         :return:
         '''
+        if step == 694:
+            pass
         c_ts = round(step/10 + 0.1, 1)
 
         if not self.ls_r_dep_times:
@@ -89,8 +91,8 @@ class MergingController:
             ls_wsA,
             ls_r_leader_up)
 
-        # jam_mode = True
-        # regular_mode = False
+        jam_mode = True
+        regular_mode = False
         # self.merge_regular.set_veh_color()
 
         # === 4. Apply corresponding control logic ===
@@ -105,7 +107,8 @@ class MergingController:
                 dic_vid_groups,
                 self.ls_r_dep_times,
                 self.mpc_interval,
-                self.delta_t
+                self.delta_t,
+                self.pf
             )  # queue_length
 
         elif regular_mode:
