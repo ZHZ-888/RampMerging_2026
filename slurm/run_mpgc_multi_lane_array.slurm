@@ -66,7 +66,7 @@ echo "TASK_ID=$TASK_ID | AV_P=$AV_P | RAMP=$RAMP | SEED=$SEED | (Indices: av=$av
 # Each task writes to its own XML file
 # ================================
 OUT_XML="$TRAJ_DIR/trj_${SEED}_${AV_P}_${RAMP}.xml"
-OUT_CSV="data/raw/tmp/rm_task_${TASK_ID}.csv"
+OUT_CSV="data/raw/tmp/mpgc_multi_lane_task_${TASK_ID}.csv"
 mkdir -p data/raw/tmp
 
 # ================================
