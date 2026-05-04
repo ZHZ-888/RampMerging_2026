@@ -91,8 +91,8 @@ class MergingController:
             ls_wsA,
             ls_r_leader_up)
 
-        jam_mode = True
-        regular_mode = False
+        # jam_mode = True
+        # regular_mode = False
         # self.merge_regular.set_veh_color()
 
         # === 4. Apply corresponding control logic ===
