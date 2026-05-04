@@ -208,7 +208,7 @@ if __name__ == '__main__':
         r_autoFollow_p = 1,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles
         loss_rate = 0.15, # 0.15
-        gui = False,
+        gui = True,
         plot = False,
         display = True,
         lc = True, # if consider HV lane-changing; True

@@ -5,7 +5,7 @@
 #SBATCH --mem=4G                            # Memory per task
 #SBATCH --output=output-logs/out_%A_%a.txt  # Standard output log
 #SBATCH --error=error-logs/err_%A_%a.txt    # Standard error log
-# NOTE: Submit with --array=0-209  (3 AV_Ps * 5 Seeds * 14 RAMPS = 210 jobs)
+# NOTE: Submit with --array=0-419  (3 AV_Ps * 10 Seeds * 14 RAMPS = 420 jobs)
 
 set -euo pipefail
 
@@ -34,13 +34,13 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # Experiment parameter grid
 # ================================
 AV_P_VALS=(0.1 0.2 0.3)                     # AV penetration
-SEEDS=(1 2 3 4 5)                      # Random seeds
+SEEDS=(1 2 3 4 5 6 7 8 9 10)                      # Random seeds
 RAMPS=(200 300 400 500 600 700 800 900 1000 1100 1200 1300 1400) # Ramp demands
 
 NAV=${#AV_P_VALS[@]}                        # Number of AV Settings (3)
-NS=${#SEEDS[@]}                             # Number of Seeds (5)
+NS=${#SEEDS[@]}                             # Number of Seeds (10)
 NR=${#RAMPS[@]}                             # Number of Ramp Demands (14)
-NT=$((NAV * NS * NR))                       # Total Tasks (210)
+NT=$((NAV * NS * NR))                       # Total Tasks (420)
 
 # Check SLURM array task ID
 if [ -z "${SLURM_ARRAY_TASK_ID:-}" ]; then
