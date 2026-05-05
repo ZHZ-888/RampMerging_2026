@@ -202,9 +202,9 @@ if __name__ == '__main__':
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path) = mpgc_main(
         av_p = 0.1, # 0.3
-        r_fr = 200, # 1000
+        r_fr = 800, # 1000
         m_fr = 1500, # 1500
-        seed = 1,
+        seed = 2,
         r_autoFollow_p = 1,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles
         loss_rate = 0, # 0.15
