@@ -94,8 +94,8 @@ def loop(traci, st, vgvg, merging_controller, p_autoFollow, m_dpt_type=None, r_d
             r_dpt_type = {key: value for key, value in r_dpt_type.items() if key <= change_t} # before start_t
             r_dpt_type.update(new_r_dpt_type) # merge together
 
-        vgvg.veh_gen_heter2(step, m_dpt_type, 'm', p_autoFollow)
-        vgvg.veh_gen_heter2(step, r_dpt_type, 'r', p_autoFollow)
+        vgvg.platoon_gen(step, m_dpt_type, 'm', p_autoFollow)
+        vgvg.platoon_gen(step, r_dpt_type, 'r', p_autoFollow)
 
         tp, speed_log, queue_log \
             = merging_controller.step(st, step, m_dpt_type, r_dpt_type)

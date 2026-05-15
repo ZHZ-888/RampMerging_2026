@@ -623,7 +623,11 @@ class MergingControlRegular:
             m = 1 # True
         else:
             m = 0 # False
-        return remain_dis_leader, remaining_dis_tail, leader_to_pv_dis, platoon_type, speed_leader, speed_tail, tail_id, m
+
+        if leader == 'm_av385':
+            pass
+        return (remain_dis_leader, remaining_dis_tail, leader_to_pv_dis,
+                platoon_type, speed_leader, speed_tail, tail_id, m)
 
     def _update_info(self, vid, ts_head_adj):
         """

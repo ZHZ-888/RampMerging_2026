@@ -797,89 +797,20 @@ class VehGen:
         self.traci = traci
 
     def add_vehicle(self, vehicle_id, route_id, dp_v, type_id="idm", dp_lane='0'):
+        '''
+        SET SPEEDMODE
+        self.traci.vehicle.setSpeedMode(vehicle_id, 0b010111)  # ingnore the right of way
+        self.traci.vehicle.setSpeedMode(vehicle_id, 0b000111)  # ingnore brake before red, the right of way
+        '''
         self.traci.vehicle.add(vehID=vehicle_id, routeID=route_id, typeID=type_id, \
                                departSpeed=dp_v, departLane=dp_lane)
-        if route_id == 'route1': # mainline vehicles
-            # Willingness for cooperative lane changing, lower value => reduced cooperation
-            # self.traci.vehicle.setParameter(vehicle_id, "lcCooperative", "0.2") # default:1
-            # Willingness to accept lower front and rear gaps on the target lane
-            # self.traci.vehicle.setParameter(vehicle_id, "lcAssertive", "0.9") # default: 1; range >=1
-            pass
-        else: # ramp vehicles
-            pass
-        # set speedmode
-        self.traci.vehicle.setSpeedMode(vehicle_id, 0b010111)  # ingnore the right of way
-        # self.traci.vehicle.setSpeedMode(vehicle_id, 0b000111)  # ingnore brake before red, the right of way
-        # self.traci.vehicle.setSpeedMode(vehicle_id, 0b011111) # default, consider all inspection
-
-    def veh_gen_heter(self, step, dp_times_dict, id_prefix, p_auto):
-        '''
-        Add HV heterogeneity
-        250610: veh_route and dp_v can be decided by id_prefix, then only keep them inside function
-        240616: delete data recording as these can get from the departure information
-        240614: new input format, dic =  {1: 'AHA', 31: 'AH', 48: 'AHA', 79: 'AA', 107: 'AH', 121: 'AHA'}
-        240609: update from dic_rpav_type to dic_av_type
-        generate veh at cooresponding step
-
-        Parameters
-        ----------
-        dp_times_dict : dic
-            departure times of each fleet type.
-            {4: 'AHHHH', 29: 'AHHHH', 45: 'AHHHHHH', 61: 'AHHHH', 73: 'AHH}
-        id_prefix : TYPE
-            DESCRIPTION.
-        vType: default idm
-            vehicle type: IDM; Krauss; Krauss0.2; Krauss0.8 ...
-        p_auto:
-            pecentage of hv auto-following (0-1)
-        Returns
-        -------
-        None.
-
-        '''
-        # get the probability of different HV following type
-        if p_auto == 0:
-            dic_prob = {'hv_cons': 0.51, 'hv_avg': 0.32, 'hv_agg': 0.17}  # probability
+        if type_id == 'av':
+            # ingnore the right of way // previous all vehicle in all algo is set to 0b011111, but for AV we can set it to 0b010111
+            self.traci.vehicle.setSpeedMode(vehicle_id, 0b010111)
         else:
-            p_hvAuto = p_auto
-            p_hvCons = (1 - p_auto) * 0.51
-            p_hvAvg = (1 - p_auto) * 0.32
-            p_hvAgg = (1 - p_auto) * 0.17
-            dic_prob = {'hv_cons': p_hvCons, 'hv_avg': p_hvAvg, 'hv_agg': p_hvAgg, 'idm': p_hvAuto}
+            self.traci.vehicle.setSpeedMode(vehicle_id, 0b011111)  # default, consider all inspection
 
-        # according to departure lane get route and departure speed
-        if id_prefix == 'm':
-            veh_route = 'route1'
-            dp_v = 24.5  # depature velocity
-        else:
-            veh_route = 'route2'
-            dp_v = 10 # 10 m/s => 36 km/h
-        for dt, type in dp_times_dict.items():
-            r_step = step / 10  # r_step = time
-            veh_num = len(type)  # the veh number of this platoon
-            # type = 'AHA'
-            for i, veh in enumerate(type):
-                dt_v = dt + i  # departure time of this veh
-                if dt_v == r_step:
-                    if i == 0:
-                        id_body = 'avh'  # head AV => avh
-                    else:
-                        id_body = 'av' if veh == 'A' else 'hv'
 
-                    # vehicle_type = 'av' if veh == 'A' else vType
-                    if veh == 'A':
-                        vehicle_type = 'av'
-                    else:
-                        # Probabilistically select HV type based on predefined distribution
-                        vehicle_type = random.choices(
-                            list(dic_prob.keys()),  # Possible HV types
-                            weights=list(dic_prob.values()),  # Corresponding probabilities
-                            k=1  # Select 1 item
-                        )[0]  # Extract the selected type from the list
-
-                    id_suffix = id_prefix + id_body
-                    id = f"{id_suffix}{step}"
-                    self.add_vehicle(id, veh_route, dp_v, vehicle_type)
 
     def get_schedule_startT(start_t, p, fr, max_attempts, plot=False, seed=None, display=False):
         '''
@@ -907,10 +838,10 @@ class VehGen:
         print(f'dic_dpt_type:{updated_result}')
         return updated_result
 
-    def veh_gen_heter2(self, step, dp_times_dict, id_prefix, p_auto):
+    def platoon_gen(self, step, dp_times_dict, id_prefix, p_auto=0):
         '''
-        Add free_HV
-        Add HV heterogeneity
+        platoon_gen (veh_gen_heter2)
+        consider hv heterogeneity, use p_auto to decide the percentage of ACC-HV and manually-driving HV
         250610: veh_route and dp_v can be decided by id_prefix, then only keep them inside function
         240616: delete data recording as these can get from the departure information
         240614: new input format, dic =  {1: 'AHA', 31: 'AH', 48: 'AHA', 79: 'AA', 107: 'AH', 121: 'AHA'}
@@ -925,7 +856,7 @@ class VehGen:
         id_prefix : TYPE
             DESCRIPTION.
         p_auto:
-            pecentage of hv auto-following (0-1)
+            pecentage of hv auto-following/ACC-follow (0-1)
         Returns
         -------
         None.
@@ -933,20 +864,20 @@ class VehGen:
         '''
         # get the probability of different HV following type
         if p_auto == 0:
-            dic_prob = {'hv_cons': 0.51, 'hv_avg': 0.32, 'hv_agg': 0.17}  # probability
+            dic_prob = {'hv_cons': 0.51, 'hv_mean': 0.32, 'hv_agg': 0.17}  # probability
         else:
             p_hvAuto = p_auto
             p_hvCons = (1 - p_auto) * 0.51
             p_hvAvg = (1 - p_auto) * 0.32
             p_hvAgg = (1 - p_auto) * 0.17
-            dic_prob = {'hv_cons': p_hvCons, 'hv_avg': p_hvAvg, 'hv_agg': p_hvAgg, 'idm': p_hvAuto}
+            dic_prob = {'hv_cons': p_hvCons, 'hv_mean': p_hvAvg, 'hv_agg': p_hvAgg, 'idm': p_hvAuto}
 
         # according to departure lane get route and departure speed
         if id_prefix == 'm':
-            veh_route = 'route1'
-            dp_v = 24.5  # depature velocity (24.5)// single lane
+            veh_route = 'route_m'
+            dp_v = 27.5  # depature velocity (24.5)// single lane
         else:
-            veh_route = 'route2'
+            veh_route = 'route_r' # route2 => route_r
             dp_v = 10
 
         for dt, platoon in dp_times_dict.items():
@@ -990,7 +921,7 @@ class VehGen:
                     self.add_vehicle(id_suffix, veh_route, dp_v, vehicle_type)
 
     def veh_gen_homo(self, step, dp_times_dict, id_prefix, \
-                   veh_route, dp_v, dp_lane='0'):
+                     veh_route, dp_v, dp_lane='0'):
         '''
         ml: multi-lane; homo: homogeneous
         2450209: new input format, dic =  {1: 'HV', 31: 'AV', ...,}
@@ -1044,7 +975,7 @@ class VehGen:
         dp_lane: 0 or 1 or 2
             departure lane
         '''
-        dic_prob = {'hv_cons': 0.51, 'hv_avg': 0.32, 'hv_agg': 0.17}  # probability
+        dic_prob = {'hv_cons': 0.51, 'hv_mean': 0.32, 'hv_agg': 0.17}  # probability; hv_avg to hv_mean, to avoid confusion 'av' in hv name
         c_ts = round(step/10 + 0.1, 1)  # r_step = time
         if c_ts in dp_times_dict:
             if dp_times_dict[c_ts] == 'AV':
@@ -1054,7 +985,7 @@ class VehGen:
                     population=list(dic_prob.keys()),  # List of HV types
                     weights=list(dic_prob.values()),  # Corresponding probabilities
                     k=1  # Number of samples to draw
-                )[0]  # hv_cons, hv_avg, hv_agg
+                )[0]  # hv_cons, hv_mean, hv_agg
 
             if dp_lane == '1':
                 id = f"{id_prefix}b_{vehicle_type}{step}"  # use b indicate lane_1
@@ -1072,7 +1003,7 @@ class VehGen:
         :param dp_speed:
         :return:
         '''
-        dic_prob = {'hv_cons': 0.51, 'hv_avg': 0.32, 'hv_agg': 0.17}  # probability
+        dic_prob = {'hv_cons': 0.51, 'hv_mean': 0.32, 'hv_agg': 0.17}  # probability
         for d_t in ls_departure_time:  # d_t, departure time
             st = step / 10
             if st == d_t:  # st, simulation time

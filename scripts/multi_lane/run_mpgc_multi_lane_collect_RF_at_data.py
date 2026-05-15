@@ -89,9 +89,9 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
             pass
         traci.simulationStep()  # start simulation
         # mainlane vehicle generation
-        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route0', 27.5, '0')  # 30m/s => 110km/h
+        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '0')  # 30m/s => 110km/h
         # ramp vehicle generation
-        veh_gen.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
+        veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p)
 
         # disable lane-changing
         # data_recorder.disable_all_lane_changes()

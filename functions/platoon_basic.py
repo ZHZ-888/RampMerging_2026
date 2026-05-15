@@ -28,6 +28,7 @@ class PlatoonBasic:
         self.dec_av = []
         self.dic_tags = {}
         self.recover_time_map = {}  # record av speed setting recover time
+        self.recover_speed_map = {}
         self.ls_speed_ok = []  # av_id that speed restore back to max (27.78 m/s)
         self.ls_speed_level3 = []
         self.dic_platoon_size = {}  # all leaderAV and its platoon size
@@ -206,7 +207,7 @@ class PlatoonBasic:
             70 = 19.44
             60 = 16.67
         '''
-        min_dis = 100
+        min_dis = 150 # 100
         speed_level2 = self.speed_level2  # 22.22m/s => 80km/h; 19.44m/s => 70km/h
         speed_level1 = self.speed_level1  # 16.67m/s => 60km/h
 
@@ -229,17 +230,20 @@ class PlatoonBasic:
         for index, leader in enumerate(ls_leader_av):  # ascending order
             preceding_veh_info = self.traci.vehicle.getLeader(leader)
             if preceding_veh_info is not None:
+                if leader == 'm_av385':
+                    pass
                 dis_to_pv = preceding_veh_info[1]
                 speed_leader = self.data_recorder.get_vid_states(leader)['v']
-                if dis_to_pv < min_dis and speed_leader == speed_level2:
+                current_max_speed = self.traci.vehicle.getMaxSpeed(leader)
+                if dis_to_pv < min_dis and current_max_speed != speed_level1 and speed_leader <= speed_level2:
                     '''
                     if find LEADER do not has enough space from its preceding veh, 
                     this LEADER (and other LEADER after this LEADER) need to 
-                    take a second dec action (to level_2 speed)
+                    take a second dec action (to level_1 speed)
                     '''
                     ls_second_decAV = ls_leader_av[index:]
                     break
-        self._set_hold_speed(ls_second_decAV, speed_level1, 7)
+        self._set_hold_speed2(ls_second_decAV, speed_level1, min_dis)
 
     def restore_speed_limit2(self, ls_av):
         '''
@@ -459,6 +463,110 @@ class PlatoonBasic:
                 self.traci.vehicle.setMaxSpeed(id, set_v)
                 self.recover_time_map[id] = (ori_v, current_time + hold_time)
 
+    def _set_hold_speed2(self, ls_second_decAV, set_v, gap_threshold):
+        """
+        Apply a temporary speed limit and recover it based on gap conditions,
+        with a leader-first recovery constraint.
+
+        Description:
+            Vehicles are temporarily assigned a reduced maximum speed (set_v).
+            A vehicle can recover its original speed only when:
+                1. The gap to its leader exceeds a predefined threshold.
+                2. Its leader has already recovered (or is not under control).
+
+            This ensures a front-to-back recovery order and avoids gap shrinkage
+            caused by rear vehicles accelerating earlier than their leaders.
+
+        Parameters:
+            ls_second_decAV (list): list of vehicle IDs (ordered from front to back)
+            set_v (float): temporary speed limit
+            gap_threshold (float): minimum gap required for speed recovery (meters)
+
+        Internal state:
+            self.recover_speed_map = {vid: original_speed, ...}
+        """
+
+        # Step 1: Collect all currently controlled vehicles
+        controlled_ids = list(self.recover_speed_map.keys())
+        # fileter out vehicles that left
+        net_vids = self.data_recorder.dic_vid_groups['ls_vehid'] # all vehicle in this step
+        controlled_ids = [
+            vid for vid in controlled_ids
+            if vid in net_vids
+        ]
+
+        # Step 2: Sort vehicles from front to back based on lane position
+        veh_positions = {}
+        for vid in controlled_ids:
+            if vid == 'mb_av7600':
+                pass
+            try:
+                veh_positions[vid] = self.data_recorder.get_vid_states(vid)['pos'] # == None; may have crash
+            except:
+                veh_positions[vid] = -1  # fallback if vehicle is missing
+
+        for vid in controlled_ids:
+            if vid is None:
+                print("Error: vid is None")
+                raise ValueError("vid is None before sorting")
+
+            if vid not in veh_positions:
+                print(f"Error: {vid} is missing in veh_positions")
+                raise KeyError(f"{vid} is missing in veh_positions")
+
+            if veh_positions[vid] is None:
+                print(f"Error: {vid} has None position")
+                print("controlled_ids:", controlled_ids)
+                print("veh_positions:", veh_positions)
+                raise ValueError(f"{vid} has None position before sorting")
+
+        sorted_vids = sorted(controlled_ids, key=lambda x: veh_positions[x], reverse=True)
+        recovered_set = set()  # vehicles recovered in this step
+        to_remove = []  # vehicles to remove from tracking map
+
+        # Step 3: Check recovery condition with leader-first constraint
+        for vid in sorted_vids:
+            ori_v = self.recover_speed_map[vid]
+            try:
+                # Retrieve leader information (leader_id, gap)
+                leader_info = self.traci.vehicle.getLeader(vid)
+                if leader_info is None:
+                    # No leader (free-flow condition) → recover immediately
+                    self.traci.vehicle.setMaxSpeed(vid, ori_v)
+                    recovered_set.add(vid)
+                    to_remove.append(vid)
+                    continue
+                leader_id, gap = leader_info
+
+                # Enforce leader-first recovery:
+                # if leader is still under control and not yet recovered, skip
+                if leader_id in self.recover_speed_map and leader_id not in recovered_set:
+                    continue
+                # Recover if gap condition is satisfied
+                if gap >= gap_threshold:
+                    self.traci.vehicle.setMaxSpeed(vid, ori_v)
+                    recovered_set.add(vid)
+                    to_remove.append(vid)
+
+            except Exception:
+                # Handle edge cases (vehicle removed from simulation, etc.)
+                to_remove.append(vid)
+
+        # Step 4: Remove recovered vehicles from tracking map
+        for vid in to_remove:
+            if vid in self.recover_speed_map:
+                del self.recover_speed_map[vid]
+
+        # Step 5: Apply speed limit to new vehicles
+        for vid in ls_second_decAV:
+            if vid not in self.recover_speed_map:
+                # Store original max speed
+                ori_v = self.traci.vehicle.getMaxSpeed(vid)
+                # Apply temporary speed constraint
+                self.traci.vehicle.setMaxSpeed(vid, set_v)
+                # Save for future recovery
+                self.recover_speed_map[vid] = ori_v
+
     def _check_state(self, id):
         '''
         check followers' state: decoupled free flow mode/coupled following mode
@@ -467,8 +575,8 @@ class PlatoonBasic:
         :param id:
         :return:
         '''
-        minGap = 4.5
-        tau = 1
+        minGap = 2.5 # original: 4.5; default 2.5
+        tau = 1.5 # standard: 1s
         following_headway_factor = 2.2
         v_expect = self.speed_level2
         p_veh_info = self.traci.vehicle.getLeader(id)
@@ -513,7 +621,10 @@ class PlatoonBasic:
         platoon_string = "A" + "H" * count
         if platoon_string == 'A':
             pass
+        if len(platoon_string) > self.max_team_size:
+            pass
         # 5. Save result
         self.dic_final_platoon_info[step//10] = platoon_string
         # update to dic_avhid_ptype; this is truly pass to merging controller
         self.data_recorder.get_avhid_ptype(m_dpt_type={newest_leader: platoon_string})
+

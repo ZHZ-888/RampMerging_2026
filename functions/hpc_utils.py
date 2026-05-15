@@ -39,7 +39,27 @@ def training_arg_parser():
     # Note: Training usually doesn't need out_csv for traffic KPIs
     return parser
 
-def get_mc_indicator(speed_log, tp, xml_path, runtime):
+def get_mc_indicator(speed_log, tp, ssm_path, runtime):
+    """Calculates performance indicators after simulation."""
+    total_vehicle_num = int(tp/3)
+    ttc_metrics_3 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(ssm_path, total_vehicle_num, ttc_threshold=3)
+    ttc_metrics_2 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(ssm_path, total_vehicle_num, ttc_threshold=2)
+    ttc_metrics_1 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(ssm_path, total_vehicle_num, ttc_threshold=1.5) # 1.5
+    ttc_ratio_3 = ttc_metrics_3[2]
+    ttc_ratio_2 = ttc_metrics_2[2]
+    ttc_ratio_1 = ttc_metrics_1[2]
+    avg_speeds = [item[1] for item in speed_log]
+    clean_avg_speeds = [v for v in avg_speeds if v is not None]
+    average_v = sum(clean_avg_speeds) / len(clean_avg_speeds)
+    print("\n           ---merging control performance indicators---")
+    print(f'tp: {tp} veh/h, average_v:{average_v} m/s, '
+          f'ttc_ratio_3: {ttc_ratio_3}, '
+          f'ttc_ratio_2: {ttc_ratio_2}, '
+          f'ttc_ratio_1.5: {ttc_ratio_1}, '
+          f'execution_time:{runtime:.1f} s')
+    return tp, average_v, ttc_ratio_2, runtime
+
+def get_mc_indicator_ori(speed_log, tp, xml_path, runtime):
     """Calculates performance indicators after simulation."""
     ttc_ratio, avg_speed_std = calc_ttc_sd_exposure.calc_ttc_and_speed_std(xml_path)
     avg_speeds = [item[1] for item in speed_log]

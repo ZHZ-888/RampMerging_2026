@@ -41,8 +41,15 @@ def rm_main(av_p, r_fr, m_fr, seed,
                     ))  # default 'data/mpgc'
     file_name = f"trj_rm_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     xml_path = os.path.join(traj_dir, file_name)
+    ssm_file_name = f"ssm_rm_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
+    ssm_path = traj_dir / ssm_file_name
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
                 "--fcd-output", str(xml_path), # save path
+                # SSM output for TTC conflicts
+                "--device.ssm.probability", "1",
+                "--device.ssm.file", str(ssm_path),
+                "--device.ssm.measures", "TTC",
+                "--device.ssm.thresholds", "3",
                 "--no-warnings"]  # , '-S' start auto, and quit auto
     sumo_options = ["--step-length", str(sim_step)]
 
@@ -72,7 +79,7 @@ def rm_main(av_p, r_fr, m_fr, seed,
                  m0_dpt_type, m1_dpt_type, r_dpt_type)
     finally:
         traci.close()
-    return (speed_log, tp, xml_path)
+    return (speed_log, tp, xml_path, ssm_path)
 
 
 def loop(traci, st, veh_gen, data_recorder, rm_algo,
@@ -97,10 +104,10 @@ def loop(traci, st, veh_gen, data_recorder, rm_algo,
             prc.print_message(f'************current_time, step:{c_ts, step}************')
 
         # mainlane vehicle generation
-        veh_gen.veh_gen_hetero(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
-        veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+        veh_gen.veh_gen_hetero(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h
+        veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
         # ramp vehicle generation
-        veh_gen.veh_gen_hetero(step, r_dpt_type, 'r', 'route2', 10, '0')
+        veh_gen.veh_gen_hetero(step, r_dpt_type, 'r', 'route_r', 10, '0')
 
         # performance indicator
         dic_vehinfo = data_recorder.record_vehinfo()
@@ -151,18 +158,18 @@ def main(args=None, root=None):
     # 2. Run simulation
     start = time.time()
     # Call the original algorithm
-    speed_log, tp, xml_path = rm_main(
-                                        av_p=0,
-                                        r_fr=parsed_args.r_fr,
-                                        m_fr=parsed_args.m_fr,
-                                        seed=parsed_args.seed,
-                                        gui=parsed_args.gui
-                                    )
+    speed_log, tp, xml_path, ssm_path = rm_main(
+        av_p=0,
+        r_fr=parsed_args.r_fr,
+        m_fr=parsed_args.m_fr,
+        seed=parsed_args.seed,
+        gui=parsed_args.gui
+    )
     end = time.time()
     runtime = end - start
 
     tp, average_v, ttc_ratio, avg_speed_std, runtime = (
-        hpc_utils.get_mc_indicator(speed_log, tp, xml_path, runtime))
+        hpc_utils.get_mc_indicator(speed_log, tp, ssm_path, runtime))
 
     # 3. Save results
     if parsed_args.out_csv:
@@ -183,16 +190,16 @@ if __name__ == '__main__':
     print(">>> Running Local RM Test (Direct Function Call)...")
     prc.PRINT_ENABLED = False
     start = time.time()
-    speed_log, tp, xml_path = rm_main(
+    speed_log, tp, xml_path, ssm_path = rm_main(
         av_p = 0,
-        r_fr = 1000,
+        r_fr = 1300,
         m_fr = 1500,
-        seed = 1,
-        gui = True,
+        seed = 6,
+        gui = False,
         plot = False,
         display = False,
         st = 1200
     )
     end = time.time()
     runtime = end - start
-    hpc_utils.get_mc_indicator(speed_log, tp, xml_path, runtime)
+    hpc_utils.get_mc_indicator(speed_log, tp, ssm_path, runtime)

@@ -1,5 +1,7 @@
 from functions import print_control as prc
 from functions import v2x_disturbance as v2x
+import re
+
 class ActionManager:
     def __init__(self, instance_dr, merge_regular, loss_rate=0):
         self.data_recorder = instance_dr
@@ -99,39 +101,48 @@ class ActionManager:
     def _print_decision(self, dic_rm_leader_actor, ls_m_leaders_followup):
         '''
         print the action decision detail
-        :param dic_rm_leader_actor: dic of encountered ravh_mavh, and choose action avh
+        :param dic_rm_leader_actor: dic of encountered r_leader and m_leader, and choose action avh
         :param ls_m_leaders_followup: action list of
         :return:
         '''
         # dic_vid_groups = self.data_recorder.record_vehinfo()
         dic_vid_groups = self.data_recorder.dic_vid_groups
         ls_mr_leader_up = dic_vid_groups["ls_mr_leader_up"] # all avh before merging
-        ls_m_leader_up = dic_vid_groups["ls_m_leader_up"] # all mavh before merging
+        ls_m_leader_up = dic_vid_groups["ls_m_leader_up"] # all m_leader before merging
         action_dic = {key: value for key, value in dic_rm_leader_actor.items() if value in ls_mr_leader_up}
         # prc.print_message(action_dic)
-        # filter out duplicate ravh, only keep the last pair
+        # filter out duplicate r_leader, only keep the last pair
         result = {}
         for key, value in action_dic.items():
             result[key[0]] = (key, value)
         action_dic_filter = {key: value for key, value in result.values()}
         prc.print_message(f'\n{action_dic_filter}')
         for key, value in action_dic_filter.items():
-            ravh = key[0]
-            mavh = key[1]
+            r_leader = key[0]
+            m_leader = key[1]
             action_avh = value
-            prc.print_message(f'STATE: {ravh} encounter {mavh}')
+            prc.print_message(f'STATE: {r_leader} encounter {m_leader}')
             if 'm' in action_avh:
-                # type 1: only mavh need to take action
-                prc.print_message(f'DECISION: *action type 1*\n{action_avh} take action, make sure head {mavh} > tail {ravh}')
+                # type 1: only m_leader need to take action
+                prc.print_message(f'DECISION: *action type 1*\n{action_avh} take action, make sure head {m_leader} > tail {r_leader}')
             else:
-                # type2: ravh take action, mavh no action, but mavh's next mavh may need to take action
-                prc.print_message(f'DECISION: *action type 2*\n{action_avh} take action, make sure head {ravh} > tail {mavh}')
-                # the next mavh of this mavh
-                mavh_time = int(mavh[4:])
-                mavh_n = min((vehicle for vehicle in ls_m_leader_up if int(vehicle[4:]) > mavh_time),
-                             key=lambda x: int(x[4:]), default=None)  # Handle the case where no later vehicle exists
-                if mavh_n in ls_m_leaders_followup:
-                    prc.print_message(f'{mavh_n} (next avh of {mavh}) need to take action, make sure head {mavh_n} > tail {ravh}')
+                # type2: r_leader take action, m_leader no action, but m_leader's next m_leader may need to take action
+                prc.print_message(f'DECISION: *action type 2*\n{action_avh} take action, make sure head {r_leader} > tail {m_leader}')
+                # the next m_leader of this m_leader
+                m_leader_time = int(re.search(r'\d+', m_leader).group()) # int(m_leader[4:])
+
+                m_leader_next = min(
+                    (
+                        (v, int(re.search(r'\d+', v).group()))
+                        for v in ls_m_leader_up
+                        if int(re.search(r'\d+', v).group()) > m_leader_time
+                    ),
+                    key=lambda x: x[1],
+                    default=(None, None)
+                )[0] # Handle the case where no later vehicle exists
+
+                if m_leader_next in ls_m_leaders_followup:
+                    prc.print_message(f'{m_leader_next} (next avh of {m_leader}) need to take action, make sure head {m_leader_next} > tail {r_leader}')
         prc.print_message() # print one blank
 
 

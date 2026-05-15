@@ -120,8 +120,8 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, lc,
             prc.print_message(f'************current_time, step:{c_ts, step}************')
 
         # main vehicle generation
-        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
-        veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h
+        veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size,
          dic_id_features, dic_final_platoon_info) = formation_controller.step(st, step, lc)

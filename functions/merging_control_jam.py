@@ -515,6 +515,8 @@ class MergingControlJam:
                     # get front vehicle id, then get ts_tail_previous
                     this_index = ls_m_veh_up.index(head_id)
                     front_index = this_index + 1
+                    if front_index >= len(ls_m_veh_up): # avoid index error
+                        continue
                     front_id = ls_m_veh_up[front_index]
                     front_veh_info = self.data_recorder.get_vid_states(front_id)
                     dis_front_veh = front_veh_info['dis']

@@ -5,16 +5,15 @@
 
 <routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
 <!-- Routes -->
-    <route id="route0" edges="inflow_highway ws center"/>
-    <route id="route1" edges="inflow_highway ws center"/>
-    <route id="route2" edges="inflow_merge ws center"/>
+    <route id="route_m" edges="inflow_highway ws center"/>
+    <route id="route_r" edges="inflow_merge ws center"/>
 
 
     <!-- Vehicle Types -->
     <vType id="av" vClass="custom1" minGap="1.50" maxSpeed="27.78" color="red" carFollowModel="IDM" tau="0.5"/>
 
     <vType id="hv_agg" vClass="passenger" minGap="2.00" maxSpeed="27.78" color="white" carFollowModel="Krauss" accel="3.2" decel="5.0" sigma="0.3" startupDelay="0.4" tau="0.6"/>
-    <vType id="hv_avg" vClass="passenger" minGap="2.50" maxSpeed="27.78" color="white" carFollowModel="Krauss" accel="2.6" decel="4.5" sigma="0.5" startupDelay="0.8" tau="1"/>
+    <vType id="hv_mean" vClass="passenger" minGap="2.50" maxSpeed="27.78" color="white" carFollowModel="Krauss" accel="2.6" decel="4.5" sigma="0.5" startupDelay="0.8" tau="1"/>
     <vType id="hv_cons" vClass="passenger" minGap="3.00" maxSpeed="27.78" color="white" carFollowModel="Krauss" accel="2.2" decel="4.0" sigma="0.7" startupDelay="1.2" tau="2"/>
 
     <vType id="idm" maxSpeed="27.78" color="white" carFollowModel="IDM" startupDelay="0.5"/>

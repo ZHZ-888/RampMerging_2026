@@ -103,8 +103,8 @@ def loop(traci, st, vgvg, vcfunc, drdr, vch, vcjfunc, p_basic, p_oversized, p_sp
             prc.print_message(f'current_time, step:{c_ts, step}')
 
         # vehicle generation
-        vgvg.veh_gen_ml(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
-        vgvg.veh_gen_ml(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+        vgvg.veh_gen_ml(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h
+        vgvg.veh_gen_ml(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
 
         # obtain veh information
         dic_vehinfo = drdr.record_vehinfo()

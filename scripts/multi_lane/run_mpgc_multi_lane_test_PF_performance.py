@@ -108,11 +108,11 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
             prc.print_message(f'************current_time, step:{c_ts, step}************')
 
         # main vehicle generation (1 => inner lane; 0 => outer lane)
-        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route0', 27.5, '1')  # 30m/s => 110km/h
-        veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route0', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h
+        veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
 
         # ramp vehicle generation
-        veh_gen.veh_gen_heter2(step, r_dpt_type, 'r', r_autoFollow_p)
+        veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p)
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size,
          dic_id_features, dic_final_platoon_info) = formation_controller.step(st, step, lc)
@@ -205,14 +205,14 @@ if __name__ == '__main__':
         for seed in seeds:
             (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
              tp, speed_log, queue_log, xml_path) = mpgc_main(
-                av_p = 0.1, # 0.3
+                av_p = 0.2, # 0.3
                 r_fr = 0, # 1000
                 m_fr = 1200, # 1500
                 seed = seed,
                 r_autoFollow_p = 1,  # auto follow proportion
                 r_platoon_p = 1, # percentage of platoon vehicles
                 loss_rate = 0,
-                deploy_agent = 'SA', # 'CA', 'SA', 'both', None
+                deploy_agent = None, # 'CA', 'SA', 'both', None
                 gui = False,
                 plot = False,
                 display = True,

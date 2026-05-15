@@ -6,13 +6,13 @@
 <sumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
 
     <input>
-        <net-file value="net_multi_lane_merge_rm.net.xml"/>
+        <net-file value="net_multi_lane_merge_aligned_rm.net.xml"/>
         <route-files value="rou_merge_rm.rou.xml"/>
         <additional-files value="cfg_multi_lane_merge.add.xml"/>
     </input>
 
     <gui_only>
-        <gui-settings-file value="test4.view.xml"/>
+        <gui-settings-file value="vS1.view.xml"/>
     </gui_only>
 
 </sumoConfiguration>

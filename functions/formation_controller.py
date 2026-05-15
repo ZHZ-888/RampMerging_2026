@@ -3,6 +3,7 @@ from functions import platoon_oversized_handler as poversized
 from functions import platoon_sparse_handler as psparse
 from functions import platoon_lane_manager as plane
 from functions import v2x_disturbance as v2x
+from functions import detector_state_recogniser as detector
 
 from rl_model import split_insert_agent_handler as agent
 from rl_model import free_insert_agent_handler as free_agent
@@ -25,6 +26,10 @@ class FormationController:
         self.p_oversized = poversized.PlatoonOversizedHandler(traci, data_recorder, self.p_basic)
         self.p_sparse = psparse.PlatoonSparseHandler(traci, data_recorder, self.p_basic)
         self.p_lane = plane.PlatoonLaneManager(traci, data_recorder)
+        self.state_recogniser = detector.DetectorStateRecogniser(
+            traci,
+            detector_ids=['mcz_entry_detector'],
+            temporal_headway_threshold=3.0) # use sumo instantInductionLoop detector to determine platoon follower state
 
         self.loss_rate = loss_rate
         if self.loss_rate == 0:
@@ -58,6 +63,8 @@ class FormationController:
 
     def splitting(self, st, step, ls_ihA, ls_ihB_av, dic_platoon_size, dic_platoon_members):
         # ******** HANDLE OVERSIZED PLATOONS ********
+        if not self.split_agent:
+            return None
         self.split_agent.release_insertion(step, self.sa_buffer)
         if step % self.update_interval != 0:
             return {}
