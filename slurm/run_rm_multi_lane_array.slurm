@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=rm_ml_array            # Job name shown in the queue
-#SBATCH --time=04:00:00                  # Walltime limit (hh:mm:ss)
+#SBATCH --time=01:00:00                  # Walltime limit (hh:mm:ss)
 #SBATCH --cpus-per-task=1                # Number of CPU cores per task
 #SBATCH --mem=4G                         # Memory per task
 #SBATCH --output=output-logs/out_%A_%a.txt   # Standard output log
@@ -35,7 +35,7 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # ================================
 MAINLINE=1500
 RAMPS=(200 300 400 500 600 700 800 900 1000 1100 1200 1300 1400)
-SEEDS=(1 2 3 4 5)
+SEEDS=(1 2 3 4 5 6 7 8 9 10)   # Random seeds (10 seeds)
 
 NR=${#RAMPS[@]}
 NS=${#SEEDS[@]}
