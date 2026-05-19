@@ -101,7 +101,7 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
     # scripts loop
     while step < st * 10:
         # checkpoint
-        if step > 257.9 * 10:
+        if step > 205 * 10:
              pass
         traci.simulationStep()  # start simulation
 
@@ -151,9 +151,10 @@ def main(args=None, root=None):
                                                                 )
     end = time.time()
     runtime = end - start
-
-    hpc_utils.get_fc_indicator(dic_follower_state, his_dic_platoon_size)
-    tp, average_v, ttc_ratio, runtime = (
+    # CFR: coupled_following_ratio; SPR: standard_size_platoon_ratio
+    cfr, spr = hpc_utils.get_fc_indicator(
+        dic_follower_state, his_dic_platoon_size)
+    tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
         hpc_utils.get_mc_indicator(speed_log, tp, ssm_path, runtime))
 
     # 3. Save results
@@ -164,9 +165,13 @@ def main(args=None, root=None):
             "ramp_demand": parsed_args.r_fr,
             "mainline_demand": parsed_args.m_fr,
             "seed": parsed_args.seed,
+            "CFR": cfr,
+            "SPR": spr,
             "throughput": tp,
             "avg_speed": average_v,
-            "ttc_ratio": ttc_ratio,
+            "ttc_ratio_3": ttc_ratio_3,
+            "ttc_ratio_2": ttc_ratio_2,
+            "ttc_ratio_1": ttc_ratio_1,
             "runtime": runtime
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
@@ -209,22 +214,22 @@ if __name__ == '__main__':
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path, ssm_path) = mpgc_main(
         av_p = 0.1, # 0.1
-        r_fr = 1300, # 1300
+        r_fr = 800, # 1300
         m_fr = 1500, # 1500
-        seed = 6, # 4
+        seed = 3, # 4
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles
         loss_rate = 0, # 0.15
         gui = False,
         plot = False,
         display = False,
-        lc = True, # if consider HV lane-changing; True
-        st = 1200 #
+        lc = True, # if allow HV lane-changing; True
+        st = 600
     )
     end = time.time()
     runtime = end - start
 
     hpc_utils.get_fc_indicator(dic_follower_state, his_dic_platoon_size)
 
-    tp, average_v, ttc_ratio, runtime = (
-        hpc_utils.get_mc_indicator(speed_log, tp, ssm_path, runtime))
+    tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
+        hpc_utils.get_mc_indicator(speed_log, tp, ssm_path, runtime)) # 1 => 1.5s

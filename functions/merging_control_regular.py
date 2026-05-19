@@ -53,8 +53,10 @@ class MergingControlRegular:
         self.dic_leader_action_emerged = {} # record the emerged leader and its action
         self.dic_leader_action_updated = {} # update action start time
 
+        self.ml = ml
         # random forest arrival time prediction model
-        if ml:
+        if self.ml:
+            self.speed_level3 = 25
             self.rf_at_model = joblib.load(
                 os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model260319_ndarray.pkl'))
         else:
@@ -65,6 +67,8 @@ class MergingControlRegular:
 
     def update_platoon_et(self, step, ls_leader_up, m=True, interval=60):
         '''
+        Params:
+            m: mainline; else: ramp
         calls self._get_features()
               self.rf_at_model
         update the estimate arrival time of platoon leader and tail
@@ -75,6 +79,8 @@ class MergingControlRegular:
         if step % interval == 0:
             c_ts = round(step / 10 + 0.1, 1)
             for leader in ls_leader_up:
+                if leader == 'm_av1104':
+                    pass
                 platoon_type = self.data_recorder.dic_leader_ptype.get(leader, "A")
                 if platoon_type is None:
                     continue  # pass
@@ -100,9 +106,44 @@ class MergingControlRegular:
                     ts_tail = travel_time + c_ts
                 if m:
                     self.dic_mplatoon_et[leader] = [platoon_type, ts_head, ts_tail, c_ts]
+                    self.dic_mplatoon_et = self._fix_platoon_schedule(step, self.dic_mplatoon_et, gap=1)
                 else:
                     self.dic_rplatoon_et[leader] = [platoon_type, ts_head, ts_tail, c_ts]
+                    self.dic_rplatoon_et = self._fix_platoon_schedule(step, self.dic_rplatoon_et, gap=1)
+
         return self.dic_mplatoon_et if m else self.dic_rplatoon_et
+
+    def _fix_platoon_schedule(self, step, dic_et, gap=1):
+        '''
+        Enforce temporal consistency of platoon arrivals under congested conditions by
+        correcting unrealistic free-flow predictions
+
+        Parameters
+        ----------
+        dic_et: {leader_id: [platoon_type, ts_head, ts_tail, update_time]}
+        gap: minimum time gap to maintain between platoons (in seconds)
+        '''
+        c_ts = round(step / 10 + 0.1, 1)
+        # Sort by predicted leader arrival time
+        items = sorted(dic_et.items(), key=lambda x: x[1][1])
+
+        prev_tail = None  # Tail arrival time of the previous valid platoon
+        for key, val in items:
+            if len(val) < 3:
+                continue
+            head = val[1]
+            tail = val[2]
+            # Skip past or ongoing platoons (do not modify)
+            if tail <= c_ts:
+                prev_tail = tail  # still need to update reference
+                continue
+            # Only apply correction to future platoons
+            if prev_tail is not None and head <= prev_tail:
+                delta = prev_tail - head + gap
+                val[1] = head + delta  # shift head
+                val[2] = tail + delta  # shift tail
+            prev_tail = val[2]
+        return dict(items)
 
     def find_r_leader(self, ls_r_veh_net_asc, ls_r_veh_net_last_asc):
         '''
@@ -123,7 +164,7 @@ class MergingControlRegular:
             r_leader = None
         return r_leader
 
-    def get_platoon_info2(self, step, m_dpt_type={}, r_dpt_type={}):
+    def get_platoon_info2(self):
         """
         IMPORTANT: recording platoon information
         240929update: fixed length of platoon info
@@ -139,17 +180,11 @@ class MergingControlRegular:
         # get info at this moment
         dic_vid_groups = self.data_recorder.dic_vid_groups
 
-        # ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']
-        # ls_r_leader_up = dic_vid_groups['ls_r_leader_up']
-        # ls_mr_leader_up = ls_m_leader_up_asc + ls_r_leader_up
-
         ls_m_leader_net = dic_vid_groups['ls_m_leader_net']
         ls_r_leader_net = dic_vid_groups['ls_r_leader_net']
         ls_mr_leader_net = ls_m_leader_net + ls_r_leader_net
 
         for leader in ls_mr_leader_net:
-            if leader == 'ravh900':
-                pass
             platoon_type = self.data_recorder.dic_leader_ptype.get(leader)
             if platoon_type is None:
                 continue  # jump
@@ -200,7 +235,7 @@ class MergingControlRegular:
         dic_mplatoon_tail_et = {m_leader: ls_ts[2] for m_leader, ls_ts in dic_mplatoon_et_valid.items()}
 
         for r_leader in dic_rplatoon_et_valid.keys():
-            if r_leader == 'ravh700':
+            if r_leader in ('ravh830'):
                 pass
             r_ts_head = dic_rplatoon_et_valid[r_leader][1] # ramp platoon head timestamp
             dic_mplatoon_tail_et_asc = sorted(dic_mplatoon_tail_et.items(),
@@ -460,7 +495,10 @@ class MergingControlRegular:
                 ls_action = self.dic_leader_action_updated.get(leader)
             else: # first time to emerge, align the action start time (ls_action[-1]) to c_ts
                 self.dic_leader_action_emerged[leader] = ls_action  # record this emerged
-                if ls_action[-1] != c_ts:
+
+                if not ls_action:
+                    pass
+                elif ls_action[-1] != c_ts:
                     ls_action[-1] = c_ts # update action start time to current time
                 self.dic_leader_action_updated[leader] = ls_action # record updated version
 
@@ -523,7 +561,8 @@ class MergingControlRegular:
         :param D: distance
         :return: travel time
         """
-        t_acc = (self.max_speed - v0)/self.amax # reach max_speed's spending time
+        max_speed = self.speed_level3 if self.ml else self.max_speed
+        t_acc = (max_speed - v0)/self.amax # reach max_speed's spending time
         d_acc = v0*t_acc + 0.5*self.amax*t_acc**2 # reach max_speed's needing dis
         if D == d_acc:
             travel_time = t_acc
@@ -531,7 +570,7 @@ class MergingControlRegular:
             # a bug here already fixed: self.amax*d_acc => self.amax*D
             travel_time = (-v0 + math.sqrt(v0**2 + 2 * self.amax * D)) / self.amax
         else: # D > d_acc
-            t_uni = (D-d_acc)/self.max_speed
+            t_uni = (D-d_acc)/max_speed
             travel_time = t_uni+t_acc
         return travel_time
 
@@ -671,9 +710,13 @@ class MergingControlRegular:
             del self.dic_rm_leader_map[key]
 
     def _compare_delay_loss(self):
+        '''
+        Params: dic_rm_leader_actor = {(r_leader: m_leader): r_leader, ...}
+
+        '''
         for r_leader, m_leader in self.dic_rm_leader_map.items():
             if r_leader is not None and m_leader is not None:  # make sure r_leader/m_leader is not None
-                if r_leader == 'ravh2410':
+                if r_leader == 'ravh1990':
                     pass
                 ts_rp_head = self.dic_rplatoon_et[r_leader][1] # ramp platoon leader (head) estimate arrival timestamp (head_tr)
                 ts_rp_tail = self.dic_rplatoon_et[r_leader][2] # tail time (tail_tr)

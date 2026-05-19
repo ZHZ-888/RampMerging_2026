@@ -20,14 +20,8 @@ class PlatoonSparseHandler:
         self.fs_model = joblib.load(
             os.path.join(project_root, 'rf_models', 'follower_state_prediction_model_251121_ndarray.pkl'))
 
-        self.dic_id_features = {}  # {id:[f1, f2,..., ], ...}
-        self.dic_id_preState = {}  # Predicted state of each follower
-        # Track last leader for each follower to detect leader changes
-        self.dic_fol_last_leader = {}
-        self.dic_leader_free_triggered = {}
-
     # TODO: Optimise prediction efficiency—consider batch processing or caching leader lookups to reduce computational burden when processing many HV followers
-    def predict_flw_state(self, dic_id_type, ls_vehid, model=False):
+    def predict_flw_state_discard(self, dic_id_type, ls_vehid, model=False):
         """
         Updated platoon-wise prediction:
         - Add per-follower last leader mapping in `self.dic_fol_last_leader`.
@@ -35,6 +29,7 @@ class PlatoonSparseHandler:
         - Scan vehicles newest -> oldest and (re)predict any follower that is new or whose leader changed.
 
         Params:
+        - dic_id_type/dic_tags
         - ls_vehid: tuple, all vehicle in this step
         - dic_fol_last_leader: {follower : last_leader, ...}
         """
@@ -97,7 +92,7 @@ class PlatoonSparseHandler:
 
         return self.dic_id_preState, self.dic_id_features
 
-    def get_RFfeatures(self, new_follower_id):
+    def get_RFfeatures_discard(self, new_follower_id):
         '''
         get Random Forest features of new_follower_id
         :return: df_select_features
@@ -173,8 +168,6 @@ class PlatoonSparseHandler:
         :return:
         '''
         for sparse_leader, first_free_follower in dic_sparse_platoon.items():
-            if sparse_leader == 'mav6916':
-                pass
             platoon_members = dic_platoon_members[sparse_leader]
             idx_first_free = platoon_members.index(first_free_follower)
             ls_following_fol = platoon_members[1:idx_first_free]
@@ -193,7 +186,8 @@ class PlatoonSparseHandler:
             self.p_basic.dic_AVroleChange[promote_av] = 'free_promote'
             self.free_triggered = True
             # Remove prediction state since it's now a leader
-            self.dic_id_preState.pop(promote_av, None)
+            self.p_basic.dic_id_preState.pop(promote_av, None)
+            # self.dic_id_preState.pop(promote_av, None)
         return
 
     def filter_out_AV_followers(self, dic_sparse_platoon, dic_platoon_members):

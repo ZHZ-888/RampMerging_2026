@@ -74,7 +74,7 @@ def _generate_type_num4(av_percentage, flow_rate, simulation_time, platoon_perce
     :param tries: number of attempts to optimize AV/HV allocation
     :other param: lambda_val controls average follower count per AV-led platoon
                   More AVs → smaller lambda (shorter platoons); fewer AVs → larger lambda
-    :return: dic_tn =  {'1 lead 0': (count, av_follower_num), '1 lead 1': (count, av_follower_num), ...}
+    :return: dic_type_count =  {'1 lead 0': (count, av_follower_num), '1 lead 1': (count, av_follower_num), ...}
     '''
     total_veh_num = int((flow_rate * simulation_time) / 3600)
     # number of free HV
@@ -165,7 +165,7 @@ def generate_dt(dic_type_num, simulation_time, interval=0, seed=None):
     Parameters
     ----------
     dic_type_num : dict
-        dic_tn =  {'1 lead 0': (count, av_follower_num), '1 lead 1': (count, av_follower_num), ...}
+        dic_type_count =  {'1 lead 0': (count, av_follower_num), '1 lead 1': (count, av_follower_num), ...}
     simulation_time : int
         The total simulation time.
     interval : int, optional
@@ -255,7 +255,7 @@ def find_max_interval2(simulation_time, dic_type_num):
     max_interval = (simulation_time - total_veh_num) // (fleet_num - 1)
     return max_interval
 
-def find_optimse_schedule2(dic_tn, st, max_interval, max_attempts=5, seed=None):
+def find_optimse_schedule2(dic_type_count, st, max_interval, max_attempts=5, seed=None):
     '''
     include generate_dt()
 
@@ -265,7 +265,7 @@ def find_optimse_schedule2(dic_tn, st, max_interval, max_attempts=5, seed=None):
 
     Parameters
     ----------
-    dic_tn : TYPE
+    dic_type_count : TYPE
         {'1 lead 0': (count, av_follower_num), '1 lead 1': (count, av_follower_num), ...}
     st : TYPE
         simulation time (seconds).
@@ -287,7 +287,7 @@ def find_optimse_schedule2(dic_tn, st, max_interval, max_attempts=5, seed=None):
     while max_interval >= 0:
         for attempt in tqdm(range(max_attempts), desc=f"Trying interval {max_interval}"):
             try:
-                r = generate_dt(dic_tn, st, max_interval, seed)
+                r = generate_dt(dic_type_count, st, max_interval, seed)
             except:
                 r = None
             if r is not None:
@@ -334,7 +334,7 @@ def convert2(dp_times_dict, dp_times):
     sorted_dic_dpt_type = dict(sorted(dic_dpt_type.items()))
     return sorted_dic_dpt_type
 
-def recombine(dic_dpt_type, n=3):
+def recombine(dic_dpt_type, n=5):
     '''
     New 24.06.14
     combine nearby fleet, if the veh number of fleet are too small.
@@ -631,15 +631,16 @@ def get_schedule2(st, av_p, fr, platoon_p=1, max_attempts=5, plot=False, seed=No
            av_p:
            fr:
            platoon_p: default 1
-           dic_tn: dict of platoon type and number
+           dic_type_count: dict of platoon type and number
     :return: dic of departure_time and fleet_type => {t1:'h', t2:'AAH', ...}; h=>free_HV
     """
     if fr == 0:
         return {}
-    dic_tn, followerAV_num, freeHV_num = _generate_type_num4(av_percentage=av_p, flow_rate=fr, simulation_time=st,
-                                                            platoon_percentage=platoon_p, seed=seed)
-    max_interval = find_max_interval2(st, dic_tn)
-    dp_times_dict, dp_times = find_optimse_schedule2(dic_tn, st, max_interval, \
+    dic_type_count, followerAV_num, freeHV_num = _generate_type_num4(
+        av_percentage=av_p, flow_rate=fr, simulation_time=st,
+        platoon_percentage=platoon_p, seed=seed)
+    max_interval = find_max_interval2(st, dic_type_count)
+    dp_times_dict, dp_times = find_optimse_schedule2(dic_type_count, st, max_interval, \
                                                      max_attempts=max_attempts, seed=seed)
     dic_dpt_type = convert2(dp_times_dict, dp_times)
     dic_dpt_type2 = recombine(dic_dpt_type) # dic_departure_time and fleet type
@@ -666,12 +667,12 @@ def get_schedule_dynamic(st, change_t, av_p, fr, platoon_p=1, max_attempts=5,
     :return:
     '''
     real_st = st - change_t # the total time for vehicle generation
-    dic_tn, followerAV_num, freeHV_num = _generate_type_num4(av_percentage=av_p, flow_rate=fr,
+    dic_type_count, followerAV_num, freeHV_num = _generate_type_num4(av_percentage=av_p, flow_rate=fr,
                                                             simulation_time=real_st,
                                                             platoon_percentage=platoon_p,
                                                             seed=seed)
-    max_interval = find_max_interval2(real_st, dic_tn)
-    dp_times_dict, dp_times = find_optimse_schedule2(dic_tn, real_st, max_interval, \
+    max_interval = find_max_interval2(real_st, dic_type_count)
+    dp_times_dict, dp_times = find_optimse_schedule2(dic_type_count, real_st, max_interval, \
                                                     max_attempts=max_attempts, seed=seed)
     dic_dpt_type = convert2(dp_times_dict, dp_times)
     dic_dpt_type2 = recombine(dic_dpt_type)  # dic_departure_time and fleet type
@@ -811,7 +812,6 @@ class VehGen:
             self.traci.vehicle.setSpeedMode(vehicle_id, 0b011111)  # default, consider all inspection
 
 
-
     def get_schedule_startT(start_t, p, fr, max_attempts, plot=False, seed=None, display=False):
         '''
         100324updated: from set start time generate vehicle
@@ -826,9 +826,9 @@ class VehGen:
         '''
         st = 1200
         real_st = st - start_t
-        dic_tn = generate_type_num2(percentage=p, flow_rate=fr, simulation_time=real_st, seed=seed)
-        max_interval, ls_dt = find_max_interval(real_st, dic_tn)
-        dp_times_dict, dp_times = find_optimse_schedule(dic_tn, real_st, max_interval, \
+        dic_type_count = generate_type_num2(percentage=p, flow_rate=fr, simulation_time=real_st, seed=seed)
+        max_interval, ls_dt = find_max_interval(real_st, dic_type_count)
+        dp_times_dict, dp_times = find_optimse_schedule(dic_type_count, real_st, max_interval, \
                                                         max_attempts=max_attempts, seed=seed)
         dic_time_type = convert(dp_times_dict, dp_times)
         result = recombine(dic_time_type)  # dic_departure_time and fleet type
@@ -1021,24 +1021,24 @@ class VehGen:
                 # Note: Ensure that add_vehicle() supports 'veh_type' as a parameter
                 self.add_vehicle(veh_id, veh_route, dp_speed, hv_type)
 
-    def get_avhid_ptype(self, m_dpt_type=None, r_dpt_type=None):
-        '''
-         get av head id and it's platoon type
-
-        :param m_dpt_type: {4: 'AHHHHHHHHH', 31: 'AHHHHHHHHHHH'}
-        :param r_dpt_type:
-        :return:  {'mavh40': 'AHHHHHHHHH', 'mavh310': 'AHHHHHHHHHHH', 'mavh580': 'AHHHHHHHH'}
-        '''
-        dic_avhid_ptype = {}
-        if m_dpt_type:
-            for key, value in m_dpt_type.items():
-                id1 = 'mavh' + str(key*10)
-                dic_avhid_ptype[id1] = value
-        if r_dpt_type:
-            for key, value in r_dpt_type.items():
-                id2 = 'ravh' + str(key*10)
-                dic_avhid_ptype[id2] = value
-        return dic_avhid_ptype
+    # def get_avhid_ptype(self, m_dpt_type=None, r_dpt_type=None):
+    #     '''
+    #      get av head id and it's platoon type
+    #
+    #     :param m_dpt_type: {4: 'AHHHHHHHHH', 31: 'AHHHHHHHHHHH'}
+    #     :param r_dpt_type:
+    #     :return:  {'mavh40': 'AHHHHHHHHH', 'mavh310': 'AHHHHHHHHHHH', 'mavh580': 'AHHHHHHHH'}
+    #     '''
+    #     dic_avhid_ptype = {}
+    #     if m_dpt_type:
+    #         for key, value in m_dpt_type.items():
+    #             id1 = 'mavh' + str(key*10)
+    #             dic_avhid_ptype[id1] = value
+    #     if r_dpt_type:
+    #         for key, value in r_dpt_type.items():
+    #             id2 = 'ravh' + str(key*10)
+    #             dic_avhid_ptype[id2] = value
+    #     return dic_avhid_ptype
 
 
 if __name__ == '__main__':

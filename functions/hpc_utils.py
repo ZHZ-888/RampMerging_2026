@@ -57,7 +57,7 @@ def get_mc_indicator(speed_log, tp, ssm_path, runtime):
           f'ttc_ratio_2: {ttc_ratio_2}, '
           f'ttc_ratio_1.5: {ttc_ratio_1}, '
           f'execution_time:{runtime:.1f} s')
-    return tp, average_v, ttc_ratio_2, runtime
+    return tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime
 
 def get_mc_indicator_ori(speed_log, tp, xml_path, runtime):
     """Calculates performance indicators after simulation."""
@@ -84,7 +84,6 @@ def get_fc_indicator(dic_follower_state, his_dic_platoon_size):
     num_follower = len(dic_follower_state)
     num_platoon_follower = len([k for k, v in dic_follower_state.items() if v[0] == 'following_mode'])
     print("\n           ---formation control performance indicators---")
-
     print(f"index1: {num_platoon_follower} platoon_followers, {num_follower} followers, "
           f"ratio: {num_platoon_follower / num_follower * 100:.1f}%")
     ca_indicator = round(num_platoon_follower / num_follower, 3)

@@ -142,6 +142,8 @@ class PlatoonLaneManager:
         # avoid the first emerged AV jump to outer lane
         ls_leader_AV_filtered = ls_leader_AV[:-1]
         for leader_id in ls_leader_AV_filtered:
+            if leader_id == 'm_av1489':
+                pass
             # Check if the AV leader has no followers
             followers = dic_platoon_members.get(leader_id, [])[1:]  # Exclude the leader itself
             if not followers:
@@ -151,7 +153,7 @@ class PlatoonLaneManager:
                     # Ensure the AV is in the outter lane (lane 0)
                     if current_lane == 0:
                         # Command the AV leader to change to the inner lane (e.g., lane 1)
-                        self.traci.vehicle.changeLane(leader_id, 1, 3)  # Duration of 3 seconds, from lane 0 to lane 1
+                        self.traci.vehicle.changeLane(leader_id, 1, 30)  # Duration of 3 seconds, from lane 0 to lane 1
                         # Reset the speed to the maximum speed setting
                         self.traci.vehicle.setMaxSpeed(leader_id, self.max_speed)
                 except Exception as e:
@@ -179,23 +181,26 @@ class PlatoonLaneManager:
         encourage_av_fol_to_out_lane
         Parameters
         ----------
+        self.std_leaders_done:
         dic_standard_platoon
 
         Returns
         -------
         '''
-
-        if len(dic_standard_platoon) < 2:
-            return
         ordered = [k for k in ls_leader_AV if k in dic_standard_platoon]
+        if len(ordered) < 2:
+            return
+
         second_to_last_leader = ordered[-2]
         if second_to_last_leader in self.std_leaders_done:
             return
         members = dic_standard_platoon.get(second_to_last_leader, [])
         followers = members[1:]
         for fol in followers:
+            if fol == 'm_av1489':
+                pass
             if 'av' in fol:
-                self.traci.vehicle.changeLane(fol, 1, 3)
+                self.traci.vehicle.changeLane(fol, 1, 30)
         self.std_leaders_done.add(second_to_last_leader) # avoid repeat loop
 
     def _disable_keepRight_in_weaving(self, ls_ihAB_hv, ls_wsBC_hv):

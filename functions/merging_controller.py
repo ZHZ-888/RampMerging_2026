@@ -39,7 +39,7 @@ class MergingController:
 
         :return:
         '''
-        if step == 694:
+        if step == 360:
             pass
         c_ts = round(step/10 + 0.1, 1)
 
@@ -59,16 +59,13 @@ class MergingController:
         ls_r_veh_net_last_asc = dic_vid_groups['ls_r_veh_net_last_asc']
         ls_r_leader_up = dic_vid_groups['ls_r_leader_up']
         ls_r_leader_up_asc = dic_vid_groups['ls_r_leader_up_asc']  # min => max
-        ls_r_veh_up = dic_vid_groups['ls_r_veh_up']
         ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']  # min => max
         ls_m_veh_up = dic_vid_groups['ls_m_veh_up']
         ls_wsA = dic_vid_groups['ls_wsA']
         ls_wsB = dic_vid_groups['ls_wsB']
 
         # === 2. Platoon info (scripts + ramp) ===
-        dic_platoon_info = self.merge_regular.get_platoon_info2(step,
-                                                                m_dpt_type=m_dpt_type,
-                                                                r_dpt_type=r_dpt_type)
+        dic_platoon_info = self.merge_regular.get_platoon_info2()
 
         # get throughput on 'center'
         tp = self.data_recorder.record_throughput(st, ls_veh_id, 'center')  # throughput
@@ -91,8 +88,8 @@ class MergingController:
             ls_wsA,
             ls_r_leader_up)
 
-        # jam_mode = True
-        # regular_mode = False
+        # jam_mode = False
+        # regular_mode = True
         # self.merge_regular.set_veh_color()
 
         # === 4. Apply corresponding control logic ===
@@ -115,7 +112,7 @@ class MergingController:
             # Regular mode control
             queue_log = []
             dic_rplatoon_et = self.merge_regular.update_platoon_et(step, ls_r_leader_up_asc, m=False,
-                                                                   interval=self.mpc_interval)
+                                                                   interval=self.mpc_interval) # get ramp platoon ET
 
             if c_ts % 1 == 0: prc.print_message('**in regular mode**')
 

@@ -168,7 +168,7 @@ def main(args=None, root=None):
     end = time.time()
     runtime = end - start
 
-    tp, average_v, ttc_ratio, avg_speed_std, runtime = (
+    tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
         hpc_utils.get_mc_indicator(speed_log, tp, ssm_path, runtime))
 
     # 3. Save results
@@ -180,8 +180,9 @@ def main(args=None, root=None):
             "seed": parsed_args.seed,
             "throughput": tp,
             "avg_speed": average_v,
-            "ttc_ratio": ttc_ratio,
-            "avg_speed_std": avg_speed_std,
+            "ttc_ratio_3": ttc_ratio_3,
+            "ttc_ratio_2": ttc_ratio_2,
+            "ttc_ratio_1": ttc_ratio_1,
             "runtime": runtime
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
@@ -192,9 +193,9 @@ if __name__ == '__main__':
     start = time.time()
     speed_log, tp, xml_path, ssm_path = rm_main(
         av_p = 0,
-        r_fr = 1300,
+        r_fr = 800,
         m_fr = 1500,
-        seed = 6,
+        seed = 3,
         gui = False,
         plot = False,
         display = False,

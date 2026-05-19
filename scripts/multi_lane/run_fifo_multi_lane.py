@@ -139,7 +139,7 @@ def main(args=None, root=None):
     end = time.time()
     runtime = end - start
 
-    tp, average_v, ttc_ratio, runtime = (
+    tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
         hpc_utils.get_mc_indicator(speed_log, tp, ssm_path, runtime))
     # 3. Save results
     if parsed_args.out_csv:
@@ -150,7 +150,9 @@ def main(args=None, root=None):
             "seed": parsed_args.seed,
             "throughput": tp,
             "avg_speed": average_v,
-            "ttc_ratio": ttc_ratio,
+            "ttc_ratio_3": ttc_ratio_3,
+            "ttc_ratio_2": ttc_ratio_2,
+            "ttc_ratio_1": ttc_ratio_1,
             "runtime": runtime
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
@@ -161,9 +163,9 @@ if __name__ == '__main__':
     start = time.time()
     speed_log, tp, xml_path, ssm_path = fifo_main(
         av_p = 0,
-        r_fr = 1300, # 1300
+        r_fr = 800, # 1300
         m_fr = 1500,
-        seed = 6,
+        seed = 3,
         gui = False,
         plot = False,
         display = False,
