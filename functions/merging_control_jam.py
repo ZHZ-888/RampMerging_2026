@@ -853,26 +853,21 @@ class MergingControlJam:
 
         '''
         c_ts = round(step / 10 + 0.1, 1)
+        c_ts % 1 == 0 and prc.print_message('**in jam mode**')
         self.dic_vid_groups = dic_vid_groups
-        prc.print_message('**in jam mode**')
         # Stop r_leader (the first one)
         first_r_leader = self._stop_ramp_fleet3(dic_platoon_info)  # first r_leader id
         self._check_resume_state4(dic_platoon_info) # 241003update
         # Get ramp fleet travel time (from stop to pass intersection)
         dic_r_platoon_travel_time = self._get_ramp_platoon_merge_duration(dic_platoon_info)
-        # dic_max_interval = self._get_max_interval8(ls_m_leader_up_asc, ls_m_veh_up)
         dic_max_interval = self._get_max_interval_upper(self.ml, ls_m_leader_up_asc, ls_m_veh_up)
         m_leader, max_interval, final_rp_pass_time = self._compare3(dic_max_interval, dic_r_platoon_travel_time)
 
         # m_leader take action; m_leader_acting = True/False
-        # action_params = self._get_mavh_action(step, first_r_leader, final_rp_pass_time, m_leader,
-        #                                          max_interval, mpc_interval, delta_t) # MPC interval = 6s
         action_params = self._get_m_leader_action(step, first_r_leader, final_rp_pass_time, m_leader,
                                                   max_interval, mpc_interval, delta_t)  # MPC interval = 6s
         if action_params and any(action_params.values()) and action_params != self.last_action_params:
             self.action_buffer.push(step, action_params)
-        # action_pay_load = self._push_if_not_redundant(step, action_params,
-        #                                               self.action_buffer, 'last_action_payload')
         action_pay_load = self.action_buffer.maybe_release(step)
         if action_pay_load and any(action_pay_load.values()):
             self.m_action_params = action_pay_load
@@ -880,7 +875,8 @@ class MergingControlJam:
         action_m_leader = self._apply_m_leader_control(step, self.m_action_params) # pay_load = dic_m_leader_action_params
         timing = self._find_timing6(step, m_leader, action_m_leader, max_interval, final_rp_pass_time)
         if timing:
-            pass
+            self.timing_buffer.push(step, timing)
+        timing = self.timing_buffer.maybe_release(step)
         # record ramp queue length
         ls_r_proper = self._get_r_proper()
         queue_log = self.data_recorder.get_queue_length(step, ls_r_proper, ls_r_dep_times)

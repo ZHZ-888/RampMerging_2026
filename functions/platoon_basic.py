@@ -745,24 +745,17 @@ class PlatoonBasic:
         min_speed = 0.1  # avoid division by zero
 
         p_veh_info = self.traci.vehicle.getLeader(veh_id)
-
         if p_veh_info is None:
             return "free_mode"
-
         pv_id, gap = p_veh_info
-
         veh_speed = self.data_recorder.get_vid_states(veh_id)['v']
         pv_speed = self.data_recorder.get_vid_states(pv_id)['v']
-
         time_headway = gap / max(veh_speed, min_speed)
         speed_diff = abs(veh_speed - pv_speed)
-
         is_close_enough = time_headway <= headway_threshold
         is_speed_consistent = speed_diff <= speed_diff_threshold
-
         if is_close_enough and is_speed_consistent:
             return "following_mode"
-
         return "free_mode"
 
     def _get_final_platoon_info(self, step, dic_follower_state):

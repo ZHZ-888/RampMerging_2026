@@ -46,12 +46,28 @@ class UpdateDelayBuffer:
             delay = random.randint(min_steps, max_steps)
             release_step = current_step + delay
             # this is the only difference between push_ori and push
-            # if (payload, release_step) in self.buffer:
-            #     prc.print_message(f"[SKIP] Duplicate entry: ({payload}, {release_step})")
-            #     return
             if any(p == payload for p, _ in self.buffer):
                 prc.print_message(f"[SKIP] Duplicate entry: ({payload}, {release_step})")
                 return
+
+            prc.print_message(f"\n[SEND] Step {current_step}: Generated command → {payload}")
+            if random.random() < self.loss_rate:
+                # print(f"[DROP] Payload lost: {payload}")
+                prc.print_message("[DROP] Payload lost")
+                return
+
+            prc.print_message(f"[DELAY] {delay} for command → {payload}")
+            self.buffer.append((payload, release_step))
+
+    def push_timing(self, current_step, payload): # only in jam_control
+        """Decide delay (release_step) and store payload if not dropped
+        latency (delay): 0.05~0.2 s
+        """
+        if payload:
+            min_steps = int(0.05 / self.sim_step)
+            max_steps = int(0.2 / self.sim_step)
+            delay = random.randint(min_steps, max_steps)
+            release_step = current_step + delay
 
             prc.print_message(f"\n[SEND] Step {current_step}: Generated command → {payload}")
             if random.random() < self.loss_rate:
