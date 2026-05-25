@@ -80,6 +80,8 @@ class AgentHandler:
             return {}
 
         for oversize_leader in dic_oversized_platoon_states:
+            if oversize_leader == 'm_av2494':
+                pass
             if oversize_leader in self.ls_splited_platoon or oversize_leader not in dic_leader_candidates:
                 continue
 
@@ -284,6 +286,8 @@ class AgentHandler:
         platoon_states = dic_oversized_platoon_states[leader_id]
 
         for av_id in ls_candidateAV:
+            if av_id == 'mb_av3310':
+                pass
             state = self.agent.state_builder.build_state2(av_id, pMember, platoon_states, ls_upA)
             score = self.agent.predict_score(state)
             if score > best_score:
@@ -291,6 +295,7 @@ class AgentHandler:
                 selected_av = av_id
                 selected_state = state
 
+        gating_value = 0 if len(pMember) > 20 else gating_value
         if gating_value is not None and best_score < gating_value:
             return None, None, best_score
         self.dic_score_reward[selected_av] = [score]

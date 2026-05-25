@@ -20,7 +20,7 @@ from functions import data_recording as dr
 from functions import hpc_utils
 
 
-def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0.15,
+def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0,
               gui=False, plot=False, display=False, lc=True, st=1200):
     set_global_seed(seed, enable=True)  # set global random seed (especially for RL training)
     # SUMO SETTING
@@ -101,7 +101,7 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
     # scripts loop
     while step < st * 10:
         # checkpoint
-        if step > 205 * 10:
+        if step > 280 * 10:
              pass
         traci.simulationStep()  # start simulation
 
@@ -216,7 +216,7 @@ if __name__ == '__main__':
         av_p = 0.1, # 0.1
         r_fr = 1300, # 1300
         m_fr = 1500, # 1500
-        seed = 2, # 4
+        seed = 4, # 1
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles
         loss_rate = 0.15, # 0.15

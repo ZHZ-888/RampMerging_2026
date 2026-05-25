@@ -11,9 +11,9 @@
     <!-- VTypes -->
     <vType id="av" minGap="1.50" maxSpeed="27.78" color="red" carFollowModel="IDM" tau="0.5"/>
 
-    <vType id="hv_agg" minGap="2.00" maxSpeed="27.78" color="white" carFollowModel="Krauss" accel="3.2" decel="5.0" sigma="0.3" startupDelay="0.4" tau="0.6"/>
+    <vType id="hv_agg" minGap="2.00" maxSpeed="27.78" color="white" carFollowModel="Krauss" accel="3.2" decel="5.0" sigma="0.3" startupDelay="0.4" tau="0.8"/>
     <vType id="hv_mean" minGap="2.50" maxSpeed="27.78" color="white" carFollowModel="Krauss" accel="2.6" decel="4.5" sigma="0.5" startupDelay="0.8" tau="1"/>
-    <vType id="hv_cons" minGap="3.00" maxSpeed="27.78" color="white" carFollowModel="Krauss" accel="2.2" decel="4.0" sigma="0.7" startupDelay="1.2" tau="2"/>
+    <vType id="hv_cons" minGap="3.00" maxSpeed="27.78" color="white" carFollowModel="Krauss" accel="2.2" decel="4.0" sigma="0.7" startupDelay="1.2" tau="1.5"/>
     
     <vType id="idm" maxSpeed="27.78" color="white" carFollowModel="IDM" startupDelay="0.5"/>
     <vType id="krauss" maxSpeed="27.78" color="white" carFollowModel="Krauss" sigma="0.5" startupDelay="1"/>

@@ -1,19 +1,17 @@
 class DetectorStateRecogniser:
     """
-    Detector-based follower state recogniser.
+    Detector-based vehicle count.
 
     This class uses SUMO induction loop detectors located at the entrance of
-    the merging control zone.
+    the merging control zone (MCZ).
 
     The recogniser does not require HV driving-style parameters, real-time HV
     speed, or continuous spacing information. It only uses the vehicle passing
     time at the detector and the ordered platoon member list.
 
-    State logic:
-    - If a follower's temporal headway to its preceding platoon member is no
-      greater than the threshold, it is classified as following_mode.
-    - If one follower becomes free_mode, all vehicles behind it in the same
-      platoon are also classified as free_mode.
+    Logic:
+    Count the vehicle number after a leader;
+
     """
 
     def __init__(self, traci, detector_ids, temporal_headway_threshold=3.0):
@@ -49,7 +47,7 @@ class DetectorStateRecogniser:
                 Format: {leader_id: [leader_id, follower1, follower2, ...]}
         """
 
-        current_time = round(step/10 + 0.1, 1)
+        c_ts = round(step/10 + 0.1, 1)
 
         # Step 1: Record vehicles that passed the detector in the last step
         for detector_id in self.detector_ids:
@@ -63,7 +61,7 @@ class DetectorStateRecogniser:
             for veh_id in passed_vehicle_ids:
                 # Record the first detector passing time only
                 if veh_id not in self.dic_pass_time:
-                    self.dic_pass_time[veh_id] = current_time
+                    self.dic_pass_time[veh_id] = c_ts
 
         # Step 2: Update platoon states based on detector passing times
         self._update_platoon_member_states(dic_platoon_members)

@@ -109,6 +109,10 @@ class MergingController:
             )  # queue_length
 
         elif regular_mode:
+            # for cooldown function: reset jam_mode parameters
+            self.merge_jam.jam_mode_start_ts = None
+            self.merge_jam.first_ramp_stop_ts = None
+            self.merge_jam.stop_times = {}
             # Regular mode control
             queue_log = []
             dic_rplatoon_et = self.merge_regular.update_platoon_et(step, ls_r_leader_up_asc, m=False,

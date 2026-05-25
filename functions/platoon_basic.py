@@ -71,7 +71,7 @@ class PlatoonBasic:
 
         ls_ihA_asc = ls_ihA[::-1]
         for leader in ls_leader:
-            idx_ih = ls_ihA_asc.index(leader)  # idx on inflow_highway_0 (inner)
+            idx_ih = ls_ihA_asc.index(leader)  # idx on inflow_highway_0 (outer)
             dic_leaderAV_index[leader] = idx_ih
 
         # get leader's corresponding size
@@ -347,11 +347,13 @@ class PlatoonBasic:
                     state_check = self._check_state(fol)
                     state_pre = dic_id_preState.get(fol)
                     state = state_check if self.check else state_pre
-                    if state == 'free_mode' or 0:
+                    if state in ('free_mode', 0):
                         all_following = False
                         break
 
                 if all_following:
+                    if leader == 'mb_av2807':
+                        pass
                     # Platoon is intact, leader accelerates
                     self.traci.vehicle.setMaxSpeed(leader, speed_level3)
                     for fol in ls_followers: # record followers's state as '1' (following mode)
@@ -390,6 +392,7 @@ class PlatoonBasic:
 
     def record_follower_state2(self, step, dic_id_preState):
         """
+        original name "record_follower_state2"
         When an AV leader enters the merging control section for the first time,
         record the current states (free_mode / following_mode) of all its platoon followers.
 
@@ -413,13 +416,55 @@ class PlatoonBasic:
         # 3. Record the state of each follower at the moment the leader enters 800m
         free_mode_detected = False # detect any free_mode fol, then all fol (same leader) behind it are in free_mode
         for fol in platoon_followers:
+            if fol == 'm_hv_cons977':
+                pass
+            state_check = self._check_state(fol)  # Determine free_mode or following_mode
+            state_pre = dic_id_preState.get(fol)
+            state = state_check if self.check else state_pre
+            if free_mode_detected or state in ('free_mode', 0):
+                state = 'free_mode'
+                free_mode_detected = True
+            self.dic_follower_state[fol] = [state, leader_mc_newest]
+        self.data_recorder.dic_follower_state = self.dic_follower_state
+        # record final platoon information
+        self._get_final_platoon_info(step, self.dic_follower_state)
+        return self.dic_follower_state, self.dic_final_platoon_info # change to leftmost lane and keep until the end of the road
+
+    def record_follower_state_new(self, step, ls_leader_AV, dic_id_preState):
+        """
+        original name "record_follower_state2"
+        When an AV leader enters the merging control section for the first time,
+        record the current states (free_mode / following_mode) of all its platoon followers.
+
+        :param
+        :return: self.dic_follower_state: {follower_id: [state, leader_id]}
+                 self.dic_final_platoon_info: {66: 'AHHHHHHH', 138: 'AHHHHHH', 174: 'AH', 177: 'AHH'}
+        """
+        # No leader in the PFZ section
+        if not ls_leader_AV:
+            return self.dic_follower_state, self.dic_final_platoon_info
+        # Take the most recently arrived leader
+        leader_pfz_newest = ls_leader_AV[-1]
+
+        # Ensure this leader is recorded only once
+        if leader_pfz_newest in self.ls_leader_fol_states_checked:
+            return self.dic_follower_state, self.dic_final_platoon_info
+        self.ls_leader_fol_states_checked.append(leader_pfz_newest)
+
+        # 2. Retrieve all followers belonging to this leader's platoon
+        platoon_followers = self.dic_platoon_members.get(leader_pfz_newest, [])[1:]
+        # 3. Record the state of each follower at the moment the leader enters 800m
+        free_mode_detected = False # detect any free_mode fol, then all fol (same leader) behind it are in free_mode
+        for fol in platoon_followers:
+            if fol == 'm_hv_cons977':
+                pass
             state_check = self._check_state(fol)  # Determine free_mode or following_mode
             state_pre = dic_id_preState.get(fol)
             state = state_check if self.check else state_pre
             if free_mode_detected or state == ('free_mode' or 0):
                 state = 'free_mode'
                 free_mode_detected = True
-            self.dic_follower_state[fol] = [state, leader_mc_newest]
+            self.dic_follower_state[fol] = [state, leader_pfz_newest]
         self.data_recorder.dic_follower_state = self.dic_follower_state
         # record final platoon information
         self._get_final_platoon_info(step, self.dic_follower_state)
@@ -452,7 +497,7 @@ class PlatoonBasic:
         free_mode_detected = False # detect any free_mode fol, then all fol (same leader) behind it are in free_mode
         for fol in platoon_followers:
             state = self._check_state(fol)  # Determine free_mode or following_mode
-            if free_mode_detected or state == ('free_mode' or 0):
+            if free_mode_detected or state in ('free_mode', 0):
                 state = 'free_mode'
                 free_mode_detected = True
             self.dic_follower_state_sensor[fol] = [state, leader_mc_newest]

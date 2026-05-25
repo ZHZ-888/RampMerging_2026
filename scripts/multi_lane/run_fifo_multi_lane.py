@@ -14,7 +14,7 @@ from functions import data_recording as dr
 from functions import hpc_utils
 
 def fifo_main(av_p, r_fr, m_fr, seed,
-         gui=False, plot=False, display=False, st=1200):
+              gui=False, plot=False, display=False, st=1200):
     """
     Main simulation logic
     """
@@ -163,9 +163,9 @@ if __name__ == '__main__':
     start = time.time()
     speed_log, tp, xml_path, ssm_path = fifo_main(
         av_p = 0,
-        r_fr = 800, # 1300
+        r_fr = 1300, # 1300
         m_fr = 1500,
-        seed = 3,
+        seed = 2,
         gui = False,
         plot = False,
         display = False,

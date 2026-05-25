@@ -76,11 +76,15 @@ class MergingControlRegular:
         :return:
             dic_mplatoon_et ={m_vid, [platoon_type, ts_head, ts_tail, c_ts]}
         '''
-        if step % interval == 0:
+        key = '_prev_ls_m_leader_up' if m else '_prev_ls_r_leader_up'
+        prev_set = getattr(self, key, set())
+        curr_set = set(ls_leader_up)
+        new_leaders = curr_set - prev_set
+        new_leader_flag = len(new_leaders) > 0
+
+        if step % interval == 0 or new_leader_flag:
             c_ts = round(step / 10 + 0.1, 1)
             for leader in ls_leader_up:
-                if leader == 'm_av1104':
-                    pass
                 platoon_type = self.data_recorder.dic_leader_ptype.get(leader, "A")
                 if platoon_type is None:
                     continue  # pass
@@ -110,7 +114,7 @@ class MergingControlRegular:
                 else:
                     self.dic_rplatoon_et[leader] = [platoon_type, ts_head, ts_tail, c_ts]
                     self.dic_rplatoon_et = self._fix_platoon_schedule(step, self.dic_rplatoon_et, gap=1)
-
+        setattr(self, key, curr_set)
         return self.dic_mplatoon_et if m else self.dic_rplatoon_et
 
     def _fix_platoon_schedule(self, step, dic_et, gap=1):

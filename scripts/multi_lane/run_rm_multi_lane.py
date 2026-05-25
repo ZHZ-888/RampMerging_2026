@@ -193,7 +193,7 @@ if __name__ == '__main__':
     start = time.time()
     speed_log, tp, xml_path, ssm_path = rm_main(
         av_p = 0,
-        r_fr = 800,
+        r_fr = 1100,
         m_fr = 1500,
         seed = 3,
         gui = False,
