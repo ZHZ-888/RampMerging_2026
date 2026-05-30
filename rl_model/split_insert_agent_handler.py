@@ -78,23 +78,18 @@ class AgentHandler:
         self.payload = None
         if not dic_oversized_platoon_states:
             return {}
-
         for oversize_leader in dic_oversized_platoon_states:
-            if oversize_leader == 'm_av2494':
-                pass
             if oversize_leader in self.ls_splited_platoon or oversize_leader not in dic_leader_candidates:
                 continue
-
-            selected_av, selected_state, score = (
-                self._evaluate_candidates(step, oversize_leader, dic_platoon_members,
-                                          dic_leader_candidates, dic_oversized_platoon_states,
-                                          ls_upA, gating_value))
+            selected_av, selected_state, score = self._evaluate_candidates(
+                step, oversize_leader, dic_platoon_members, dic_leader_candidates,
+                dic_oversized_platoon_states, ls_upA, gating_value)
 
             if selected_av and (self.last_update_payload_pair != {oversize_leader:selected_av}):
-                self.payload = (oversize_leader, selected_av, selected_state, dic_platoon_members, score)
+                self.payload = (oversize_leader, selected_av, selected_state,
+                                dic_platoon_members, score)
                 self.last_update_payload_pair = {oversize_leader: selected_av}
 
-        # self._release_insertion(step, payload, laneChange_buffer)
         return self.dic_insertedAV
 
     def release_insertion(self, step, laneChange_buffer):

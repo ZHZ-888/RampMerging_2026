@@ -128,7 +128,7 @@ class FreeInsertAgentHandler:
             if sparse_leader not in dic_sparse_platoons:
                 continue
             # Evaluate candidates and select best
-            selected_av, selected_state, best_score  = self._evaluate_candidates(
+            selected_av, selected_state, best_score = self._evaluate_candidates(
                 step, sparse_leader, dic_platoon_members, dic_sparse_platoons,
                 ls_candidates, ls_upA, gating_value)
 
@@ -373,6 +373,8 @@ class FreeInsertAgentHandler:
         sparse_snapshot: {sparse_leader: ori_followers} at decision time
         """
         try:
+            if selected_av == 'mb_av1738':
+                pass
             # Check if this sparse_leader is already being tracked
             if any(entry['sparse_leader'] == sparse_leader for entry in self.insert_buffer):
                 # print(f"[FreeInsert] {sparse_leader} already being tracked, skipping insertion")

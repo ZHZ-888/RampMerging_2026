@@ -36,7 +36,7 @@ class UpdateDelayBuffer:
             prc.print_message(f"[DELAY] {delay} for command → {payload}")
             self.buffer.append((payload, release_step))
 
-    def push(self, current_step, payload): # only in jam_control
+    def push(self, current_step, payload): # only in jam_control?
         """Decide delay (release_step) and store payload if not dropped
         latency (delay): 0.05~0.2 s
         """

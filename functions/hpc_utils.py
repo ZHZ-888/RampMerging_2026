@@ -76,8 +76,8 @@ def get_fc_indicator(dic_follower_state, his_dic_platoon_size):
     get formation control indicators
     Parameters
     ----------
-    dic_follower_state
-    his_dic_platoon_size
+    dic_follower_state: {'mhv48': ['following_mode', 'mav38'], 'mhv65': ['following_mode', 'mav38']}
+    his_dic_platoon_size: {'mav38': 11, 'mav278': 11, 'mav754': 11}; history of dic_platoon_size
     '''
     # PLATOON FORMATION results
     # indicator 1: num.platoon_followers/num.followers %

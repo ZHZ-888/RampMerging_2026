@@ -81,10 +81,14 @@ class MergingControlRegular:
         curr_set = set(ls_leader_up)
         new_leaders = curr_set - prev_set
         new_leader_flag = len(new_leaders) > 0
+        if new_leader_flag:
+            pass
 
         if step % interval == 0 or new_leader_flag:
             c_ts = round(step / 10 + 0.1, 1)
             for leader in ls_leader_up:
+                if leader == 'mb_av3470':
+                    pass
                 platoon_type = self.data_recorder.dic_leader_ptype.get(leader, "A")
                 if platoon_type is None:
                     continue  # pass
@@ -115,7 +119,7 @@ class MergingControlRegular:
                     self.dic_rplatoon_et[leader] = [platoon_type, ts_head, ts_tail, c_ts]
                     self.dic_rplatoon_et = self._fix_platoon_schedule(step, self.dic_rplatoon_et, gap=1)
         setattr(self, key, curr_set)
-        return self.dic_mplatoon_et if m else self.dic_rplatoon_et
+        return (self.dic_mplatoon_et, new_leader_flag) if m else (self.dic_rplatoon_et, new_leader_flag)
 
     def _fix_platoon_schedule(self, step, dic_et, gap=1):
         '''
@@ -325,7 +329,7 @@ class MergingControlRegular:
         else:
             prc.print_message(f"S2: leader can't arrive WS in {t} (eg: no conflict), \n"
              f"max_travel_dis_in_t {xx} < current_dis_to_WS {dis}")
-            ls_acc_profile = [0, self.amax]
+            ls_acc_profile = [None, self.amax]
             prc.print_message(f'action: apply_acc {self.amax}')
             return ls_acc_profile
 
@@ -440,44 +444,6 @@ class MergingControlRegular:
         self.ls_m_leaders_followup = sorted(self.ls_m_leaders_followup, key=lambda x: int(''.join(filter(str.isdigit, x))), reverse=True)
         self.ls_m_leaders_followup = list(dict.fromkeys(self.ls_m_leaders_followup)) # remove duplicates
         return(self.dic_m_leader_followup_action, self.ls_m_leaders_followup)
-
-    def apply_leader_action_ori(self, step, dic_leader_action):
-        '''
-
-        Parameters
-        ----------
-        step
-        dic_leader_action: {leader: [t1, a1, t3, a3, c_ts], ...}
-        '''
-        c_ts = round(step / 10 + 0.1, 1)
-        dic_vid_groups = self.data_recorder.dic_vid_groups
-
-        ls_mr_leader_up = dic_vid_groups['ls_mr_leader_up'] # all AVid that before merging
-        dic_leader_up_action = {leader: v for leader, v in dic_leader_action.items() if leader in ls_mr_leader_up}  # action_before Merging
-
-        for leader, ls_action in dic_leader_up_action.items():
-            if len(ls_action) > 3:
-                t1 = ls_action[0]
-                a1 = ls_action[1]
-                t3 = ls_action[2]
-                a3 = ls_action[3]
-                if c_ts < t1 + ls_action[-1]: # ls_action[-1] => the action start time
-                    dec_st = ls_action[-1] # dec start time
-                    if c_ts % 1 == 0:
-                        prc.print_message(f"{leader} in dec_phase!\n a1:{a1}, start_time:{dec_st}, current_time:{c_ts}")
-                    if a1 < 1:
-                        pass
-                    self._apply_acceleration(leader, a1, smooth=True)
-                else:
-                    acc_st = t1 + ls_action[-1] # acc started time
-                    if c_ts % 1 == 0:
-                        prc.print_message(f"{leader} in acc_phase!\n a3:{a3}, start_time:{acc_st}, current_time:{c_ts}") #\n => line break
-                    self._apply_acceleration(leader, a3, smooth=True)
-            else:
-                acc2 = 2.6
-                if c_ts % 1 == 0:
-                    prc.print_message(f"{leader} full speed up!\n acc:{acc2}, current_time:{c_ts}")
-                self._apply_acceleration(leader, acc2, smooth=True)
 
     def apply_leader_action(self, step, dic_leader_action):
         '''

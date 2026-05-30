@@ -77,7 +77,10 @@ print(f"\nPredicted Arrival Time for new data: {predicted_time[0]:.2f} seconds")
 
 #%% load model
 loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging4_250208/models/mr_arrival_prediction_model241128.pkl')
+loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging_2026/rf_models/mr_arrival_prediction_model260319_ndarray.pkl')
+
 ls_new_features = [4, 83.05, 24.04, 184.59, 0] # [3, 155.23, 24.74, 53.7524]
+ls_new_features =  [17, 96.22, 16.63, 799.32, 1]
 new_data = pd.DataFrame([ls_new_features],
                         columns=['platoon_type', 'dis_leader_pv', 'leader_v', 'leader_r_dis', 'm'])
 predicted_time = loaded_model.predict(new_data)

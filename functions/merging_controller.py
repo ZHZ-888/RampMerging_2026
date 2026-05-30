@@ -71,10 +71,11 @@ class MergingController:
         tp = self.data_recorder.record_throughput(st, ls_veh_id, 'center')  # throughput
 
         # Update mainline platoon ET
-        dic_mplatoon_et = self.merge_regular.update_platoon_et(step,
-                                                               ls_m_leader_up_asc,
-                                                               m=True,
-                                                               interval=self.mpc_interval)
+        dic_mplatoon_et, new_leader_flag = self.merge_regular.update_platoon_et(
+            step,
+            ls_m_leader_up_asc,
+            m=True,
+            interval=self.mpc_interval)
 
         # === 3. Determine mode: regular / jam ===
         # regular_mode, jam_mode = self.mode_switch.determine_mode4(
@@ -115,22 +116,18 @@ class MergingController:
             self.merge_jam.stop_times = {}
             # Regular mode control
             queue_log = []
-            dic_rplatoon_et = self.merge_regular.update_platoon_et(step, ls_r_leader_up_asc, m=False,
-                                                                   interval=self.mpc_interval) # get ramp platoon ET
+            _, new_leader_flag = self.merge_regular.update_platoon_et(step, ls_r_leader_up_asc, m=False,
+                                                     interval=self.mpc_interval) # get ramp platoon ET
 
             if c_ts % 1 == 0: prc.print_message('**in regular mode**')
-
             # find head rav; if can be ingored
             r_leader = self.merge_regular.find_r_leader(ls_r_veh_net_asc, ls_r_veh_net_last_asc)
-
             # get action information
-            (dic_rm_leader_map,
-             dic_leader_action, ls_action_leader,
-             dic_m_leader_followup_action, ls_m_leaders_followup) = self.action_mgr.get_action_info(
-                step, interval=self.mpc_interval)
+            (dic_leader_action, dic_m_leader_followup_action) = self.action_mgr.get_action_info(
+                step, new_leader_flag, interval=self.mpc_interval)
             # execute actions
-            self.action_mgr.execute_action(step, dic_leader_action, ls_action_leader, ls_veh_id)
-            self.action_mgr.execute_action(step, dic_m_leader_followup_action, ls_m_leaders_followup, ls_veh_id)
+            self.action_mgr.execute_action(step, dic_leader_action)
+            self.action_mgr.execute_action(step, dic_m_leader_followup_action)
 
         # average_velocity of this step and its jam_state
         step_speed = self.data_recorder.get_average_speed(step, ls_veh_id, jam_mode)

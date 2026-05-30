@@ -159,9 +159,9 @@ if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
     dic_targets, ls_features = mpgc_main(
-        av_p = 0.1,
-        r_fr = 900,
-        m_fr = 0, # 1500
+        av_p = 0.05,
+        r_fr = 0,
+        m_fr = 1500, # 1500
         seed = 16,
         r_autoFollow_p = 1,
         r_platoon_p = 1,
@@ -176,6 +176,7 @@ if __name__ == '__main__':
 
     # orgnise data
     # output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260123.csv"
-    output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260318.csv"
+    # output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260318.csv"
+    # output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260530.csv"
     collect_RF_data(dic_targets, ls_features, output_path)
 

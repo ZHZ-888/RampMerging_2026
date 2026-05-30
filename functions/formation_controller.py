@@ -38,6 +38,8 @@ class FormationController:
         else:
             self.sa_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate)  # buffer for splitting agent
             self.ca_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate)  # buffer for collecting agent
+            # self.sa_buffer = None
+            # self.ca_buffer = None
 
         self.train_interval = train_interval # rl training update interval
         self.update_interval = 10 # test

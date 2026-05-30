@@ -20,7 +20,7 @@ from functions import data_recording as dr
 from functions import hpc_utils
 
 
-def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0.15,
+def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0,
               gui=False, plot=False, display=False, lc=True, st=1200):
     set_global_seed(seed, enable=True)  # set global random seed (especially for RL training)
     # SUMO SETTING
@@ -75,7 +75,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
         r_dpt_type = vg.get_schedule2(st, av_p, r_fr, r_platoon_p,
                                       max_attempts, plot, seed, display)
         # ramp road veh depature schedule
-        veh_gen = vg.VehGen(traci)  # function related to veh generation
+        veh_gen = vg.VehGen(traci, seed)  # function related to veh generation
         data_recorder = dr.DataRecording(traci)
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
@@ -101,7 +101,7 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
     # scripts loop
     while step < st * 10:
         # checkpoint
-        if step > 280 * 10:
+        if step > 450 * 10:
              pass
         traci.simulationStep()  # start simulation
 
@@ -110,8 +110,8 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
             prc.print_message(f'************current_time, step:{c_ts, step}************')
 
         # main vehicle generation (1 => inner lane; 0 => outer lane)
-        veh_gen.veh_gen_hetero(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h # veh_gen_homo
         veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+        veh_gen.veh_gen_hetero(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h # veh_gen_homo
 
         # ramp vehicle generation
         veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p)
@@ -214,17 +214,17 @@ if __name__ == '__main__':
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path, ssm_path) = mpgc_main(
         av_p = 0.1, # 0.1
-        r_fr = 800, # 1300
+        r_fr = 1200, # 1300
         m_fr = 1500, # 1500
-        seed = 4, # 1
+        seed = 10, # 3
         r_autoFollow_p = 0,  # auto follow proportion
-        r_platoon_p = 1, # percentage of platoon vehicles
+        r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
-        gui = True,
+        gui = False,
         plot = False,
         display = False,
         lc = True, # if allow HV lane-changing; True
-        st = 1200
+        st = 1200 # 1200
     )
     end = time.time()
     runtime = end - start

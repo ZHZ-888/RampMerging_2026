@@ -416,10 +416,9 @@ class PlatoonBasic:
         # 3. Record the state of each follower at the moment the leader enters 800m
         free_mode_detected = False # detect any free_mode fol, then all fol (same leader) behind it are in free_mode
         for fol in platoon_followers:
-            if fol == 'm_hv_cons977':
-                pass
             state_check = self._check_state(fol)  # Determine free_mode or following_mode
             state_pre = dic_id_preState.get(fol)
+            state_pre = 1 # ingore following state as in MCZ leader will continue collect followers
             state = state_check if self.check else state_pre
             if free_mode_detected or state in ('free_mode', 0):
                 state = 'free_mode'

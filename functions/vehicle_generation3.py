@@ -32,34 +32,6 @@ from collections import Counter
 import numpy as np
 from collections import defaultdict
 
-def vdp(p):
-    '''
-    Updated 241203
-    Determining platoon types based on the internal av_p of the platoon/Report PPT page 75
-    Find all Fleet types according to av_p (0.1, 0.15, 0.2, 0.3)
-    vdp: vehicle_platoon_distribution
-
-    Parameters
-    ----------
-    p : penetration of AV.
-
-    Returns
-    -------
-    r : dic = {'fleet_type1'：p1, 'fleet_type2'：p2, ''}.
-
-    '''
-    if p == 0.1:
-        return {f"1 lead {i}": 0 for i in range(12)}
-    elif p == 0.15:
-        return {f"1 lead {i}": 0 for i in range(12)}
-    elif p == 0.2:
-        return {f"1 lead {i}": 0 for i in range(12)}
-    elif p == 0.3:
-        return {f"1 lead {i}": 0 for i in range(12)}
-    else:
-        raise ValueError("Unsupported AV penetration rate.")
-    return r
-
 def _generate_type_num4(av_percentage, flow_rate, simulation_time, platoon_percentage, seed=None, tries=7):
     '''
     Generate platoon types based on Poisson distribution.
@@ -649,7 +621,6 @@ def get_schedule2(st, av_p, fr, platoon_p=1, max_attempts=5, plot=False, seed=No
     count_vehicle_types(dic_dpt_type4)
     if plot:
         plot_departure_times3(dic_dpt_type4, av_p, fr, st, seed, display) # after reorganise
-    # print(f'dic_dpt_type:{dic_dpt_type4}')
     return dic_dpt_type4
 
 def get_schedule_dynamic(st, change_t, av_p, fr, platoon_p=1, max_attempts=5,
@@ -794,8 +765,9 @@ class VehGen:
     """
     generate vehicle according to schedule dict
     """
-    def __init__(self, traci):
+    def __init__(self, traci, seed=None):
         self.traci = traci
+        self.rng = random.Random(seed)
 
     def add_vehicle(self, vehicle_id, route_id, dp_v, type_id="idm", dp_lane='0'):
         '''
@@ -882,7 +854,6 @@ class VehGen:
 
         for dt, platoon in dp_times_dict.items():
             r_step = step / 10
-            veh_num = len(platoon)
 
             for i, veh in enumerate(platoon):
                 dt_v = dt + i  # actual vehicle departure time
@@ -890,7 +861,7 @@ class VehGen:
                     # ---- Determine ID suffix ----
                     if platoon == 'h':  # special case: free HV follower
                         id_body = 'hv'
-                        vehicle_type = random.choices(
+                        vehicle_type = self.rng.choices(
                             list(dic_prob.keys()),
                             weights=list(dic_prob.values()),
                             k=1
@@ -911,7 +882,7 @@ class VehGen:
                             vehicle_type = 'av'
                         else:
                             id_body = 'hv'
-                            vehicle_type = random.choices(
+                            vehicle_type = self.rng.choices(
                                 list(dic_prob.keys()),
                                 weights=list(dic_prob.values()),
                                 k=1
@@ -981,7 +952,7 @@ class VehGen:
             if dp_times_dict[c_ts] == 'AV':
                 vehicle_type = 'av'
             else:
-                vehicle_type = random.choices(
+                vehicle_type = self.rng.choices(
                     population=list(dic_prob.keys()),  # List of HV types
                     weights=list(dic_prob.values()),  # Corresponding probabilities
                     k=1  # Number of samples to draw
@@ -1008,7 +979,7 @@ class VehGen:
             st = step / 10
             if st == d_t:  # st, simulation time
                 # Randomly choose one HV type based on the given probability distribution
-                hv_type = random.choices(
+                hv_type = self.rng.choices(
                     population=list(dic_prob.keys()),  # List of HV types
                     weights=list(dic_prob.values()),  # Corresponding probabilities
                     k=1  # Number of samples to draw
@@ -1020,25 +991,6 @@ class VehGen:
                 # Add the vehicle to the simulation
                 # Note: Ensure that add_vehicle() supports 'veh_type' as a parameter
                 self.add_vehicle(veh_id, veh_route, dp_speed, hv_type)
-
-    # def get_avhid_ptype(self, m_dpt_type=None, r_dpt_type=None):
-    #     '''
-    #      get av head id and it's platoon type
-    #
-    #     :param m_dpt_type: {4: 'AHHHHHHHHH', 31: 'AHHHHHHHHHHH'}
-    #     :param r_dpt_type:
-    #     :return:  {'mavh40': 'AHHHHHHHHH', 'mavh310': 'AHHHHHHHHHHH', 'mavh580': 'AHHHHHHHH'}
-    #     '''
-    #     dic_avhid_ptype = {}
-    #     if m_dpt_type:
-    #         for key, value in m_dpt_type.items():
-    #             id1 = 'mavh' + str(key*10)
-    #             dic_avhid_ptype[id1] = value
-    #     if r_dpt_type:
-    #         for key, value in r_dpt_type.items():
-    #             id2 = 'ravh' + str(key*10)
-    #             dic_avhid_ptype[id2] = value
-    #     return dic_avhid_ptype
 
 
 if __name__ == '__main__':
