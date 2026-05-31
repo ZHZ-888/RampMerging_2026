@@ -101,7 +101,7 @@ class PlatoonBasic:
                ls_ihA_asc: oldest to newest
         :param max_team_size: maximum allowed platoon size
         :return: updated dic_tags,
-                    ls_leader_AV,
+                    ls_leader_AV, ascending order
                     ls_follower_AV
         '''
         self.max_team_size = max_team_size
@@ -275,7 +275,7 @@ class PlatoonBasic:
 
     def restore_speed_limit3(self, step, ls_leader, ls_m_leader_up_asc, dic_id_preState):
         """
-        Restore the level3 speed limit for platoon leaders based on their spatial location.
+        Restore to level3 speed for platoon leaders based on their spatial location.
 
         Control Strategies:
         1. Merging Control Zone: Unconditional speed restoration.
@@ -286,10 +286,8 @@ class PlatoonBasic:
 
         Parameters
         ----------
-        ls_leader : list
-            List of all leaders on inflow_highway_0. ascending order
-        ls_m_leader_up_asc : list
-            List of leaders that have already entered the merging control section.
+        ls_leader : List of all leaders on inflow_highway_0. ascending order
+        ls_m_leader_up_asc : List of leaders that have already entered the merging control section.
         self.dic_platoon_members = {'mav19': ['mav19', 'mhv46', 'mhv64'],
                                     'veh_2': ['veh_2', 'veh_4']}
         """
@@ -303,8 +301,6 @@ class PlatoonBasic:
 
         # NOTE: Ensure ls_leader is ordered from FRONT to BACK (Downstream to Upstream).
         for i, leader in enumerate(ls_leader):
-            if leader == 'mav40':
-                pass
             # If already at level3 speed, it doesn't block anyone behind it. Skip.
             if leader in self.ls_speed_level3:
                 continue
@@ -352,8 +348,6 @@ class PlatoonBasic:
                         break
 
                 if all_following:
-                    if leader == 'mb_av2807':
-                        pass
                     # Platoon is intact, leader accelerates
                     self.traci.vehicle.setMaxSpeed(leader, speed_level3)
                     for fol in ls_followers: # record followers's state as '1' (following mode)
@@ -427,47 +421,7 @@ class PlatoonBasic:
         self.data_recorder.dic_follower_state = self.dic_follower_state
         # record final platoon information
         self._get_final_platoon_info(step, self.dic_follower_state)
-        return self.dic_follower_state, self.dic_final_platoon_info # change to leftmost lane and keep until the end of the road
-
-    def record_follower_state_new(self, step, ls_leader_AV, dic_id_preState):
-        """
-        original name "record_follower_state2"
-        When an AV leader enters the merging control section for the first time,
-        record the current states (free_mode / following_mode) of all its platoon followers.
-
-        :param
-        :return: self.dic_follower_state: {follower_id: [state, leader_id]}
-                 self.dic_final_platoon_info: {66: 'AHHHHHHH', 138: 'AHHHHHH', 174: 'AH', 177: 'AHH'}
-        """
-        # No leader in the PFZ section
-        if not ls_leader_AV:
-            return self.dic_follower_state, self.dic_final_platoon_info
-        # Take the most recently arrived leader
-        leader_pfz_newest = ls_leader_AV[-1]
-
-        # Ensure this leader is recorded only once
-        if leader_pfz_newest in self.ls_leader_fol_states_checked:
-            return self.dic_follower_state, self.dic_final_platoon_info
-        self.ls_leader_fol_states_checked.append(leader_pfz_newest)
-
-        # 2. Retrieve all followers belonging to this leader's platoon
-        platoon_followers = self.dic_platoon_members.get(leader_pfz_newest, [])[1:]
-        # 3. Record the state of each follower at the moment the leader enters 800m
-        free_mode_detected = False # detect any free_mode fol, then all fol (same leader) behind it are in free_mode
-        for fol in platoon_followers:
-            if fol == 'm_hv_cons977':
-                pass
-            state_check = self._check_state(fol)  # Determine free_mode or following_mode
-            state_pre = dic_id_preState.get(fol)
-            state = state_check if self.check else state_pre
-            if free_mode_detected or state == ('free_mode' or 0):
-                state = 'free_mode'
-                free_mode_detected = True
-            self.dic_follower_state[fol] = [state, leader_pfz_newest]
-        self.data_recorder.dic_follower_state = self.dic_follower_state
-        # record final platoon information
-        self._get_final_platoon_info(step, self.dic_follower_state)
-        return self.dic_follower_state, self.dic_final_platoon_info # change to leftmost lane and keep until the end of the road
+        return self.dic_follower_state # change to leftmost lane and keep until the end of the road
 
     def record_follower_state_by_sensor(self):
         """
@@ -501,7 +455,6 @@ class PlatoonBasic:
                 free_mode_detected = True
             self.dic_follower_state_sensor[fol] = [state, leader_mc_newest]
         return self.dic_follower_state_sensor
-
 
     def set_follower_color(self):
         '''
@@ -747,33 +700,6 @@ class PlatoonBasic:
                 self.traci.vehicle.setMaxSpeed(vid, set_v)
                 # Save for future recovery
                 self.recover_speed_map[vid] = ori_v
-
-    def _check_state_ori(self, id):
-        '''
-        check followers' state: decoupled free flow mode/coupled following mode
-        IDM-based headway check: normal range (1.2T ~ 2.0T)
-        here set factor as 2.2 T
-        :param id:
-        :return:
-        '''
-        minGap = 2.5 # original: 4.5; default 2.5
-        tau = 1 # standard: 1s
-        following_headway_factor = 2.2
-        v_expect = self.speed_level2
-        p_veh_info = self.traci.vehicle.getLeader(id)
-        if p_veh_info is None:
-            # no leader
-            state = 'free_mode'
-            return state
-        pv_id, dis = p_veh_info
-        # when its leader arrive at the end of upstream_0, the dis between this veh and its preceding veh
-        dis_real = dis + minGap
-        dis_expect = v_expect * tau + minGap
-        if dis_real > dis_expect * following_headway_factor:
-            state = 'free_mode'
-        else: # dis_real <= dis_expect * factor
-            state = 'following_mode'
-        return state
 
     def _check_state(self, veh_id):
         """

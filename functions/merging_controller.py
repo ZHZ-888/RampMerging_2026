@@ -28,7 +28,7 @@ class MergingController:
         self.pf = platoon_formation
         self.speed_log = []  # [step, avg_speed, True/False], True/False Jam
 
-    def step(self, st, step, m_dpt_type, r_dpt_type):
+    def step(self, st, step, r_dpt_type):
         '''
 
         :param st: total simulation time

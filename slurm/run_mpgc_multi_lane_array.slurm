@@ -39,8 +39,8 @@ RAMPS=(200 300 400 500 600 700 800 900 1000 1100 1200 1300 1400) # Ramp demands
 
 NAV=${#AV_P_VALS[@]}                        # Number of AV Settings (3)
 NS=${#SEEDS[@]}                             # Number of Seeds (10)
-NR=${#RAMPS[@]}                             # Number of Ramp Demands (14)
-NT=$((NAV * NS * NR))                       # Total Tasks (420)
+NR=${#RAMPS[@]}                             # Number of Ramp Demands (13)
+NT=$((NAV * NS * NR))                       # Total Tasks (390)
 
 # Check SLURM array task ID
 if [ -z "${SLURM_ARRAY_TASK_ID:-}" ]; then
@@ -65,7 +65,6 @@ echo "TASK_ID=$TASK_ID | AV_P=$AV_P | RAMP=$RAMP | SEED=$SEED | (Indices: av=$av
 # Per-task XML output (safe for parallel jobs)
 # Each task writes to its own XML file
 # ================================
-OUT_XML="$TRAJ_DIR/trj_${SEED}_${AV_P}_${RAMP}.xml"
 OUT_CSV="data/raw/tmp/mpgc_multi_lane_task_${TASK_ID}.csv"
 mkdir -p data/raw/tmp
 

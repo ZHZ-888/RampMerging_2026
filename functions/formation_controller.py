@@ -3,7 +3,7 @@ from functions import platoon_oversized_handler as poversized
 from functions import platoon_sparse_handler as psparse
 from functions import platoon_lane_manager as plane
 from functions import v2x_disturbance as v2x
-from functions import detector_state_recogniser as detector
+from functions import detector_pass_recorder as detector
 
 from rl_model import split_insert_agent_handler as agent
 from rl_model import free_insert_agent_handler as free_agent
@@ -26,10 +26,9 @@ class FormationController:
         self.p_oversized = poversized.PlatoonOversizedHandler(traci, data_recorder, self.p_basic)
         self.p_sparse = psparse.PlatoonSparseHandler(traci, data_recorder, self.p_basic)
         self.p_lane = plane.PlatoonLaneManager(traci, data_recorder)
-        self.state_recogniser = detector.DetectorStateRecogniser(
-            traci,
-            detector_ids=['mcz_entry_detector'],
-            temporal_headway_threshold=3.0) # use sumo instantInductionLoop detector to determine platoon follower state
+        self.pass_recorder = detector.DetectorPassRecorder(
+            traci, data_recorder,
+            detector_ids=['mcz_entry_detector']) # use sumo instantInductionLoop detector to count platoon members
 
         self.loss_rate = loss_rate
         if self.loss_rate == 0:
@@ -166,7 +165,7 @@ class FormationController:
         # Flashing lane change side AVs
         # self.merge_regular.flashing_lane_changing(step, dic_insertedAV, ls_ihB)
 
-        # ******** Lane change and speed control ********
+        # ******** LANE CHANGE AND SPEED CONTROL ********
         self.p_lane.manage_hv_lc_behaviour(lc, dic_tags) # mange hv_followers lane change behavior
         self.p_lane.restrict_strategic_lc(ls_ihAB_av) # only restrict AV strategic lane change
         # encourage AV_leader without follower move to inner lane (from lane0 to lane1)
@@ -178,13 +177,16 @@ class FormationController:
         self.control_platoon_gap(step, ls_vehid, ls_leader_AV, ls_follower_AV,
                                  ls_m_leader_up_asc, ls_wsB_av, dic_id_preState)
 
+        # ******** UPDATE PLATOON MEMBERS BY LOOP DETECTOR RECORD INFO ********
+        _ = self.pass_recorder.update(step)
+        _ = self.pass_recorder.count_platoon_size(ls_leader_AV)
+
         # ******** RECORD INFO ********
         dic_member_to_leader = self.p_basic.update_member_to_leader(dic_platoon_members)
         self.data_recorder.dic_member_to_leader = dic_member_to_leader
         # record target value
-        _, dic_final_platoon_info = (
-            self.p_basic.record_follower_state2(step, dic_id_preState)) # for algorithm
+        _ = self.p_basic.record_follower_state2(step, dic_id_preState) # for algorithm
         # use detector to recognise follower state; for performance evaluation only
         dic_follower_state = self.p_basic.record_follower_state_by_sensor()
         return (dic_score_reward, dic_follower_state, his_dic_platoon_size,
-                dic_id_features, dic_final_platoon_info)
+                dic_id_features)

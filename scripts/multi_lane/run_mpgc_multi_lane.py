@@ -40,13 +40,15 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
     Look for a system setting named TRAJ_DIR. If it exists, use it. If not, use this default folder.
     '''
     traj_dir = Path(os.environ.get("TRAJ_DIR", ROOT / "data" / "multi_lane" / "algo"))
-    file_name = f'trj_{r_fr}_{av_p}_{seed}_{loss_rate}.xml'
+    task_id = os.environ.get("SLURM_ARRAY_TASK_ID", "local")
+    file_name = f'trj_{r_fr}_{av_p}_{seed}_{loss_rate}_{task_id}.xml'
     xml_path = os.path.join(traj_dir, file_name)
 
-    ssm_file_name = f'ssm_{r_fr}_{av_p}_{seed}_{loss_rate}.xml'
+    ssm_file_name = f'ssm_{r_fr}_{av_p}_{seed}_{loss_rate}_{task_id}.xml'
     ssm_path = traj_dir / ssm_file_name
 
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
+                "--seed", str(seed),
                 "--fcd-output", str(xml_path), # save path
                 # SSM output for TTC conflicts
                 "--device.ssm.probability", "1",
@@ -117,9 +119,8 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
         veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p)
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size,
-         dic_id_features, dic_final_platoon_info) = formation_controller.step(st, step, lc)
-        tp, speed_log, queue_log = merging_controller.step(st, step,
-                                                           dic_final_platoon_info, r_dpt_type)
+         dic_id_features) = formation_controller.step(st, step, lc)
+        tp, speed_log, queue_log = merging_controller.step(st, step, r_dpt_type)
 
         data_recorder.record_tail_arrival(step)
         step += 1
@@ -214,7 +215,7 @@ if __name__ == '__main__':
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path, ssm_path) = mpgc_main(
         av_p = 0.1, # 0.1
-        r_fr = 1200, # 1300
+        r_fr = 1300, # 1300
         m_fr = 1500, # 1500
         seed = 10, # 3
         r_autoFollow_p = 0,  # auto follow proportion

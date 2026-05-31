@@ -81,6 +81,10 @@ def get_fc_indicator(dic_follower_state, his_dic_platoon_size):
     '''
     # PLATOON FORMATION results
     # indicator 1: num.platoon_followers/num.followers %
+
+    # print(dic_follower_state)
+    # print(his_dic_platoon_size)
+
     num_follower = len(dic_follower_state)
     num_platoon_follower = len([k for k, v in dic_follower_state.items() if v[0] == 'following_mode'])
     print("\n           ---formation control performance indicators---")
