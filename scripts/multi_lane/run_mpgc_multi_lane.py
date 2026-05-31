@@ -191,6 +191,7 @@ def set_global_seed(seed, enable=True):
         torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+    torch.use_deterministic_algorithms(True)
 
 def _set_dynamic_traffic(step, start_t, r_dpt_type, dynamic=True):
     '''

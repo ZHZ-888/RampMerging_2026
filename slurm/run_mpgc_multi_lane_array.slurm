@@ -18,6 +18,10 @@ cd "$SLURM_SUBMIT_DIR"
 module load Python/3.11.3-gimkl-2022a
 source /nesi/project/uoa04480/myenv/bin/activate
 
+# Ensure RL deterministic
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
 # Create log directories if not exist
 mkdir -p output-logs error-logs
 
