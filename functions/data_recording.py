@@ -485,7 +485,8 @@ class DataRecording:
         try:
             v = self.dic_speed.get(vid)  # cached
             lane_id = self.dic_lane.get(vid) # lane_id = self.traci.vehicle.getLaneID(vid)
-            pos = self.dic_pos.get(vid) # pos = self.traci.vehicle.getLanePosition(vid)
+            # pos = self.dic_pos.get(vid) # pos = self.traci.vehicle.getLanePosition(vid)
+            pos = round(self.dic_pos.get(vid, -1), 1)
             dis = self.dic_dis.get(vid)
         except Exception:
             return dic_vid_states
