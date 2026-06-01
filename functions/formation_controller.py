@@ -65,7 +65,7 @@ class FormationController:
         return (dic_tags, ls_leader_AV, ls_follower_AV, dic_platoon_size, dic_platoon_members,
                 his_dic_platoon_size, dic_id_preState, dic_id_features)
 
-    def splitting(self, st, step, ls_ihA, ls_ihB_av, dic_platoon_size, dic_platoon_members):
+    def splitting(self, st, step, ls_ihA, ls_ihB_av, dic_platoon_size, dic_platoon_members, selected_vid):
         # ******** HANDLE OVERSIZED PLATOONS ********
         if not self.split_agent:
             return None
@@ -80,13 +80,15 @@ class FormationController:
                                                                        dic_oversized_platoon_states,
                                                                        dic_split_candidates,
                                                                        ls_ihA, gating_value=self.sa_gating)
+            for vid in dic_split_insertedAV.keys():
+                selected_vid.add(vid)
             dic_score_reward = self.split_agent.update_reward(step, st, dic_platoon_members,
                                                               train_interval=self.train_interval)
             self.split_agent.record_scores(step, st)
             self.split_agent.record_loss(step, st)
         return dic_nonOversizedP
 
-    def collecting(self, st, step, ls_ihA, ls_ihB_av, dic_nonOversizedP, dic_platoon_members, dic_id_preState):
+    def collecting(self, st, step, ls_ihA, ls_ihB_av, dic_nonOversizedP, dic_platoon_members, dic_id_preState, selected_vid):
         # ******** HANDLE SPARSE PLATOONS ********
         self.free_insert_agent.release_insertion(step, self.ca_buffer)
         if step % self.update_interval != 0:
@@ -98,6 +100,10 @@ class FormationController:
         dic_sparseP_filered = self.p_sparse.filter_out_AV_followers(dic_sparseP, dic_platoon_members)
         # Find nearby side-lane AVs
         dic_collect_candidates = self.p_sparse.find_sparseP_nearbyAV(ls_ihB_av, dic_sparseP_filered)
+        dic_collect_candidates = {
+            k: v for k, v in dic_collect_candidates.items()
+            if k not in selected_vid
+        }
         # ** FREE_INSERT ** agent
         if self.free_insert_agent:
             dic_free_insertedAV = self.free_insert_agent.run_free_insert_decision(step, dic_platoon_members,
@@ -138,7 +144,7 @@ class FormationController:
                                 'mhv65': ['mhv65', 50.64862995222547, 24.270287929523167, 110.99295710039699, 5.1, 3, 'mav38']}
             dic_final_platoon_info: {66: 'AHHHHHHHHHH', 90: 'AHHHHH', 138: 'AHHHHHHHHH', 174: 'AH', 177: 'AHH'}
         '''
-
+        selected_vid = set()
         dic_score_reward = {}  # Initialise dic_score_reward to avoid uninitialized variable issues
         # === Unpack veh info ===
         # print(f"*******step: {step}*********")
@@ -156,11 +162,12 @@ class FormationController:
             = self.platoon_initialise(ls_ihA, ls_vehid)
 
         # ******** HANDLE OVERSIZED PLATOONS ********
-        dic_nonOversizedP = self.splitting(st, step, ls_ihA, ls_ihB_av, dic_platoon_size, dic_platoon_members)
+        dic_nonOversizedP = self.splitting(st, step, ls_ihA, ls_ihB_av, dic_platoon_size,
+                                           dic_platoon_members, selected_vid)
 
         # ******** HANDLE SPARSE PLATOONS ********
         dic_standard_platoon = self.collecting(st, step, ls_ihA, ls_ihB_av, dic_nonOversizedP,
-                                               dic_platoon_members, dic_id_preState)
+                                               dic_platoon_members, dic_id_preState, selected_vid)
 
         # Flashing lane change side AVs
         # self.merge_regular.flashing_lane_changing(step, dic_insertedAV, ls_ihB)

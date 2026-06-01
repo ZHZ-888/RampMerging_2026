@@ -50,7 +50,8 @@ class RLScoringAgent:
         self.data_recorder = data_recorder
         self.state_builder = StateBuilder(traci, data_recorder)
         self.gamma = gamma
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cpu")  # Force CPU for compatibility and simplicity
 
         # self.model = SimpleMLP(input_dim=8).to(self.device)
         self.model = SimpleMLP(input_dim=10).to(self.device)

@@ -43,6 +43,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
     task_id = os.environ.get("SLURM_ARRAY_TASK_ID", "local")
     file_name = f'trj_{r_fr}_{av_p}_{seed}_{loss_rate}_{task_id}.xml'
     xml_path = os.path.join(traj_dir, file_name)
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
     ssm_file_name = f'ssm_{r_fr}_{av_p}_{seed}_{loss_rate}_{task_id}.xml'
     ssm_path = traj_dir / ssm_file_name
@@ -218,7 +219,7 @@ if __name__ == '__main__':
         av_p = 0.1, # 0.1
         r_fr = 1300, # 1300
         m_fr = 1500, # 1500
-        seed = 10, # 3
+        seed = 1, # 3
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
