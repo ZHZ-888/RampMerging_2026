@@ -1142,6 +1142,7 @@ class ShiftMode:
          )
 
         if self.regular_mode and (high_density or dense_and_slow):
+        # if self.regular_mode and high_density:
             # on jam condition
             self.regular_mode = False
             self.jam_mode = True
