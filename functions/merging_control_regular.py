@@ -243,7 +243,7 @@ class MergingControlRegular:
         dic_mplatoon_tail_et = {m_leader: ls_ts[2] for m_leader, ls_ts in dic_mplatoon_et_valid.items()}
 
         for r_leader in dic_rplatoon_et_valid.keys():
-            if r_leader in ('ravh830'):
+            if r_leader in ('ravh3700'):
                 pass
             r_ts_head = dic_rplatoon_et_valid[r_leader][1] # ramp platoon head timestamp
             dic_mplatoon_tail_et_asc = sorted(dic_mplatoon_tail_et.items(),
@@ -685,8 +685,10 @@ class MergingControlRegular:
 
         '''
         for r_leader, m_leader in self.dic_rm_leader_map.items():
+            if (r_leader, m_leader) in self.dic_rm_leader_actor: # update in 260601!
+                continue # already compared, skip
             if r_leader is not None and m_leader is not None:  # make sure r_leader/m_leader is not None
-                if r_leader == 'ravh1990':
+                if r_leader == 'ravh3700':
                     pass
                 ts_rp_head = self.dic_rplatoon_et[r_leader][1] # ramp platoon leader (head) estimate arrival timestamp (head_tr)
                 ts_rp_tail = self.dic_rplatoon_et[r_leader][2] # tail time (tail_tr)
