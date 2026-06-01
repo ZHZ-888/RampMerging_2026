@@ -281,7 +281,7 @@ class AgentHandler:
         platoon_states = dic_oversized_platoon_states[leader_id]
 
         for av_id in ls_candidateAV:
-            if av_id == 'mb_av3310':
+            if av_id == 'mb_av182':
                 pass
             state = self.agent.state_builder.build_state2(av_id, pMember, platoon_states, ls_upA)
             score = self.agent.predict_score(state)

@@ -19,7 +19,7 @@ class PlatoonOversizedHandler:
                  dic_leader_candidates => {oversized_platoon leader_AV: [outer_candidates_av1, candidates_av2]}
                  all lane_B AV that behind target leader
         '''
-        ls_ihB_av_asc = ls_ihB_av[::-1]  # Reverse to oldest → newest
+        ls_ihB_av_asc = ls_ihB_av  # Reverse to oldest → newest (ascending)
         dic_oversized_platoon_states = {}  # oversized platoon
         for leader_id, size in dic_platoon_size.items():
             if size > self.p_basic.max_team_size:

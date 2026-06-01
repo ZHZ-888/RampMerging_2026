@@ -214,12 +214,12 @@ class PlatoonSparseHandler:
         """
         Find nearby side-lane AVs for sparse platoons with free followers
 
-        :param ls_ihB_av: side-lane AVs (descending order)
+        :param ls_ihB_av: side-lane AVs (ascending order)
         :param dic_sparse_platoon: {sparse_leader: first_free_follower}
         :param dic_platoon_members: platoon membership info
         :return: dic_sparse_candidates = {sparse_leader: [candidate_av1, candidate_av2, ...]}
         """
-        ls_ihB_av_asc = ls_ihB_av[::-1]  # oldest → newest
+        ls_ihB_av_asc = ls_ihB_av  # ascending order
         dic_sparse_candidates = {}
 
         for sparse_leader, first_free_fol in dic_sparse_platoon.items():
