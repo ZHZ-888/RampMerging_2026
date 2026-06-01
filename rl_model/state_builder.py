@@ -181,7 +181,8 @@ class StateBuilder:
             #     pos = self.traci.vehicle.getLanePosition(id)
             # except self.traci.TraCIException:
             #     continue
-            pos = self.data_recorder.dic_pos.get(id)
+            # pos = self.data_recorder.dic_pos.get(id)
+            pos = self.data_recorder.get_vid_states(id)['pos']
             if pos is None:
                 continue
             gap = pos - av_pos
