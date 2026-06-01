@@ -68,46 +68,8 @@ class FreeInsertAgentHandler:
         self.last_update_payload_pair = None  # {target leader: candidate leader}
         self.payload = None
 
-    def run_free_insert_decision_ori(self, step, dic_platoon_members, dic_sparse_platoons,
-                                 dic_sparse_candidates, ls_upA, gating_value=0):
-        """
-        Main decision loop: Score candidate AVs and select best one for each sparse platoon.
-
-        Args:
-            step: Current simulation step
-            dic_platoon_members: {leader_id: [members]}
-            dic_sparse_platoons: {sparse_leader: first_free_follower_id}
-            dic_sparse_candidates: {sparse_leader: [candidate_av_ids]}
-            ls_upA: Upstream vehicle list on inner lane
-            gating_value: Minimum score threshold for insertion
-
-        Returns:
-            dic_insertedAV: {av_id: 'free_insert'}
-        """
-        if not dic_sparse_candidates:
-            return {}
-        for sparse_leader, ls_candidates in dic_sparse_candidates.items():
-            if sparse_leader not in dic_sparse_platoons:
-                continue
-            # Evaluate candidates and select best
-            result = self._evaluate_candidates(
-                step, sparse_leader, dic_platoon_members, dic_sparse_platoons,
-                ls_candidates, ls_upA, gating_value)
-
-            if result is None:
-                continue
-
-            selected_av, selected_state, best_score = result
-
-            # Execute insertion
-            self._execute_insertion(
-                step, sparse_leader, selected_av, selected_state,
-                dic_platoon_members, dic_sparse_platoons, best_score)
-
-        return self.dic_insertedAV
-
     def run_free_insert_decision(self, step, dic_platoon_members, dic_sparse_platoons,
-                                 dic_sparse_candidates, ls_upA, gating_value=0):
+                                 dic_sparse_candidates, gating_value=0):
         """
         Main decision loop: Score candidate AVs and select best one for each sparse platoon.
 
@@ -116,7 +78,6 @@ class FreeInsertAgentHandler:
             dic_platoon_members: {leader_id: [members]}
             dic_sparse_platoons: {sparse_leader: first_free_follower_id}
             dic_sparse_candidates: {sparse_leader: [candidate_av_ids]}
-            ls_upA: Upstream vehicle list on inner lane
             gating_value: Minimum score threshold for insertion
 
         Returns:
@@ -130,7 +91,7 @@ class FreeInsertAgentHandler:
             # Evaluate candidates and select best
             selected_av, selected_state, best_score = self._evaluate_candidates(
                 step, sparse_leader, dic_platoon_members, dic_sparse_platoons,
-                ls_candidates, ls_upA, gating_value)
+                ls_candidates, gating_value)
 
             if selected_av and (self.last_update_payload_pair != {sparse_leader:selected_av}):
                 self.payload = (sparse_leader, selected_av, selected_state,
@@ -316,7 +277,7 @@ class FreeInsertAgentHandler:
             return penalty
 
     def _evaluate_candidates(self, step, sparse_leader, dic_platoon_members, dic_sparse_platoons,
-                             ls_candidates, ls_upA, gating_value):
+                             ls_candidates, gating_value):
         """
         Score all candidate AVs and select the best one.
         """
@@ -340,7 +301,6 @@ class FreeInsertAgentHandler:
                     cand_leader=av_id,
                     target_sparse_platoon={sparse_leader: dic_sparse_platoons[sparse_leader]},
                     dic_platoon_member=dic_platoon_members,
-                    ls_upA=ls_upA
                 )
 
                 # Predict score

@@ -156,36 +156,32 @@ class DataRecording:
 
         # current leader on net from mainlane
         # m_leader on mainlane merging control section; self.ls_m_leader_his_asc, ls_ms_veh_up
-        ls_m_leader_net = [
+        ls_m_leader_net_asc = [
             vid for vid in self.ls_m_leader_his_asc
-            if vid in ls_vehid
-        ]
+            if vid in ls_vehid]
         # current veh on mainlane (inflow_highway_0, ih)
         tup_ih_veh_up = self.traci.lane.getLastStepVehicleIDs('inflow_highway_0')
+        tup_ih_veh_up_asc = self._sort_by_pos(tup_ih_veh_up)
         # current veh on merging section; length_ms=800, self.length_ih
-        ls_ms_veh_up = [
-            vid for vid in tup_ih_veh_up
-            if self.dic_pos.get(vid, -1.0) >= self.length_ih - length_ms
-        ]
+        ls_ms_veh_up_asc = [
+            vid for vid in tup_ih_veh_up_asc
+            if self.dic_pos.get(vid, -1.0) >= self.length_ih - length_ms]
         # current veh on platoon formation section
-        ls_pf_veh = [
-            vid for vid in tup_ih_veh_up
-            if self.dic_pos.get(vid, -1.0) < self.length_ih - length_ms
-        ]
-        # leader on platoon formation
-        ls_pf_leader = [
+        ls_pf_veh_asc = [
+            vid for vid in tup_ih_veh_up_asc
+            if self.dic_pos.get(vid, -1.0) < self.length_ih - length_ms]
+        # leader on PFZ
+        ls_pf_leader_asc = [
             vid for vid in self.ls_m_leader_his_asc
-            if vid in ls_pf_veh
-        ]
-        ls_ms_leader_net = [
-                            vid for vid in ls_m_leader_net
-                            if vid not in ls_pf_leader
-                        ]
+            if vid in ls_pf_veh_asc]
+        ls_ms_leader_net_asc = [
+            vid for vid in ls_m_leader_net_asc
+            if vid not in ls_pf_leader_asc]
         # m leader Before merging
-        ls_ms_leader_up = [vid for vid in ls_ms_veh_up if vid in self.ls_m_leader_his_asc]
-        ls_ms_leader_up_asc = sorted(ls_ms_leader_up, key=lambda x: int(''.join(filter(str.isdigit, x))))  # min=>max; asc (ascending)
+        ls_ms_leader_up_asc = [vid for vid in ls_ms_veh_up_asc if vid in self.ls_m_leader_his_asc]
+        # ls_ms_leader_up_asc = sorted(ls_ms_leader_up, key=lambda x: int(''.join(filter(str.isdigit, x))))
         ls_m_veh_net = [vid for vid in ls_vehid if 'm' in vid]
-        ls_m_veh_net = sorted(ls_m_veh_net, key=lambda x: int(''.join(filter(str.isdigit, x))), reverse=True)
+        # ls_m_veh_net = sorted(ls_m_veh_net, key=lambda x: int(''.join(filter(str.isdigit, x))), reverse=True)
 
         # r, ramp
         ls_r_leader_net = [vid for vid in ls_vehid if 'ravh' in vid]  # ramp AV leader (history)
@@ -200,8 +196,8 @@ class DataRecording:
                            'avh' in id]  # list of rav leader (head) before merging (large=>small/new=>old/max=>min)
         ls_r_leader_up_asc = sorted(ls_r_leader_up, key=lambda x: int(''.join(filter(str.isdigit, x))))  # min=>max
 
-        # m leader before merging (mainline and ramp)
-        ls_mr_leader_up = ls_ms_leader_up + ls_r_leader_up  # ls_mr_leader_up
+        # leader before merging (mainline and ramp)
+        ls_mr_leader_up = ls_ms_leader_up_asc + ls_r_leader_up  # ls_mr_leader_up
 
         # info of last step
         ls_r_veh_net_last = [vid for vid in self.ls_vehid_last_step if 'r' in vid]  # ramp veh last step
@@ -218,9 +214,7 @@ class DataRecording:
             reverse=True
         )
 
-        self.ls_m_leader_net_his_desc = (
-            sorted(self.ls_m_leader_his_asc, key=lambda x: int(''.join(filter(str.isdigit, x))),
-                    reverse=True))  # sorted
+        self.ls_m_leader_net_his_desc = self.ls_m_leader_his_asc[::-1]
 
         # update ls_vehid_last_step
         self.ls_vehid_last_step = ls_vehid
@@ -228,27 +222,29 @@ class DataRecording:
         # MULTI-LANE MERGING ROAD NETWORK (platoon formation control)
         # m, mainline (inflow_highway); A(0)
         ls_ihA = list(self.traci.lane.getLastStepVehicleIDs("inflow_highway_0"))  # inflow_highway lane A, all veh
-        ls_ihA_av = [vid for vid in ls_ihA if 'av' in vid]
-        ls_ihA_hv = [vid for vid in ls_ihA if 'hv' in vid]
-        ls_ihA_ms = [vid for vid in ls_ihA
+        ls_ihA_asc = self._sort_by_pos(ls_ihA)
+        ls_ihA_av_asc = [vid for vid in ls_ihA_asc if 'av' in vid]
+        ls_ihA_hv_asc = [vid for vid in ls_ihA_asc if 'hv' in vid]
+        ls_ihA_ms_asc = [vid for vid in ls_ihA_asc
                         if self.dic_pos.get(vid, -1.0) > (self.length_ih - 800)
                         ]
-        ls_ihA_av_ms = [vid for vid in ls_ihA_av
-                        if self.dic_pos.get(vid, -1.0) > (self.length_ih - 800)
-                        ] # m => merging section
+        ls_ihA_av_ms_asc = [vid for vid in ls_ihA_av_asc
+                            if self.dic_pos.get(vid, -1.0) > (self.length_ih - 800)
+                            ] # m => merging section
 
         if 'inflow_highway_1' in self.traci.lane.getIDList():
             ls_ihB = list(self.traci.lane.getLastStepVehicleIDs("inflow_highway_1"))
-            ls_ihB_av = [vid for vid in ls_ihB if 'av' in vid]
-            ls_ihB_hv = [vid for vid in ls_ihB if 'hv' in vid]
-            ls_ihAB_hv = ls_ihA_hv + ls_ihB_hv
-            ls_ihAB_av = ls_ihA_av + ls_ihB_av
+            ls_ihB_asc = self._sort_by_pos(ls_ihB)
+            ls_ihB_av_asc = [vid for vid in ls_ihB_asc if 'av' in vid]
+            ls_ihB_hv_asc = [vid for vid in ls_ihB_asc if 'hv' in vid]
+            ls_ihAB_hv_asc = ls_ihA_hv_asc + ls_ihB_hv_asc
+            ls_ihAB_av_asc = ls_ihA_av_asc + ls_ihB_av_asc
         else:
-            ls_ihB = []
-            ls_ihB_av = []
-            ls_ihB_hv = []
-            ls_ihAB_hv = []
-            ls_ihAB_av = []
+            ls_ihB_asc = []
+            ls_ihB_av_asc = []
+            ls_ihB_hv_asc = []
+            ls_ihAB_hv_asc = []
+            ls_ihAB_av_asc = []
 
         # veh on upstream_0(A) & upstream_1(B)
         if 'upstream_0' in self.traci.lane.getIDList():
@@ -267,60 +263,64 @@ class DataRecording:
         # weaving section
         if 'ws_0' in self.traci.lane.getIDList():
             ls_wsA = list(self.traci.lane.getLastStepVehicleIDs("ws_0"))
-            ls_wsA_av = [vid for vid in ls_wsA if 'av' in vid]
-            ls_wsA_hv = [vid for vid in ls_wsA if 'hv' in vid]  # decrease
+            ls_wsA_asc = self._sort_by_pos(ls_wsA)
+            ls_wsA_av_asc = [vid for vid in ls_wsA_asc if 'av' in vid]
+            ls_wsA_hv_asc = [vid for vid in ls_wsA_asc if 'hv' in vid]  # decrease
         else:
-            ls_wsB = []
-            ls_wsB_av = []
-            ls_wsB_hv = []
+            ls_wsA_asc = []
+            ls_wsA_av_asc = []
+            ls_wsA_hv_asc = []
 
         if 'ws_1' in self.traci.lane.getIDList():
             ls_wsB = list(self.traci.lane.getLastStepVehicleIDs("ws_1"))
-            ls_wsB_av = [vid for vid in ls_wsB if 'av' in vid]
-            ls_wsB_hv = [vid for vid in ls_wsB if 'hv' in vid]  # decrease
+            ls_wsB_asc = self._sort_by_pos(ls_wsB)
+            ls_wsB_av_asc = [vid for vid in ls_wsB_asc if 'av' in vid]
+            ls_wsB_hv_asc = [vid for vid in ls_wsB_asc if 'hv' in vid]  # decrease
         else:
-            ls_wsB = []
-            ls_wsB_av = []
-            ls_wsB_hv = []
+            ls_wsB_asc = []
+            ls_wsB_av_asc = []
+            ls_wsB_hv_asc = []
 
         if 'ws_2' in self.traci.lane.getIDList():
             ls_wsC = list(self.traci.lane.getLastStepVehicleIDs("ws_2"))
-            ls_wsC_av = [vid for vid in ls_wsC if 'av' in vid]
-            ls_wsC_hv = [vid for vid in ls_wsC if 'hv' in vid]  # decrease
+            ls_wsC_asc = self._sort_by_pos(ls_wsC)
+            ls_wsC_av_asc = [vid for vid in ls_wsC_asc if 'av' in vid]
+            ls_wsC_hv_asc = [vid for vid in ls_wsC_asc if 'hv' in vid]  # decrease
         else:
-            ls_wsC = []
-            ls_wsC_av = []
-            ls_wsC_hv = []
-        ls_wsBC_hv = ls_wsB_hv + ls_wsC_hv
+            ls_wsC_asc = []
+            ls_wsC_av_asc = []
+            ls_wsC_hv_asc = []
+        ls_wsBC_hv_asc = ls_wsB_hv_asc + ls_wsC_hv_asc
 
         # center lane (after merging)
         if 'center_0' in self.traci.lane.getIDList():
             ls_centerA = list(self.traci.lane.getLastStepVehicleIDs("center_0"))
-            ls_centerA_av = [vid for vid in ls_centerA if 'av' in vid]
-            ls_centerA_hv = [vid for vid in ls_centerA if 'hv' in vid]  # decrease
+            ls_centerA_asc = self._sort_by_pos(ls_centerA)
+            ls_centerA_av_asc = [vid for vid in ls_centerA_asc if 'av' in vid]
+            ls_centerA_hv_asc = [vid for vid in ls_centerA_asc if 'hv' in vid]  # decrease
         else:
-            ls_centerA = []
-            ls_centerA_av = []
-            ls_centerA_hv = []
+            ls_centerA_asc = []
+            ls_centerA_av_asc = []
+            ls_centerA_hv_asc = []
 
         if 'center_1' in self.traci.lane.getIDList():
             ls_centerB = list(self.traci.lane.getLastStepVehicleIDs("center_1"))
-            ls_centerB_av = [vid for vid in ls_centerB if 'av' in vid]
-            ls_centerB_hv = [vid for vid in ls_centerB if 'hv' in vid]  # decrease
+            ls_center_B_asc = self._sort_by_pos(ls_centerB)
+            ls_centerB_av_asc = [vid for vid in ls_center_B_asc if 'av' in vid]
+            ls_centerB_hv_asc = [vid for vid in ls_center_B_asc if 'hv' in vid]  # decrease
         else:
-            ls_centerB = []
-            ls_centerB_av = []
-            ls_centerB_hv = []
+            ls_centerB_asc = []
+            ls_centerB_av_asc = []
+            ls_centerB_hv_asc = []
 
         # update ls_vehid_last_step
         self.ls_vehid_last_step = ls_vehid
 
         # vehicle info for merging control
         self.dic_vid_groups['ls_vehid'] = ls_vehid
-        self.dic_vid_groups['ls_m_leader_net'] = ls_ms_leader_net  # small => big
-        self.dic_vid_groups['ls_m_leader_up'] = ls_ms_leader_up  # big => small
+        self.dic_vid_groups['ls_m_leader_net_asc'] = ls_ms_leader_net_asc  # small => big
         self.dic_vid_groups['ls_m_leader_up_asc'] = ls_ms_leader_up_asc
-        self.dic_vid_groups['ls_m_veh_up'] = ls_ms_veh_up
+        self.dic_vid_groups['ls_m_veh_up_asc'] = ls_ms_veh_up_asc
         self.dic_vid_groups['ls_m_veh_net'] = ls_m_veh_net
 
         self.dic_vid_groups['ls_r_leader_net'] = ls_r_leader_net
@@ -334,16 +334,16 @@ class DataRecording:
         self.dic_vid_groups['ls_mr_leader_up'] = ls_mr_leader_up
 
         # veh on inflow_highway_0
-        self.dic_vid_groups['ls_ihA'] = ls_ihA  # decrease
-        self.dic_vid_groups['ls_ihA_av'] = ls_ihA_av
-        self.dic_vid_groups['ls_ihA_hv'] = ls_ihA_hv
-        self.dic_vid_groups['ls_ihA_ms'] = ls_ihA_ms
-        self.dic_vid_groups['ls_ihA_av_ms'] = ls_ihA_av_ms  # ms => merging section
-        self.dic_vid_groups['ls_ihB'] = ls_ihB
-        self.dic_vid_groups['ls_ihB_av'] = sorted(ls_ihB_av, key=lambda x: int(''.join(filter(str.isdigit, x)))) # asc
-        self.dic_vid_groups['ls_ihB_hv'] = ls_ihB_hv
-        self.dic_vid_groups['ls_ihAB_av'] = sorted(ls_ihAB_av, key=lambda x: int(''.join(filter(str.isdigit, x)))) # asc
-        self.dic_vid_groups['ls_ihAB_hv'] = ls_ihAB_hv
+        self.dic_vid_groups['ls_ihA_asc'] = ls_ihA_asc  # ascending
+        self.dic_vid_groups['ls_ihA_av_asc'] = ls_ihA_av_asc
+        self.dic_vid_groups['ls_ihA_hv_asc'] = ls_ihA_hv_asc
+        self.dic_vid_groups['ls_ihA_ms_asc'] = ls_ihA_ms_asc
+        self.dic_vid_groups['ls_ihA_av_ms_asc'] = ls_ihA_av_ms_asc  # ms => merging section
+        self.dic_vid_groups['ls_ihB_asc'] = ls_ihB_asc
+        self.dic_vid_groups['ls_ihB_av_asc'] = ls_ihB_av_asc # asc
+        self.dic_vid_groups['ls_ihB_hv_asc'] = ls_ihB_hv_asc
+        self.dic_vid_groups['ls_ihAB_av_asc'] = ls_ihAB_av_asc
+        self.dic_vid_groups['ls_ihAB_hv_asc'] = ls_ihAB_hv_asc
 
         # veh on upstream_A and upstream_B
         self.dic_vid_groups['ls_upA'] = ls_upA
@@ -353,18 +353,25 @@ class DataRecording:
         self.dic_vid_groups['ls_upB_av'] = ls_upB_av
 
         # veh on weaving section (ws)
-        self.dic_vid_groups['ls_wsA'] = ls_wsA
-        self.dic_vid_groups['ls_wsB'] = ls_wsB
-        self.dic_vid_groups['ls_wsB_av'] = ls_wsB_av
-        self.dic_vid_groups['ls_wsB_hv'] = ls_wsB_hv
-        self.dic_vid_groups['ls_wsC_hv'] = ls_wsC_hv
-        self.dic_vid_groups['ls_wsBC_hv'] = ls_wsBC_hv
+        self.dic_vid_groups['ls_wsA_asc'] = ls_wsA_asc
+        self.dic_vid_groups['ls_wsB_asc'] = ls_wsB_asc
+        self.dic_vid_groups['ls_wsB_av_asc'] = ls_wsB_av_asc
+        self.dic_vid_groups['ls_wsB_hv_asc'] = ls_wsB_hv_asc
+        self.dic_vid_groups['ls_wsC_hv_asc'] = ls_wsC_hv_asc
+        self.dic_vid_groups['ls_wsBC_hv_asc'] = ls_wsBC_hv_asc
 
         # veh on center
-        self.dic_vid_groups['ls_centerA_av'] = ls_centerA_av
-        self.dic_vid_groups['ls_centerA_hv'] = ls_centerA_hv
-        self.dic_vid_groups['ls_centerB_av'] = ls_centerB_av
+        self.dic_vid_groups['ls_centerA_av_asc'] = ls_centerA_av_asc
+        self.dic_vid_groups['ls_centerA_hv_asc'] = ls_centerA_hv_asc
+        self.dic_vid_groups['ls_centerB_av_asc'] = ls_centerB_av_asc
         return self.dic_vid_groups
+
+    def _sort_by_pos(self, ls, ascending=True):
+        if ascending: # departure time: small => big; pos: big => small
+            ls_sorted = sorted(ls, key=lambda vid: self.dic_pos.get(vid, -1), reverse=True)
+        else:
+            ls_sorted = sorted(ls, key=lambda vid: self.dic_pos.get(vid, -1))
+        return ls_sorted
 
     def get_hv_leader(self, hv_id, m=True):
         '''
@@ -516,37 +523,6 @@ class DataRecording:
         ls_tail_ids_net = [vid for vid in self.ls_tail_ids if vid in ls_vehid]
         for tail_id in ls_tail_ids_net:
             self._record_rf_at_target(step, tail_id)
-
-    def disable_all_lane_changes(self):
-        '''
-        Disable lane-changing behavior for all currently active vehicles.
-        '''
-        for vid in self.traci.vehicle.getIDList():
-            self.traci.vehicle.setLaneChangeMode(vid, 0)
-
-    def update_leader_gap_cache(self, dic_platoon_members):
-        """
-        Update leader-follower gap cache after platoon members are identified.
-        Called after identify_platoon_members() in formation_controller.
-
-        Pre-compute gaps to avoid repeated position queries.
-        Params:
-            - dic_platoon_members: {leader_id: [leader_id, follower1_id, follower
-            - dic_pos: lane position
-        """
-        self.dic_leader_gap.clear()
-
-        for leader_id, members in dic_platoon_members.items():
-            if leader_id not in self.dic_pos:
-                continue
-            leader_pos = self.dic_pos[leader_id]
-
-            for follower_id in members[1:]:  # Skip leader itself
-                if follower_id in self.dic_pos:
-                    follower_pos = self.dic_pos[follower_id]
-                    self.dic_leader_gap[follower_id] = leader_pos - follower_pos
-        return
-
 
     def _record_rf_at_target(self, step, tail_id):
         '''

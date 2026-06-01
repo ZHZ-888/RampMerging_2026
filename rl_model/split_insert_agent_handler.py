@@ -47,31 +47,8 @@ class AgentHandler:
         self.last_update_payload_pair = None # {target leader: candidate leader}
         self.payload = None
 
-    def run_agent_decision_ori(self, step, laneChange_buffer, dic_platoon_members, dic_oversized_platoon_states,
-                           dic_leader_candidates, ls_upA, gating_value=None):
-        """
-        Main function to handle AV insertion decisions.
-        """
-        if not dic_oversized_platoon_states:
-            return {}
-        for oversize_leader in dic_oversized_platoon_states:
-            if oversize_leader in self.ls_splited_platoon or oversize_leader not in dic_leader_candidates:
-                continue
-            selected_av, selected_state, score = (
-                self._evaluate_candidates(step, oversize_leader, dic_platoon_members,
-                                          dic_leader_candidates, dic_oversized_platoon_states,
-                                          ls_upA, gating_value))
-            if selected_av:
-                payload = (oversize_leader, selected_av, selected_state, dic_platoon_members, score)
-                laneChange_buffer.push(step, payload)  # Add to buffer for delayed execution
-                delayed_payload = laneChange_buffer.maybe_release(step)
-
-                self._execute_insertion(step, oversize_leader, selected_av, selected_state, dic_platoon_members, score)
-
-        return self.dic_insertedAV
-
     def run_agent_decision(self, step, dic_platoon_members, dic_oversized_platoon_states,
-                           dic_leader_candidates, ls_upA, gating_value=None):
+                           dic_leader_candidates, ls_upA_asc, gating_value=None):
         """
         Main function to handle AV insertion decisions.
         """
@@ -83,7 +60,7 @@ class AgentHandler:
                 continue
             selected_av, selected_state, score = self._evaluate_candidates(
                 step, oversize_leader, dic_platoon_members, dic_leader_candidates,
-                dic_oversized_platoon_states, ls_upA, gating_value)
+                dic_oversized_platoon_states, ls_upA_asc, gating_value)
 
             if selected_av and (self.last_update_payload_pair != {oversize_leader:selected_av}):
                 self.payload = (oversize_leader, selected_av, selected_state,
@@ -261,7 +238,7 @@ class AgentHandler:
             self.next_save_step += save_interval  # set next checkpoint
 
     def _evaluate_candidates(self, step, leader_id, dic_platoon_members, dic_leader_candidates,
-                             dic_oversized_platoon_states, ls_upA, gating_value):
+                             dic_oversized_platoon_states, ls_upA_asc, gating_value):
         """
         Evaluate candidate AVs for a given leader and select the one with the highest score.
         """
@@ -281,9 +258,9 @@ class AgentHandler:
         platoon_states = dic_oversized_platoon_states[leader_id]
 
         for av_id in ls_candidateAV:
-            if av_id == 'mb_av182':
+            if av_id == 'm_av238':
                 pass
-            state = self.agent.state_builder.build_state2(av_id, pMember, platoon_states, ls_upA)
+            state = self.agent.state_builder.build_state2(av_id, pMember, platoon_states, ls_upA_asc)
             score = self.agent.predict_score(state)
             if score > best_score:
                 best_score = score

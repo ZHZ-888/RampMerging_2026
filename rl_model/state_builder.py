@@ -17,7 +17,7 @@ class StateBuilder:
         self.max_lane_pos = max_lane_pos # take note this number
         self.max_size = max_size
 
-    def build_state2(self, av_id: str, pMember, p_info: list, ls_upA) -> np.ndarray:
+    def build_state2(self, av_id: str, pMember, p_info: list, ls_upA_asc) -> np.ndarray:
         """
         split_insert
 
@@ -51,7 +51,7 @@ class StateBuilder:
             dis_to_head_norm = np.tanh(dis_to_head)
 
             # gap before and after lc_av
-            front_gap, rear_gap = self._get_insertion_gap(pMember, ls_upA, av_pos)
+            front_gap, rear_gap = self._get_insertion_gap(pMember, ls_upA_asc, av_pos)
             front_gap_norm = np.clip(front_gap/self.max_gap, 0.0, 1.0)
             rear_gap_norm = np.clip(rear_gap / self.max_gap, 0.0, 1.0)
 
@@ -75,7 +75,7 @@ class StateBuilder:
 
         return state
 
-    def build_state_free(self, cand_leader: str, target_sparse_platoon, dic_platoon_member, ls_upA) -> np.ndarray:
+    def build_state_free(self, cand_leader: str, target_sparse_platoon, dic_platoon_member) -> np.ndarray:
         """
         free_insert
         Build the state vector for a given candidate AV.
@@ -158,12 +158,12 @@ class StateBuilder:
 
         return state
 
-    def _get_insertion_gap(self, ls_pMember, ls_upA, av_pos):
+    def _get_insertion_gap(self, ls_pMember, ls_upA_asc, av_pos):
         '''
         Compute the front and rear gap for a candidate AV insertion position,
         based on platoon members and downstream vehicles on the same lane.
         :param ls_pMember: ['mav635', 'mhv666', 'mhv710', 'mhv735', 'mhv760']
-        :param ls_upA: ['mhv1092', 'mhv1069', 'mhv1035', 'mhv960']
+        :param ls_upA: ['mhv960', 'mhv1069', 'mhv1092']
         :return:
             front_gap (float): Distance to the nearest vehicle in front of AV.
             rear_gap (float): Distance to the nearest vehicle behind AV.
@@ -174,9 +174,8 @@ class StateBuilder:
         leader_id = ls_pMember[0]
 
         # Get all vehicles from leader backward (i.e., all vehicles behind the leader in lane order)
-        ls_upA_re = ls_upA[::-1]
-        idx_leader = ls_upA_re.index(leader_id)
-        ls_id = ls_upA_re[idx_leader:]
+        idx_leader = ls_upA_asc.index(leader_id)
+        ls_id = ls_upA_asc[idx_leader:]
         for id in ls_id:
             # try:
             #     pos = self.traci.vehicle.getLanePosition(id)

@@ -104,7 +104,7 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
     # scripts loop
     while step < st * 10:
         # checkpoint
-        if step > 450 * 10:
+        if step > 740 * 10:
              pass
         traci.simulationStep()  # start simulation
 

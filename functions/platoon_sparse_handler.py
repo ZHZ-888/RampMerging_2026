@@ -210,20 +210,19 @@ class PlatoonSparseHandler:
                 dic_sparse_platoon_filtered[sparse_leader] = ls_hv_free_fol[0]
         return dic_sparse_platoon_filtered
 
-    def find_sparseP_nearbyAV(self, ls_ihB_av, dic_sparse_platoon):
+    def find_sparseP_nearbyAV(self, ls_ihB_av_asc, dic_sparse_platoon):
         """
         Find nearby side-lane AVs for sparse platoons with free followers
 
-        :param ls_ihB_av: side-lane AVs (ascending order)
+        :param ls_ihB_av_asc: side-lane AVs (ascending order)
         :param dic_sparse_platoon: {sparse_leader: first_free_follower}
         :param dic_platoon_members: platoon membership info
         :return: dic_sparse_candidates = {sparse_leader: [candidate_av1, candidate_av2, ...]}
         """
-        ls_ihB_av_asc = ls_ihB_av  # ascending order
         dic_sparse_candidates = {}
 
         for sparse_leader, first_free_fol in dic_sparse_platoon.items():
-            if sparse_leader == 'mav281':
+            if sparse_leader == 'm_av238':
                 pass
             # Get position of first free follower
             try:

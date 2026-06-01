@@ -14,7 +14,7 @@ import warnings
 from collections import deque # fixed length list
 
 from functions import print_control as prc  # the shared fuction of print control
-from functions.optimisation_algo import GetBVCurve, GetBVCurve2  # Optimiser
+from functions.optimisation_algo import GetBVCurve2  # Optimiser
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
@@ -188,7 +188,7 @@ class MergingControlRegular:
         # get info at this moment
         dic_vid_groups = self.data_recorder.dic_vid_groups
 
-        ls_m_leader_net = dic_vid_groups['ls_m_leader_net']
+        ls_m_leader_net = dic_vid_groups['ls_m_leader_net_asc']
         ls_r_leader_net = dic_vid_groups['ls_r_leader_net']
         ls_mr_leader_net = ls_m_leader_net + ls_r_leader_net
 
@@ -548,7 +548,7 @@ class MergingControlRegular:
         '''
         get platoon tail id
         Params:
-            ls_m_veh_up:
+            ls_m_veh_up_asc:
             ls_r_veh_up: desc
 
             ls_r_veh_net: should be desc
@@ -661,7 +661,7 @@ class MergingControlRegular:
         # ramp veh list before merging
         dic_vid_groups = self.data_recorder.dic_vid_groups
         ls_vehid = dic_vid_groups['ls_vehid']
-        ls_m_veh_up = dic_vid_groups['ls_m_veh_up']  # m_leader list before merging
+        ls_m_veh_up_asc = dic_vid_groups['ls_m_veh_up_asc']  # m_leader list before merging
         ls_r_veh_up = dic_vid_groups['ls_r_veh_up']
         # scripts veh list before merging
         keys_to_remove = []
@@ -673,7 +673,7 @@ class MergingControlRegular:
                 r_tail_id = self.dic_platoon_info[r_leader][0][1]
                 m_tail_id = self.dic_platoon_info[m_leader][0][1]
                 if r_tail_id in ls_vehid and m_tail_id in ls_vehid:
-                    if r_tail_id not in ls_r_veh_up or m_tail_id not in ls_m_veh_up:
+                    if r_tail_id not in ls_r_veh_up or m_tail_id not in ls_m_veh_up_asc:
                         keys_to_remove.append(r_leader)
             # check m_leader fleet state
         for key in keys_to_remove:
@@ -694,14 +694,16 @@ class MergingControlRegular:
                 ts_mp_tail = self.dic_mplatoon_et[m_leader][2] # tail_tm
                 m_give = ts_rp_tail - ts_mp_head
                 r_give = ts_mp_tail - ts_rp_head
-                if m_give >= r_give:
+                if m_give < 0: # no conflict, no need to take action
+                    pass
+                elif m_give >= r_give:
                     # r_leader take action
                     # dic_rm_leader_actor: # {(r_leader: m_leader): r_leader, ...}, which one as actor
                     self.dic_rm_leader_actor[(r_leader, m_leader)] = r_leader
                     # 241211update: if r_leader take action, corresponding m_leader should not take any action, drop it from ls_m_leaders_followup and dic_m_leader_followup_action
                     self.ls_m_leaders_followup.remove(m_leader) if m_leader in self.ls_m_leaders_followup else None
                     self.dic_m_leader_followup_action.pop(m_leader, None)
-                else:
+                else: # m_give < r_give
                     # m_leader take action
                     self.dic_rm_leader_actor[(r_leader, m_leader)] = m_leader
         return self.dic_rm_leader_actor

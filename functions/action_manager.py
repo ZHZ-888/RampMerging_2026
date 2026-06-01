@@ -170,7 +170,7 @@ class ActionManager:
         # dic_vid_groups = self.data_recorder.record_vehinfo()
         dic_vid_groups = self.data_recorder.dic_vid_groups
         ls_mr_leader_up = dic_vid_groups["ls_mr_leader_up"] # all avh before merging
-        ls_m_leader_up = dic_vid_groups["ls_m_leader_up"] # all m_leader before merging
+        ls_m_leader_up_asc = dic_vid_groups["ls_m_leader_up_asc"] # all m_leader before merging
         action_dic = {key: value for key, value in dic_rm_leader_actor.items() if value in ls_mr_leader_up}
         # prc.print_message(action_dic)
         # filter out duplicate r_leader, only keep the last pair
@@ -196,7 +196,7 @@ class ActionManager:
                 m_leader_next = min(
                     (
                         (v, int(re.search(r'\d+', v).group()))
-                        for v in ls_m_leader_up
+                        for v in ls_m_leader_up_asc
                         if int(re.search(r'\d+', v).group()) > m_leader_time
                     ),
                     key=lambda x: x[1],

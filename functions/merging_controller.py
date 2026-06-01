@@ -60,9 +60,9 @@ class MergingController:
         ls_r_leader_up = dic_vid_groups['ls_r_leader_up']
         ls_r_leader_up_asc = dic_vid_groups['ls_r_leader_up_asc']  # min => max
         ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']  # min => max
-        ls_m_veh_up = dic_vid_groups['ls_m_veh_up']
-        ls_wsA = dic_vid_groups['ls_wsA']
-        ls_wsB = dic_vid_groups['ls_wsB']
+        ls_m_veh_up_asc = dic_vid_groups['ls_m_veh_up_asc']
+        ls_wsA_asc = dic_vid_groups['ls_wsA_asc']
+        ls_wsB_asc = dic_vid_groups['ls_wsB_asc']
 
         # === 2. Platoon info (scripts + ramp) ===
         dic_platoon_info = self.merge_regular.get_platoon_info2()
@@ -79,14 +79,14 @@ class MergingController:
 
         # === 3. Determine mode: regular / jam ===
         # regular_mode, jam_mode = self.mode_switch.determine_mode4(
-        #     ls_m_veh_up,
+        #     ls_m_veh_up_asc,
         #     ls_r_veh_up,
         #     ls_r_leader_up
         # )
 
         regular_mode, jam_mode = self.mode_switch.determine_mode_flexible_merge_point(
-            ls_wsB,
-            ls_wsA,
+            ls_wsB_asc,
+            ls_wsA_asc,
             ls_r_leader_up)
 
         # jam_mode = True
@@ -100,7 +100,7 @@ class MergingController:
                 step,
                 dic_platoon_info,
                 ls_m_leader_up_asc,
-                ls_m_veh_up,
+                ls_m_veh_up_asc,
                 dic_mplatoon_et,
                 dic_vid_groups,
                 self.ls_r_dep_times,

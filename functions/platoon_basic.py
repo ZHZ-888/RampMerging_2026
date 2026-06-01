@@ -51,12 +51,12 @@ class PlatoonBasic:
 
         self.check = False # this is a key update; use prediction value or sensor measurement value to determine following states
 
-    def get_platoon_size3(self, ls_ihA, ls_leader):
+    def get_platoon_size3(self, ls_ihA_asc, ls_leader):
         '''
         get the platoon size/platoon members for each LEADER currently on the road
         record each platoon members
-        :param ls_ihA: ['mhv3305', 'mav3287', 'mhv3171', ...] descending, vehicle list on inflow_highway innner
-        :param ls_leader: all leaderAV CURRENTLY on upstream_0, for example: ['mav2744', 'mav3038']
+        :param ls_ihA: ['mhv3171', 'mav3287', 'mhv3305',  ...] ascending, vehicle list on inflow_highway outer
+        :param ls_leader: all leaderAV CURRENTLY on upstream_0, ['mav2744', 'mav3038'], ascending order
         :return: dic_id_size = {'mav158': 10, 'mav44': 4, 'mav661': 2},
                         current ls_leader and its corresponding size
                  dic_platoon_members = {
@@ -69,7 +69,6 @@ class PlatoonBasic:
         dic_platoon_size = {}
         dic_platoon_members = {}
 
-        ls_ihA_asc = ls_ihA[::-1]
         for leader in ls_leader:
             idx_ih = ls_ihA_asc.index(leader)  # idx on inflow_highway_0 (outer)
             dic_leaderAV_index[leader] = idx_ih
@@ -90,24 +89,23 @@ class PlatoonBasic:
         self.data_recorder.ls_m_leader_his_asc = list(self.dic_platoon_size.keys())
         return self.dic_platoon_size, dic_platoon_size, dic_platoon_members
 
-    def tag_vehicles13(self, ls_ihA, max_team_size=11):
+    def tag_vehicles13(self, ls_ihA_asc, max_team_size=11):
         '''
         260301 crucial update, only keep dic_tags for vehicles still on current road network
 
         label each vehicle: 0 => follower_HV, 1 => leader_AV, 2 => follower_AV;
         also for split_promote (promote a follower_AV to leader_AV to split oversized platoon)
 
-        :param ls_ihA: vehicle list ordered from newest to oldest
+        :param ls_ihA: vehicle list ordered from newest to oldest (descending)
                ls_ihA_asc: oldest to newest
         :param max_team_size: maximum allowed platoon size
         :return: updated dic_tags,
-                    ls_leader_AV, ascending order
-                    ls_follower_AV
+                 ls_leader_AV, ascending order
+                 ls_follower_AV
         '''
         self.max_team_size = max_team_size
-        ls_ihA_asc = ls_ihA[::-1]  # Reverse to oldest → newest
 
-        if self.ls_ihA_lastStep != ls_ihA:
+        if self.ls_ihA_lastStep != ls_ihA_asc:
             # === get new_dic, make sure the order is correct ===
             # find the first id in ls_ihA_asc that already exists in dic_tags
             anchor_id = next((id for id in ls_ihA_asc if id in self.dic_tags), None)
@@ -187,7 +185,7 @@ class PlatoonBasic:
                     if current_leader is not None:
                         current_team_size += 1
 
-            self.ls_ihA_lastStep = ls_ihA
+            self.ls_ihA_lastStep = ls_ihA_asc
 
             # filter out vehicles that have left the road network
             ls_vehid = self.data_recorder.dic_vid_groups['ls_vehid'] # all vehicle in this step
@@ -197,8 +195,8 @@ class PlatoonBasic:
             dic_leader_AV = {k: v for k, v in self.dic_tags.items() if v == 1}
             dic_follower_AV = {k: v for k, v in self.dic_tags.items() if v == 2}
 
-            dic_leader_AV_c = {k: v for k, v in dic_leader_AV.items() if k in ls_ihA}
-            dic_follower_AV_c = {k: v for k, v in dic_follower_AV.items() if k in ls_ihA}
+            dic_leader_AV_c = {k: v for k, v in dic_leader_AV.items() if k in ls_ihA_asc}
+            dic_follower_AV_c = {k: v for k, v in dic_follower_AV.items() if k in ls_ihA_asc}
 
             self.ls_leader_AV = list(dic_leader_AV_c.keys())
             self.ls_follower_AV = list(dic_follower_AV_c.keys())
@@ -260,7 +258,7 @@ class PlatoonBasic:
         '''
         restor av max_speed to 27.78 m/s
         max_speed = 27.78
-        :param ls_av: list of AV IDs
+        :param ls_av: list of AV IDs on weaving section B
         :return:
         '''
 
@@ -395,12 +393,12 @@ class PlatoonBasic:
                  self.dic_final_platoon_info: {66: 'AHHHHHHH', 138: 'AHHHHHH', 174: 'AH', 177: 'AHH'}
         """
         # 1. Leaders that have reached the merging control section (> length_pf)
-        ls_mc_leaders = self.data_recorder.dic_vid_groups['ls_m_leader_up']
+        ls_mc_leaders = self.data_recorder.dic_vid_groups['ls_m_leader_up_asc']
         # No leader in the merging control section
         if not ls_mc_leaders:
             return self.dic_follower_state, self.dic_final_platoon_info
         # Take the most recently arrived leader
-        leader_mc_newest = ls_mc_leaders[0]
+        leader_mc_newest = ls_mc_leaders[-1]
         # Ensure this leader is recorded only once
         if leader_mc_newest in self.ls_leader_fol_states_checked:
             return self.dic_follower_state, self.dic_final_platoon_info
@@ -434,12 +432,12 @@ class PlatoonBasic:
         :return: self.dic_follower_state_sensor: {follower_id: [state, leader_id]}
         """
         # 1. Leaders that have reached the merging control section (> length_pf)
-        ls_mc_leaders = self.data_recorder.dic_vid_groups['ls_m_leader_up']
+        ls_mc_leaders = self.data_recorder.dic_vid_groups['ls_m_leader_up_asc']
         # No leader in the merging control section
         if not ls_mc_leaders:
             return self.dic_follower_state_sensor
         # Take the most recently arrived leader
-        leader_mc_newest = ls_mc_leaders[0]
+        leader_mc_newest = ls_mc_leaders[-1]
         # Ensure this leader is recorded only once
         if leader_mc_newest in self.ls_leader_fol_states_checked_sensor:
             return self.dic_follower_state_sensor
