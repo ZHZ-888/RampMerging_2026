@@ -340,9 +340,9 @@ class DataRecording:
         self.dic_vid_groups['ls_ihA_ms'] = ls_ihA_ms
         self.dic_vid_groups['ls_ihA_av_ms'] = ls_ihA_av_ms  # ms => merging section
         self.dic_vid_groups['ls_ihB'] = ls_ihB
-        self.dic_vid_groups['ls_ihB_av'] = ls_ihB_av
+        self.dic_vid_groups['ls_ihB_av'] = sorted(ls_ihB_av, key=lambda x: int(''.join(filter(str.isdigit, x)))) # asc
         self.dic_vid_groups['ls_ihB_hv'] = ls_ihB_hv
-        self.dic_vid_groups['ls_ihAB_av'] = ls_ihAB_av
+        self.dic_vid_groups['ls_ihAB_av'] = sorted(ls_ihAB_av, key=lambda x: int(''.join(filter(str.isdigit, x)))) # asc
         self.dic_vid_groups['ls_ihAB_hv'] = ls_ihAB_hv
 
         # veh on upstream_A and upstream_B
