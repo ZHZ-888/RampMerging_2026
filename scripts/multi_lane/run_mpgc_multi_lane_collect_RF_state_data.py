@@ -6,6 +6,7 @@ test longer platoon
 '''
 
 import pandas as pd
+from pathlib import Path
 from functions import vehicle_generation3 as vg
 from functions import print_control as prc # the shared fuction of print control
 from functions import formation_controller as fc
@@ -15,9 +16,13 @@ from functions import hpc_utils
 
 def mpgc_main(av_p, r_fr=0, m_fr=1500, seed=0, loss_rate=0, gui=False, st=1800):
     # SUMO SETTING
-    path = '../../road_network/multi_lane_motorway/real/cfg_multi_lane_merge.sumocfg'
-    sumo_config_path \
-        = path
+    ROOT = Path(__file__).resolve().parents[2]
+    sumo_config_path = (ROOT
+                        / "road_network"
+                        / "multi_lane_motorway"
+                        / "real"
+                        / "cfg_multi_lane_merge.sumocfg"
+                        )
     # Simulation step length
     sim_step = 0.1
     # Determine the SUMO binary based on whether GUI is needed
