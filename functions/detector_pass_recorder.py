@@ -6,18 +6,21 @@ class DetectorPassRecorder:
     detector. The insertion order of dic_pass_time represents the passing order.
     """
 
-    def __init__(self, traci, data_recorder, detector_ids):
+    def __init__(self, traci, data_recorder):
         self.traci = traci
         self.data_recorder = data_recorder
-        self.detector_ids = detector_ids
+        self.detector_ids = ['pfz_entry', 'mcz_entry']
 
         # Vehicle passing time at the detector.
         # Format: {veh_id: pass_time}
         # The insertion order represents the passing order.
-        self.dic_pass_time = {}
+        self.dic_pass_time = {'pfz_entry': {}, 'mcz_entry': {}}
 
         # Newly detected vehicles in the current simulation step.
-        self.new_pass_vids = []
+        self.new_pass_vid = {
+            "pfz_entry": None,
+            "mcz_entry": None
+        }
 
         # {leader_id: platoon_size}
         self.dic_leader_platoon_size = {}
@@ -28,12 +31,17 @@ class DetectorPassRecorder:
 
         This function should be called at every simulation step.
         If a new vehicle passes the detector, record its passing time and store its ID.
+
+        detector_id: 'mcz_entry'; 'pfz_entry'
         """
 
         c_ts = round(step / 10 + 0.1, 1)
 
         # Reset newly passed vehicle at each step.
-        self.new_pass_vid = None
+        self.new_pass_vid = {
+            "pfz_entry": None,
+            "mcz_entry": None
+        }
 
         for detector_id in self.detector_ids:
             try:
@@ -45,23 +53,27 @@ class DetectorPassRecorder:
 
             for veh_id in passed_vehicle_ids:
                 # Record the first detector passing time only.
-                if veh_id not in self.dic_pass_time:
-                    self.dic_pass_time[veh_id] = c_ts
-                    self.new_pass_vid = veh_id
-                    return self.new_pass_vid
+                if veh_id not in self.dic_pass_time[detector_id]:
+                    self.dic_pass_time[detector_id][veh_id] = c_ts
+                    self.new_pass_vid[detector_id] = veh_id
+                    break
 
         return self.new_pass_vid
 
 
-    def count_platoon_size(self, ls_leader):
+    def count_platoon_size(self, ls_leader, detector_id):
         """
+        Call: self.new_pass_vid
+              self.dic_pass_time
+
         Count the follower number of the previous leader when a new leader passes
         the detector.
         Return:
             - dic_leader_follower_count: {leader_id: follower_count}
         """
 
-        new_pass_vid = self.new_pass_vid
+        new_pass_vid = self.new_pass_vid[detector_id]
+        dic_pass_time = self.dic_pass_time[detector_id]
 
         # No new vehicle passes the detector at this step.
         if new_pass_vid is None:
@@ -71,7 +83,7 @@ class DetectorPassRecorder:
         if new_pass_vid not in ls_leader:
             return self.dic_leader_platoon_size
 
-        pass_order = list(self.dic_pass_time.keys())
+        pass_order = list(dic_pass_time.keys())
 
         index_this_leader = ls_leader.index(new_pass_vid)
 
@@ -82,7 +94,7 @@ class DetectorPassRecorder:
         last_leader = ls_leader[index_this_leader - 1]
 
         # The previous leader must have passed the detector.
-        if last_leader not in self.dic_pass_time:
+        if last_leader not in dic_pass_time:
             return self.dic_leader_platoon_size
 
         index_last_pass = pass_order.index(last_leader)

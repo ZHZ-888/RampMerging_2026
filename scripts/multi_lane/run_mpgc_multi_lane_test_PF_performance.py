@@ -8,6 +8,10 @@ import time
 from pathlib import Path
 import itertools
 
+import torch
+import numpy as np
+import random
+
 from functions import vehicle_generation3 as vg
 from functions import print_control as prc  # the shared fuction of print control
 from functions import formation_controller as fc
@@ -17,10 +21,11 @@ from functions import data_recording as dr
 from functions import hpc_utils
 
 
-def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate=0,
+def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0,
               deploy_agent = None,
               gui=False, plot=False, display=False, lc=True, st=1200,
               model_name=None):
+    set_global_seed(seed, enable=True)
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
     sumo_config_path = (ROOT
@@ -37,11 +42,14 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
     '''
     Look for a system setting named TRAJ_DIR. If it exists, use it. If not, use this default folder.
     '''
-    traj_dir = Path(os.environ.get("TRAJ_DIR",
-                                    ROOT / "data" / "multi_lane" / "algo"))
+    traj_dir = Path(os.environ.get("TRAJ_DIR", ROOT / "data" / "multi_lane" / "algo"))
+    task_id = os.environ.get("SLURM_ARRAY_TASK_ID", "local")
     file_name = f'trj_{r_fr}_{av_p}_{seed}_{loss_rate}.xml'
     xml_path = os.path.join(traj_dir, file_name)
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
+                "--seed", str(seed),
                 "--fcd-output", str(xml_path), # save path
                 "--no-warnings"]  #
     sumo_options = ["--step-length", str(sim_step)]
@@ -115,9 +123,8 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
         veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p)
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size,
-         dic_id_features, dic_final_platoon_info) = formation_controller.step(st, step, lc)
-        tp, speed_log, queue_log = merging_controller.step(st, step,
-                                                           dic_final_platoon_info, r_dpt_type)
+         dic_id_features) = formation_controller.step(st, step, lc)
+        tp, speed_log, queue_log = merging_controller.step(st, step, r_dpt_type)
 
         data_recorder.record_tail_arrival(step)
         step += 1
@@ -170,6 +177,22 @@ def main(args=None, root=None):
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
 
+def set_global_seed(seed, enable=True):
+    """Fix all sources of randomness globally
+    (external traffic-environment constraints + internal neural-network constraints)"""
+    if not enable:
+        return
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.use_deterministic_algorithms(True)
+
 def _set_dynamic_traffic(step, start_t, r_dpt_type, dynamic=True):
     '''
     set dynamic traffic. For example: default r_demands=720 veh/h; start_t=5 min, new_fr=180 veh/h;
@@ -188,7 +211,6 @@ def _set_dynamic_traffic(step, start_t, r_dpt_type, dynamic=True):
     return r_dpt_type
 
 if __name__ == '__main__':
-
     prc.PRINT_ENABLED = False
 
     dic_res = {} # {model_name: [ca_indicator_avg, sa_indicator_avg]}

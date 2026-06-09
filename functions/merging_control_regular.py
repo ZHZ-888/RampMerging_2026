@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore", category=FutureWarning,
                         message="is_sparse is deprecated and will be removed in a future version")
 
 fomula1 = '2*v0*t+2*a*t*t1-a*t1**2-2*D'  # self.D
-fomula2 = 'v0*t + 0.5*a*(t-t1)**2 - D'  # 先匀后减
+fomula2 = 'v0*t + 0.5*a*(t-t1)**2 - D'  # constant speed followed by deceleration
 
 class MergingControlRegular:
     def __init__(self, traci, instance_dr, ml, optimizer=True):
@@ -604,11 +604,11 @@ class MergingControlRegular:
         # 1. platoon type
         platoon_type = self.data_recorder.dic_leader_ptype[leader]
         # 2. distance between this leader and its previous vehicle
-        p_veh_info = self.traci.vehicle.getLeader(leader, self.merge_control_length)  # p_veh_info = [p_id, dis]
+        p_veh_info = self.traci.vehicle.getLeader(leader, self.length_mcz)  # p_veh_info = [p_id, dis]
         if p_veh_info is not None:
             leader_to_pv_dis = p_veh_info[1] # dis to pv (leader dis to pv)
         else:
-            leader_to_pv_dis = self.merge_control_length # equal to the length of merging control section
+            leader_to_pv_dis = self.length_mcz # equal to the length of merging control section
         # 3. speed of platoon leader AV
         dic_head_states = self.data_recorder.get_vid_states(leader)
         speed_leader = dic_head_states['v'] # this_speed

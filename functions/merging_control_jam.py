@@ -43,7 +43,7 @@ class MergingControlJam:
         self.last_timing_payload = None
 
         self.dic_mplatoon_et = {}  # dic_mplatoon_et: {m_leader:[platoon_type, ts_head, ts_tail, c_ts]}
-        self.merge_control_length = self.data_recorder.merge_control_length
+        self.length_mcz = self.data_recorder.length_mcz
         self.max_speed = self.data_recorder.max_speed
         self.last_action_params = None
         self.m_action_params = None
@@ -324,7 +324,7 @@ class MergingControlJam:
         # S6: another common situation, m_leader need to take action, and m_leader has a leader on inflow_highway
         # if self.stop_state and len(ls_m_veh_up_asc) > 0 and m_leader and m_leader_acting is True:
         if self.stop_state and len(ls_m_veh_up_asc) > 0 and action_m_leader and self.m_leader_acting is True:
-            pv_info = self.traci.vehicle.getLeader(action_m_leader, self.merge_control_length)
+            pv_info = self.traci.vehicle.getLeader(action_m_leader, self.length_mcz)
             if pv_info is not None:  # condition 6
 
                 pv_id = pv_info[0]
@@ -349,7 +349,7 @@ class MergingControlJam:
 
         # S2: Most common situation without m_leader action
         if self.stop_state and len(ls_m_veh_up_asc) > 0 and m_leader and self.m_leader_acting is False:
-            pv_info = self.traci.vehicle.getLeader(m_leader, self.merge_control_length)
+            pv_info = self.traci.vehicle.getLeader(m_leader, self.length_mcz)
             if pv_info is not None:  # condition 6
                 pv_id = pv_info[0]
                 pv_lane_id = self.traci.vehicle.getRoadID(pv_id)
@@ -369,7 +369,7 @@ class MergingControlJam:
 
         # S5: 100624updated, m_leader has no leader on inflow_highway
         if self.stop_state and len(ls_m_veh_up_asc) > 0 and m_leader and self.m_leader_acting is False:
-            pv_info = self.traci.vehicle.getLeader(m_leader, self.merge_control_length)
+            pv_info = self.traci.vehicle.getLeader(m_leader, self.length_mcz)
             if pv_info is not None:  # condition 6
                 pv_id = pv_info[0]
                 pv_lane_id = self.traci.vehicle.getRoadID(pv_id)
@@ -407,7 +407,7 @@ class MergingControlJam:
         # 1. no vehicles on the merging section
         if len(ls_m_veh_up_asc) == 0:
             m_leader = None
-            max_thw = self.merge_control_length / self.max_speed - self.r_leader_acc_dur  # the acc time(consider)
+            max_thw = self.length_mcz / self.max_speed - self.r_leader_acc_dur  # the acc time(consider)
         # 2. no leader on the merging section, but there are followers
         elif len(ls_m_leader_up_asc) == 0:
             m_leader = None
@@ -424,8 +424,8 @@ class MergingControlJam:
             veh_info = self.data_recorder.get_vid_states(last_mvb)
 
             dis = veh_info['dis']
-            # (self.merge_control_length - dis) => the distance between last veh and start point of merging control section
-            thw = (self.merge_control_length - dis) / self.max_speed
+            # (self.length_mcz - dis) => the distance between last veh and start point of merging control section
+            thw = (self.length_mcz - dis) / self.max_speed
             headway_differences[None] = thw
 
             # 3.2 between the first platoon and the weaving section
@@ -497,7 +497,7 @@ class MergingControlJam:
         # 1. no vehicles on the merging section
         if len(ls_m_veh_up_asc) == 0:
             m_leader = None
-            max_thw = self.merge_control_length / self.speed_level3 - self.r_leader_acc_dur  # the acc time(consider)
+            max_thw = self.length_mcz / self.speed_level3 - self.r_leader_acc_dur  # the acc time(consider)
         # 2. no leader on the merging section, but there are followers
         elif len(ls_m_leader_up_asc) == 0:
             m_leader = None
@@ -513,8 +513,8 @@ class MergingControlJam:
             last_mvb = ls_m_veh_up_asc[-1]
             veh_info = self.data_recorder.get_vid_states(last_mvb)
             dis = veh_info['dis']
-            # (self.merge_control_length - dis) => the distance between last veh and start point of merging control section
-            thw = (self.merge_control_length - dis) / self.speed_level3
+            # (self.length_mcz - dis) => the distance between last veh and start point of merging control section
+            thw = (self.length_mcz - dis) / self.speed_level3
             headway_differences[None] = thw
 
             # 3.2 between the first platoon and the weaving section
@@ -613,7 +613,7 @@ class MergingControlJam:
         # 1. no vehicles on the merging section
         if len(ls_m_veh_up_asc) == 0:
             m_leader = None
-            max_thw = self.merge_control_length / self.speed_level3 - self.r_leader_acc_dur  # the acc time(consider)
+            max_thw = self.length_mcz / self.speed_level3 - self.r_leader_acc_dur  # the acc time(consider)
         # 2. no leader on the merging section, but there are followers
         elif len(ls_m_leader_up_asc) == 0:
             m_leader = None
@@ -629,8 +629,8 @@ class MergingControlJam:
             last_mvb = ls_m_veh_up_asc[-1]
             veh_info = self.data_recorder.get_vid_states(last_mvb)
             dis = veh_info['dis']
-            # (self.merge_control_length - dis) => the distance between last veh and start point of merging control section
-            thw = (self.merge_control_length - dis) / self.speed_level3
+            # (self.length_mcz - dis) => the distance between last veh and start point of merging control section
+            thw = (self.length_mcz - dis) / self.speed_level3
             headway_differences[None] = thw
 
             # 3.2 between the first platoon and the weaving section

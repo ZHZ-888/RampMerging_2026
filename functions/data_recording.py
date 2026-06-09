@@ -52,7 +52,8 @@ class DataRecording:
         '''
         self.dic_follower_state = {} # {follower_id: [state, leader_id]}
         self.dic_member_to_leader = {} # only multi-lane scenario have this dic; from platoon_formation2.py
-        self.merge_control_length = 800  # the length of merging control section
+        self.length_mcz = 800  # the length of merging control section
+        self.length_pfz = int(self.length_ih - self.length_mcz)
 
         # multi-lane scenario => (27.78 m/s => 100 km/h)
         self.max_speed = 27.78 if self.length_ih > 1500 else 25
@@ -478,6 +479,8 @@ class DataRecording:
     def get_vid_states(self, vid):
         """
         get speed, lane, position, distance of this ID
+        dis: distance to the end of lane
+        pos: distance to the start of lane
         """
         dic_vid_states = {'v': None, 'lane': None, 'pos': None, 'dis': None}
         if not vid:
@@ -485,7 +488,6 @@ class DataRecording:
         try:
             v = self.dic_speed.get(vid)  # cached
             lane_id = self.dic_lane.get(vid) # lane_id = self.traci.vehicle.getLaneID(vid)
-            # pos = self.dic_pos.get(vid) # pos = self.traci.vehicle.getLanePosition(vid)
             pos = round(self.dic_pos.get(vid, -1), 1)
             dis = self.dic_dis.get(vid)
         except Exception:

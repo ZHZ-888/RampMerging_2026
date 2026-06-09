@@ -10,7 +10,8 @@ from rl_model import free_insert_agent_handler as free_agent
 
 class FormationController:
     def __init__(self, data_recorder, traci, splitting_agent='predict', collecting_agent='predict',
-                 exp_name='default_run', loss_rate=0, learning_rate=5e-4, train_interval=32, model_name=None):
+                 exp_name='default_run', loss_rate=0, learning_rate=5e-4, train_interval=32,
+                 model_name=None):
         '''
         Train split_agent, "splitting_agent='train', collecting_agent=None"
         Train free_insert_agent, "splitting_agent=None, collecting_agent='train'
@@ -22,13 +23,12 @@ class FormationController:
         self.data_recorder = data_recorder
 
         # Initialise platoon modules
-        self.p_basic = pbasic.PlatoonBasic(traci, data_recorder)
+        self.pass_recorder = detector.DetectorPassRecorder(
+            traci, data_recorder) # use sumo instantInductionLoop detector to count platoon members
+        self.p_basic = pbasic.PlatoonBasic(traci, data_recorder, self.pass_recorder)
         self.p_oversized = poversized.PlatoonOversizedHandler(traci, data_recorder, self.p_basic)
         self.p_sparse = psparse.PlatoonSparseHandler(traci, data_recorder, self.p_basic)
         self.p_lane = plane.PlatoonLaneManager(traci, data_recorder)
-        self.pass_recorder = detector.DetectorPassRecorder(
-            traci, data_recorder,
-            detector_ids=['mcz_entry_detector']) # use sumo instantInductionLoop detector to count platoon members
 
         self.loss_rate = loss_rate
         if self.loss_rate == 0:
@@ -54,14 +54,14 @@ class FormationController:
             mode=collecting_agent, exp_name=exp_name,
             lr=learning_rate) if collecting_agent else None
 
-    def platoon_initialise(self, ls_ihA_asc, ls_vehid):
+    def platoon_initialise(self, ls_ihA_asc, ls_vehid, rf_model):
         # ******** PLATOON INITIALISATION ********
         dic_tags, ls_leader_AV, ls_follower_AV, dic_AVroleChange \
             = self.p_basic.tag_vehicles13(ls_ihA_asc, max_team_size=11)  # ** SPLIT_PROMOTE **
         his_dic_platoon_size, dic_platoon_size, dic_platoon_members \
             = self.p_basic.get_platoon_size3(ls_ihA_asc, ls_leader_AV)
         dic_id_preState, dic_id_features \
-            = self.p_basic.predict_flw_state(dic_tags, ls_vehid, model=True)
+            = self.p_basic.predict_flw_state(dic_tags, ls_vehid, model=rf_model)
         return (dic_tags, ls_leader_AV, ls_follower_AV, dic_platoon_size, dic_platoon_members,
                 his_dic_platoon_size, dic_id_preState, dic_id_features)
 
@@ -129,12 +129,13 @@ class FormationController:
         # set follower color as light green
         self.p_basic.set_follower_color()
 
-    def step(self, st, step, lc):
+    def step(self, st, step, lc, lc_fol_av=True, rf_model=True):
         '''
 
         :param st:
         :param step:
         :param lc:
+               lc_fol_av: whether allow lane change for av_followers; default True
         :return:
             dic_socre_reward: {'mbav1533': [0.6405384540557861]}
             dic_follower_state: {'mhv48': ['following_mode', 'mav38'], 'mhv65': ['following_mode', 'mav38']}
@@ -158,7 +159,7 @@ class FormationController:
         # ******** PLATOON INITIALISATION ********
         (dic_tags, ls_leader_AV, ls_follower_AV, dic_platoon_size,
          dic_platoon_members, his_dic_platoon_size, dic_id_preState, dic_id_features) \
-            = self.platoon_initialise(ls_ihA_asc, ls_vehid)
+            = self.platoon_initialise(ls_ihA_asc, ls_vehid, rf_model=rf_model)
 
         # ******** HANDLE OVERSIZED PLATOONS ********
         dic_nonOversizedP = self.splitting(st, step, ls_ihA_asc, ls_ihB_av_asc, dic_platoon_size,
@@ -173,11 +174,11 @@ class FormationController:
 
         # ******** LANE CHANGE AND SPEED CONTROL ********
         self.p_lane.manage_hv_lc_behaviour(lc, dic_tags) # mange hv_followers lane change behavior
-        self.p_lane.restrict_strategic_lc(ls_ihAB_av_asc) # only restrict AV strategic lane change
+        self.p_lane.restrict_av_lc(ls_ihAB_av_asc) # only restrict AV strategic lane change
         # encourage AV_leader without follower move to inner lane (from lane0 to lane1)
         self.p_lane.move_leader_no_fol_to_inner(ls_leader_AV, dic_platoon_members)
         # encourage AV followers move to inner lane (from lane0 to lane1)
-        self.p_lane.move_av_fol_to_inner(ls_leader_AV, dic_standard_platoon)
+        self.p_lane.move_av_fol_to_inner(ls_leader_AV, dic_standard_platoon, lc_fol_av)
 
         # control gaps between platoons
         self.control_platoon_gap(step, ls_vehid, ls_leader_AV, ls_follower_AV,
@@ -185,7 +186,7 @@ class FormationController:
 
         # ******** UPDATE PLATOON MEMBERS BY LOOP DETECTOR RECORD INFO ********
         _ = self.pass_recorder.update(step)
-        _ = self.pass_recorder.count_platoon_size(ls_leader_AV)
+        _ = self.pass_recorder.count_platoon_size(ls_leader_AV, 'mcz_entry')
 
         # ******** RECORD INFO ********
         dic_member_to_leader = self.p_basic.update_member_to_leader(dic_platoon_members)
@@ -194,5 +195,4 @@ class FormationController:
         _ = self.p_basic.record_follower_state2(step, dic_id_preState) # for algorithm
         # use detector to recognise follower state; for performance evaluation only
         dic_follower_state = self.p_basic.record_follower_state_by_sensor()
-        return (dic_score_reward, dic_follower_state, his_dic_platoon_size,
-                dic_id_features)
+        return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features)

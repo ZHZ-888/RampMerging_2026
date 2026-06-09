@@ -6,6 +6,7 @@ Features:
 - Always runs from the project root
 - Stabilises import paths (IDE / terminal / HPC behave the same)
 - Automatically discovers all scripts named run_*.py under scripts/
+    => run_mpgc_multi_lane.py becomes --algo=mpgc_multi_lane
 - Supports arbitrary subfolder depth inside scripts/
 """
 

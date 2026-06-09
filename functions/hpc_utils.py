@@ -113,5 +113,17 @@ def write_one_row_csv(path: str, row: dict):
             w.writeheader()
         w.writerow(row)
 
+def write_dataframe_csv(path: str, df):
+    """
+    Save a DataFrame to CSV.
+    """
+    if path is None:
+        return
+
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+
+    df.to_csv(p, index=False)
+
 
 

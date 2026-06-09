@@ -145,12 +145,12 @@ def main(args=None, root=None):
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path, ssm_path) = mpgc_main(
-                                                                av_p=parsed_args.av_p,
-                                                                r_fr=parsed_args.r_fr,
-                                                                m_fr=parsed_args.m_fr,
-                                                                seed=parsed_args.seed,
-                                                                gui=parsed_args.gui,
-                                                                )
+        av_p=parsed_args.av_p,
+        r_fr=parsed_args.r_fr,
+        m_fr=parsed_args.m_fr,
+        seed=parsed_args.seed,
+        gui=parsed_args.gui,
+    )
     end = time.time()
     runtime = end - start
     # CFR: coupled_following_ratio; SPR: standard_size_platoon_ratio
@@ -216,8 +216,8 @@ if __name__ == '__main__':
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path, ssm_path) = mpgc_main(
-        av_p = 0.2, # 0.1
-        r_fr = 1000, # 1300
+        av_p = 0.1, # 0.1
+        r_fr = 0, # 1300
         m_fr = 1500, # 1500
         seed = 7, # 1 analysis
         r_autoFollow_p = 0,  # auto follow proportion

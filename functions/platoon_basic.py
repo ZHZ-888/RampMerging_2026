@@ -10,14 +10,15 @@ project_root = os.path.dirname(current_dir)
 
 
 class PlatoonBasic:
-    def __init__(self, traci, data_recorder):
+    def __init__(self, traci, data_recorder, pass_recorder):
         self.traci = traci
         self.data_recorder = data_recorder
-
+        self.pass_recorder = pass_recorder
         # Load Random Forest model for follower state prediction
         self.fs_model = joblib.load(
             os.path.join(project_root, 'rf_models', 'follower_state_prediction_model_251121_ndarray.pkl'))
 
+        self.dic_pass_time = self.pass_recorder.dic_pass_time
         self.max_speed = self.data_recorder.max_speed # 27.78 m/s => 100km/h
         self.speed_level3 = 25
         self.speed_level2 = 22.22  # 19.44 m/s (70km/h);
@@ -230,6 +231,8 @@ class PlatoonBasic:
             if id in self.dec_av:
                 self.dec_av.remove(id)
         for leader in ls_leader_av:
+            if leader == 'mb_av422':
+                pass
             self.traci.vehicle.setColor(leader, (255, 255, 0, 255))  # yellow
             # platoon space control
             if leader not in self.dec_av: # av that has dec to level1 speed?
@@ -239,7 +242,7 @@ class PlatoonBasic:
         for index, leader in enumerate(ls_leader_av):  # ascending order
             preceding_veh_info = self.traci.vehicle.getLeader(leader)
             if preceding_veh_info is not None:
-                if leader == 'm_av385':
+                if leader == 'mb_av422':
                     pass
                 dis_to_pv = preceding_veh_info[1]
                 speed_leader = self.data_recorder.get_vid_states(leader)['v']
@@ -311,6 +314,8 @@ class PlatoonBasic:
 
             # STRATEGY A: Merging Zone
             if leader in leaders_on_merging_control:
+                if leader == 'mb_av422':
+                    pass
                 # Unconditional acceleration to level3 speed for merging zone
                 self.traci.vehicle.setMaxSpeed(leader, speed_level3)
 
@@ -332,6 +337,8 @@ class PlatoonBasic:
 
                 # Single vehicle (no followers): accelerates immediately
                 if not ls_followers:
+                    if leader == 'mb_av422':
+                        pass
                     self.traci.vehicle.setMaxSpeed(leader, speed_level3)
                     continue
 
@@ -345,7 +352,9 @@ class PlatoonBasic:
                         all_following = False
                         break
 
-                if all_following:
+                if all_following and leader not in self.recover_speed_map.keys():
+                    if leader == 'mb_av422':
+                        pass
                     # Platoon is intact, leader accelerates
                     self.traci.vehicle.setMaxSpeed(leader, speed_level3)
                     for fol in ls_followers: # record followers's state as '1' (following mode)
@@ -490,8 +499,9 @@ class PlatoonBasic:
         Params:
         - dic_id_type/dic_tags
         - ls_vehid: tuple, all vehicle in this step
-        - dic_fol_last_leader: {follower : last_leader, ...}
-        - self.dic_id_preState (1: following_mode; 0: free_mode)
+        - self.dic_id_features: {id: [f1, f2, ...,], ...}
+        - dic_fol_last_leader: {follower: last_leader, ...}
+        - self.dic_id_preState: {1: following_mode, 0: free_mode}
         """
         if not dic_id_type:
             return self.dic_id_preState, self.dic_id_features
@@ -499,23 +509,21 @@ class PlatoonBasic:
         for vid, tag in dic_id_type.items():
             if tag == 1:
                 self.dic_fol_last_leader.pop(vid, None)
-                self.dic_id_features.pop(vid,
-                                         None)  # removes id from the dictionary; returns None if id doesn't exist.
+                self.dic_id_features.pop(vid, None)  # removes id from the dic; returns None if id doesn't exist.
                 self.dic_id_preState.pop(vid, None)  # removes the prediction state for id.
                 self.dic_leader_free_triggered[vid] = False
 
         # Process newest -> oldest
-        # items = list(dic_id_type.items())[::-1] # seems has a problem in this sequence!
         items = list(dic_id_type.items())
         for vid, tag in items:
             # only handle followers (both AV and HV)
             if tag == 1:
                 continue
 
-            # if left network, remove records so we can re-evaluate later
+            # if left network, remove records so can re-evaluate later
             if vid not in ls_vehid:
                 self.dic_fol_last_leader.pop(vid, None)
-                self.dic_id_features.pop(vid, None)
+                # self.dic_id_features.pop(vid, None)
                 self.dic_id_preState.pop(vid, None)
                 continue
 
@@ -531,7 +539,8 @@ class PlatoonBasic:
                 continue
 
             # extract features (this also stores features in self.dic_id_features)
-            arr_select_features = self._get_RFfeatures(vid)
+            # arr_select_features = self._get_RFfeatures(vid)
+            arr_select_features = self._get_RFfeatures2(vid)
             if arr_select_features is None:
                 # missing data now; clear last-leader to try again later
                 self.dic_fol_last_leader.pop(vid, None)
@@ -581,7 +590,6 @@ class PlatoonBasic:
         veh_num = index_this + 1  # size, how many veh between this veh and its leader_AV, start from 0
         # get pos of leader_id
         if leader_id in self.traci.vehicle.getIDList():
-            # pos_leader = self.traci.vehicle.getLanePosition(leader_id)
             pos_leader = self.data_recorder.get_vid_states(leader_id)['pos']
         else:
             pos_leader = 2000
@@ -593,6 +601,42 @@ class PlatoonBasic:
         # filtered features
         select_features = [dis_to_pv, v_pv, dis_to_leaderAV, veh_num]  # 1, 2, 3, 5
         arr_select_features = np.array(select_features, dtype=float).reshape(1, -1)
+        return arr_select_features
+
+    def _get_RFfeatures2(self, new_follower_id):
+        '''
+        current selected features: v_leader, dis_leader_to_MCZ, n_veh_between, time_headway_to_leader
+        previous selected features: dis_to_pv, v_pv, dis_to_leaderAV, veh_num
+        get Random Forest features of new_follower_id
+        :return: df_select_features
+        '''
+        # get its leader_AV id and index of this veh (COResponding)
+        leader_id, index_this = self.get_cor_leader(new_follower_id)
+        if leader_id is None:
+            return None  # No leader found, skip
+        # num_veh_between_ego_and_leaderAV; how many veh between this veh and its leader_AV
+        n_veh_between = index_this + 1
+        # get pos of leader_id
+        if leader_id in self.traci.vehicle.getIDList():
+            pos_leader = self.data_recorder.get_vid_states(leader_id)['pos']
+        else:
+            pos_leader = self.data_recorder.length_pf
+        # leader speed
+        v_leader = self.data_recorder.get_vid_states(leader_id)['v']
+        # leader dis to MCZ
+        dis_leader_to_MCZ = self.data_recorder.length_pfz - pos_leader
+        # pass time difference
+        this_pass_time = self.dic_pass_time['pfz_entry'].get(new_follower_id)
+        if this_pass_time is None:
+            return None
+        leader_pass_time = self.dic_pass_time['pfz_entry'].get(leader_id)
+        time_headway_to_leader = this_pass_time - leader_pass_time
+
+        features = [v_leader, dis_leader_to_MCZ, n_veh_between, time_headway_to_leader]
+        if new_follower_id == 'mhv66':
+            pass
+        self.dic_id_features[new_follower_id] = features
+        arr_select_features = np.array(features, dtype=float).reshape(1, -1)
         return arr_select_features
 
     def _set_hold_speed2(self, ls_second_decAV, set_v, gap_threshold):
@@ -686,6 +730,8 @@ class PlatoonBasic:
 
         # Step 4: Remove recovered vehicles from tracking map
         for vid in to_remove:
+            if vid == 'mb_av422':
+                pass
             if vid in self.recover_speed_map:
                 del self.recover_speed_map[vid]
 
