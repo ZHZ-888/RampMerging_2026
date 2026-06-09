@@ -620,7 +620,7 @@ class PlatoonBasic:
         if leader_id in self.traci.vehicle.getIDList():
             pos_leader = self.data_recorder.get_vid_states(leader_id)['pos']
         else:
-            pos_leader = self.data_recorder.length_pf
+            pos_leader = self.data_recorder.length_pfz
         # leader speed
         v_leader = self.data_recorder.get_vid_states(leader_id)['v']
         # leader dis to MCZ
