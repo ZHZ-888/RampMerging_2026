@@ -64,7 +64,7 @@ OUT_CSV="data/features/tmp/df_RF_state_data_av${AV_P}_seed${SEED}.csv"
 # Run RF data collection
 # ================================
 python run.py \
-  --algo mpgc_multi_lane_array_RF_state \
+  --algo mpgc_multi_lane_collect_RF_state_data \
   --av_p "$AV_P" \
   --seed "$SEED" \
   --out_csv "$OUT_CSV"
