@@ -28,7 +28,7 @@ def mpgc_main(av_p, r_fr=0, m_fr=1500, seed=0, loss_rate=0, gui=False, st=1800):
     # Determine the SUMO binary based on whether GUI is needed
     sumo_bin = 'sumo-gui' if gui else 'sumo'
     # Construct the SUMO command and options
-    sumo_cmd = [sumo_bin, "-c", sumo_config_path,
+    sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
                 "--seed", str(seed),
                 "--no-warnings"] # , '-S' start auto, and quit auto
     sumo_options = ["--step-length", str(sim_step)]
