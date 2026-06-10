@@ -95,7 +95,7 @@ def main(args=None, root=None):
     print(len(dic_follower_state))
     print(len(dic_id_features))
     df_fea_tar = organise_data(dic_follower_state, dic_id_features)
-    print(df_fea_tar)
+    print(len(df_fea_tar))
     hpc_utils.write_dataframe_csv(parsed_args.out_csv, df_fea_tar)
 
 def organise_data(dic_follower_state, dic_id_features):
