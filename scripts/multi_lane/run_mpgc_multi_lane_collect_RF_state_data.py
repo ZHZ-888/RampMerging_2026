@@ -119,15 +119,20 @@ def organise_data(dic_follower_state, dic_id_features):
 
 
 if __name__ == '__main__':
-    prc.PRINT_ENABLED = False
-    dic_follower_state, his_dic_platoon_size, dic_id_features = mpgc_main(
-        av_p = 0.1,
-        r_fr = 0,
-        m_fr = 1500,
-        seed = 21,
-        gui = False,
-        st = 600)
-
-    # record features and targets (final states)
-    df_fea_tar = organise_data(dic_follower_state, dic_id_features)
-    df_fea_tar.to_csv("/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_fea_tar_260610.csv", index=False)
+    # prc.PRINT_ENABLED = False
+    # dic_follower_state, his_dic_platoon_size, dic_id_features = mpgc_main(
+    #     av_p = 0.1,
+    #     r_fr = 0,
+    #     m_fr = 1500,
+    #     seed = 21,
+    #     gui = False,
+    #     st = 600)
+    #
+    # # record features and targets (final states)
+    # df_fea_tar = organise_data(dic_follower_state, dic_id_features)
+    # df_fea_tar.to_csv("/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_fea_tar_260610.csv", index=False)
+    main(args=[
+        "--av_p", "0.1",
+        "--seed", "11",
+        # "--out_csv", "/home/zzha/PycharmProjects/RampMerging_2026/data/features/debug_RF_state_data.csv"
+    ])
