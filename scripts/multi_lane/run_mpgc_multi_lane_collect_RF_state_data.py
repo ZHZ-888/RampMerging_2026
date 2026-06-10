@@ -7,22 +7,22 @@ test longer platoon
 
 import pandas as pd
 from pathlib import Path
+
 from functions import vehicle_generation3 as vg
 from functions import print_control as prc # the shared fuction of print control
 from functions import formation_controller as fc
 from functions import data_recording as dr
-
 from functions import hpc_utils
 
 def mpgc_main(av_p=0.1, r_fr=0, m_fr=1500, seed=0, loss_rate=0, gui=False, st=1800):
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
     sumo_config_path = (ROOT
-                        / "road_network"
-                        / "multi_lane_motorway"
-                        / "real"
-                        / "cfg_multi_lane_merge.sumocfg"
-                        )
+        / "road_network"
+        / "multi_lane_motorway"
+        / "real"
+        / "cfg_multi_lane_merge.sumocfg"
+    )
     # Simulation step length
     sim_step = 0.1
     # Determine the SUMO binary based on whether GUI is needed
@@ -92,9 +92,9 @@ def main(args=None, root=None):
     dic_follower_state, his_dic_platoon_size, dic_id_features = mpgc_main(
         av_p=parsed_args.av_p,
         seed=parsed_args.seed)
+    df_fea_tar = organise_data(dic_follower_state, dic_id_features)
     print(len(dic_follower_state))
     print(len(dic_id_features))
-    df_fea_tar = organise_data(dic_follower_state, dic_id_features)
     print(len(df_fea_tar))
     hpc_utils.write_dataframe_csv(parsed_args.out_csv, df_fea_tar)
 
@@ -119,20 +119,16 @@ def organise_data(dic_follower_state, dic_id_features):
 
 
 if __name__ == '__main__':
-    # prc.PRINT_ENABLED = False
-    # dic_follower_state, his_dic_platoon_size, dic_id_features = mpgc_main(
-    #     av_p = 0.1,
-    #     r_fr = 0,
-    #     m_fr = 1500,
-    #     seed = 21,
-    #     gui = False,
-    #     st = 600)
-    #
-    # # record features and targets (final states)
-    # df_fea_tar = organise_data(dic_follower_state, dic_id_features)
-    # df_fea_tar.to_csv("/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_fea_tar_260610.csv", index=False)
-    main(args=[
-        "--av_p", "0.1",
-        "--seed", "11",
-        # "--out_csv", "/home/zzha/PycharmProjects/RampMerging_2026/data/features/debug_RF_state_data.csv"
-    ])
+    prc.PRINT_ENABLED = False
+    dic_follower_state, his_dic_platoon_size, dic_id_features = mpgc_main(
+        av_p = 0.1,
+        r_fr = 0,
+        m_fr = 1500,
+        seed = 21,
+        gui = False,
+        st = 600)
+
+    # record features and targets (final states)
+    df_fea_tar = organise_data(dic_follower_state, dic_id_features)
+    df_fea_tar.to_csv("/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_fea_tar_260610.csv", index=False)
+
