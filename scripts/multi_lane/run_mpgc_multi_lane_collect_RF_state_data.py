@@ -14,7 +14,7 @@ from functions import data_recording as dr
 
 from functions import hpc_utils
 
-def mpgc_main(av_p, r_fr=0, m_fr=1500, seed=0, loss_rate=0, gui=False, st=1800):
+def mpgc_main(av_p=0.1, r_fr=0, m_fr=1500, seed=0, loss_rate=0, gui=False, st=1800):
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
     sumo_config_path = (ROOT
@@ -92,8 +92,10 @@ def main(args=None, root=None):
     dic_follower_state, his_dic_platoon_size, dic_id_features = mpgc_main(
         av_p=parsed_args.av_p,
         seed=parsed_args.seed)
-
+    print(len(dic_follower_state))
+    print(len(dic_id_features))
     df_fea_tar = organise_data(dic_follower_state, dic_id_features)
+    print(df_fea_tar)
     hpc_utils.write_dataframe_csv(parsed_args.out_csv, df_fea_tar)
 
 def organise_data(dic_follower_state, dic_id_features):
