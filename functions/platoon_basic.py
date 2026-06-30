@@ -452,6 +452,8 @@ class PlatoonBasic:
         # Ensure this leader is recorded only once
         if leader_mc_newest in self.ls_leader_fol_states_checked_sensor:
             return self.dic_follower_state_sensor
+        if leader_mc_newest == 'm_av569':
+            pass
         self.ls_leader_fol_states_checked_sensor.append(leader_mc_newest)
         # 2. Retrieve all followers belonging to this leader's platoon
         platoon_followers = self.dic_platoon_members.get(leader_mc_newest, [])[1:]

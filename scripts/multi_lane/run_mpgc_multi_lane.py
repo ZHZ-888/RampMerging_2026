@@ -222,10 +222,10 @@ if __name__ == '__main__':
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path, ssm_path) = mpgc_main(
-        av_p = 0.1, # 0.1
+        av_p = 0.3, # 0.1
         r_fr = 0, # 1300
         m_fr = 1500, # 1500
-        seed = 6, # 1 analysis
+        seed = 2, # 1 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
