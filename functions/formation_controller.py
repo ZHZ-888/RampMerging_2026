@@ -180,12 +180,12 @@ class FormationController:
             = self.platoon_initialise(ls_ihA_asc, ls_vehid, rf_model=rf_model)
 
         # ******** HANDLE OVERSIZED PLATOONS ********
-        dic_nonOversizedP = self.splitting(st, step, ls_ihA_asc, ls_ihB_av_asc, dic_platoon_size,
-                                           dic_platoon_members, selected_vid)
+        # dic_nonOversizedP = self.splitting(st, step, ls_ihA_asc, ls_ihB_av_asc, dic_platoon_size,
+        #                                    dic_platoon_members, selected_vid)
 
         # ******** HANDLE SPARSE PLATOONS ********
-        dic_standard_platoon = self.collecting(st, step, ls_ihA_asc, ls_ihB_av_asc, dic_nonOversizedP,
-                                               dic_platoon_members, dic_id_preState, selected_vid)
+        # dic_standard_platoon = self.collecting(st, step, ls_ihA_asc, ls_ihB_av_asc, dic_nonOversizedP,
+        #                                        dic_platoon_members, dic_id_preState, selected_vid)
         # ******** SELF-GATING TRAINING ********
         self.tsg_manager.train_if_needed(step, st)
         # Flashing lane change side AVs
