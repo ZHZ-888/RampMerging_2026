@@ -78,7 +78,7 @@ class PlatoonLaneManager:
         '''
         for vid in ls_id:
             if vid not in self.lc_restricted_av:
-                self.traci.vehicle.setLaneChangeMode(vid, 0) # 256
+                self.traci.vehicle.setLaneChangeMode(vid, 256) # 256
                 self.lc_restricted_av.add(vid)
 
     def manage_hv_lc_behaviour(self, lc, dic_tags):
@@ -142,7 +142,7 @@ class PlatoonLaneManager:
 
     def move_av_fol_to_inner(self, ls_leader_AV, dic_standard_platoon, lc_fol_av):
         '''
-        encourage_av_fol_to_out_lane
+        encourage_av_fol_to_out_lane (original name)
         Parameters
         ----------
         self.std_leaders_done:
@@ -151,7 +151,7 @@ class PlatoonLaneManager:
         Returns
         -------
         '''
-        if not lc_fol_av:
+        if not lc_fol_av or not dic_standard_platoon:
             return
         ordered = [k for k in ls_leader_AV if k in dic_standard_platoon]
         if len(ordered) < 2:
@@ -163,8 +163,6 @@ class PlatoonLaneManager:
         members = dic_standard_platoon.get(second_to_last_leader, [])
         followers = members[1:]
         for fol in followers:
-            if fol == 'm_av1489':
-                pass
             if 'av' in fol:
                 self.traci.vehicle.changeLane(fol, 1, 30)
         self.std_leaders_done.add(second_to_last_leader) # avoid repeat loop

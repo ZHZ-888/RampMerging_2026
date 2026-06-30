@@ -31,7 +31,7 @@ class MergingControlRegular:
         self.data_recorder = instance_dr  # Data_Recording
         self.sim_step = self.data_recorder.sim_step
         self.dic_id_speed = self.data_recorder.dic_speed
-        self.merge_control_length = self.data_recorder.merge_control_length
+        self.length_mcz = self.data_recorder.length_mcz # length of merging control length
 
         self.amax = 2.6
         self.max_speed = self.data_recorder.max_speed  # ??? 23

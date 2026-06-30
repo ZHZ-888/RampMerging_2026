@@ -7,17 +7,18 @@ from functions import detector_pass_recorder as detector
 
 from rl_model import split_insert_agent_handler as agent
 from rl_model import free_insert_agent_handler as free_agent
+from rl_model import tsg_manager
 
 class FormationController:
-    def __init__(self, data_recorder, traci, splitting_agent='predict', collecting_agent='predict',
-                 exp_name='default_run', loss_rate=0, learning_rate=5e-4, train_interval=32,
-                 model_name=None):
+    def __init__(self, data_recorder, traci, sa_mode='predict', ca_mode='predict',
+                 tsg_mode='off', exp_name='default_run', loss_rate=0, learning_rate=5e-4,
+                 train_interval=32):
         '''
-        Train split_agent, "splitting_agent='train', collecting_agent=None"
-        Train free_insert_agent, "splitting_agent=None, collecting_agent='train'
+        Train split_agent, "sa_mode='train', ca_mode='off'"
+        Train free_insert_agent, "sa_mode='off', ca_mode='train'
 
-        Evaluate split_agent, "splitting_agent='predict', collecting_agent=None"
-        Evaluate free_insert_agent, "splitting_agent=None, collecting_agent='predict'
+        Evaluate split_agent, "sa_mode='predict', ca_mode='off'"
+        Evaluate free_insert_agent, "sa_mode='off', ca_mode='predict'
         '''
 
         self.data_recorder = data_recorder
@@ -44,15 +45,29 @@ class FormationController:
         self.update_interval = 10 # test
 
         # RL Agents
-        self.sa_gating = 0.5 if splitting_agent == 'predict' else 0
-        self.ca_gating = 0.4 if collecting_agent == 'predict' else 0
+        self.sa_mode = sa_mode
+        self.ca_mode = ca_mode
+        self.tsg_mode = tsg_mode
+        self.sa_gating = 0.5 if sa_mode == 'predict' else 0
+        self.ca_gating = 0.4 if ca_mode == 'predict' else 0
+        # self.sa_gating = 0 if sa_mode == 'predict' else 0
+        # self.ca_gating = 0 if ca_mode == 'predict' else 0
+
+        self.tsg_mode = tsg_mode
+        self.tsg_manager = tsg_manager.TSGManager(
+            tsg_mode=tsg_mode,
+            exp_name=exp_name,
+            lr=learning_rate,
+            train_interval=train_interval
+        )
+
         self.split_agent = agent.AgentHandler(
-            traci, data_recorder, mode=splitting_agent, exp_name=exp_name,
-            lr=learning_rate, model_name=model_name) if splitting_agent else None
+            traci, data_recorder, mode=sa_mode, tsg_mode=tsg_mode, exp_name=exp_name,
+            lr=learning_rate, gate_agent=self.tsg_manager.gate_agent) if sa_mode !='off' else None
         self.free_insert_agent = free_agent.FreeInsertAgentHandler(
             traci, data_recorder, self.p_basic,
-            mode=collecting_agent, exp_name=exp_name,
-            lr=learning_rate) if collecting_agent else None
+            mode=ca_mode, tsg_mode=tsg_mode, exp_name=exp_name,
+            lr=learning_rate, gate_agent=self.tsg_manager.gate_agent) if ca_mode != 'off' else None
 
     def platoon_initialise(self, ls_ihA_asc, ls_vehid, rf_model):
         # ******** PLATOON INITIALISATION ********
@@ -67,7 +82,7 @@ class FormationController:
 
     def splitting(self, st, step, ls_ihA_asc, ls_ihB_av_asc, dic_platoon_size, dic_platoon_members, selected_vid):
         # ******** HANDLE OVERSIZED PLATOONS ********
-        if not self.split_agent:
+        if self.sa_mode == 'off': # if self.ca_mode is None:
             return None
         self.split_agent.release_insertion(step, self.sa_buffer)
         if step % self.update_interval != 0:
@@ -90,6 +105,8 @@ class FormationController:
 
     def collecting(self, st, step, ls_ihA_asc, ls_ihB_av_asc, dic_nonOversizedP, dic_platoon_members, dic_id_preState, selected_vid):
         # ******** HANDLE SPARSE PLATOONS ********
+        if self.ca_mode == 'off':
+            return {}, {}
         self.free_insert_agent.release_insertion(step, self.ca_buffer)
         if step % self.update_interval != 0:
             return {}, {}
@@ -145,7 +162,8 @@ class FormationController:
             dic_final_platoon_info: {66: 'AHHHHHHHHHH', 90: 'AHHHHH', 138: 'AHHHHHHHHH', 174: 'AH', 177: 'AHH'}
         '''
         selected_vid = set()
-        dic_score_reward = {}  # Initialise dic_score_reward to avoid uninitialized variable issues
+        dic_score_reward = {}  # Initialise dic_score_reward to avoid uninitialised variable issues
+        dic_standard_platoon = {}
         # === Unpack veh info ===
         # print(f"*******step: {step}*********")
         dic_vid_groups = self.data_recorder.record_multi_lane_info()
@@ -168,7 +186,8 @@ class FormationController:
         # ******** HANDLE SPARSE PLATOONS ********
         dic_standard_platoon = self.collecting(st, step, ls_ihA_asc, ls_ihB_av_asc, dic_nonOversizedP,
                                                dic_platoon_members, dic_id_preState, selected_vid)
-
+        # ******** SELF-GATING TRAINING ********
+        self.tsg_manager.train_if_needed(step, st)
         # Flashing lane change side AVs
         # self.merge_regular.flashing_lane_changing(step, dic_insertedAV, ls_ihB)
 

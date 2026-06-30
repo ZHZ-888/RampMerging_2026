@@ -67,7 +67,7 @@ echo "------------------------------------------------"
 # ================================
 stdbuf -oL python -u run.py \
   --algo mpgc_multi_lane_RL_agent_training \
-  --train_agent "$AGENT_TYPE" \
+  --train_model "$MODEL_TYPE" \
   --lr "$LR" \
   --seed 21 \
   --update_interval "$UPDATE_INTERVAL" \

@@ -8,6 +8,7 @@ import pandas as pd
 import os
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
+from pathlib import Path
 
 from rl_model.state_builder import StateBuilder
 
@@ -74,7 +75,6 @@ class RLScoringAgent:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         self.run_id = f"{exp_name}_{timestamp}_{suffix}"
         # All-in-one run directory for logs AND models
-        # self.run_dir = os.path.join(self.base_dir, "rl_logs", self.run_id)
         self.run_dir = os.path.join(run_root, self.run_id)
 
         os.makedirs(self.run_dir, exist_ok=True)
@@ -147,12 +147,9 @@ class RLScoringAgent:
                 total_loss += loss.item()
                 batch_count += 1
 
-
         avg_loss = total_loss / batch_count if batch_count > 0 else 0.0
-        self.loss_history.append((current_step, avg_loss))  # Record loss
-        # --- TensorBoard Logging ---
+        self.loss_history.append((current_step, avg_loss))
         self.writer.add_scalar('Loss/Avg_Training_Loss', avg_loss, current_step)
-        # print(f"[Train] Fitted on {len(self.memory)} samples, final loss = {loss.item():.4f}")
         print(f"[Train] Fitted on {len(self.memory)} samples, at step {current_step}, Avg_loss = {avg_loss:.4f}")
         self.memory.clear()
 
@@ -164,8 +161,6 @@ class RLScoringAgent:
         if len(self.memory) < 32:
             return
 
-        # Extract the last 32 rewards to calculate current model performance
-        # before the weights are updated by the upcoming training session.
         recent_samples = self.memory[-32:]
         recent_rewards = [m[1] for m in recent_samples]
 
@@ -173,12 +168,10 @@ class RLScoringAgent:
         max_reward = np.max(recent_rewards)
         min_reward = np.min(recent_rewards)
 
-        # --- [NEW] TensorBoard Logging ---
         self.writer.add_scalar('Reward/Average', avg_reward, current_step)
         self.writer.add_scalar('Reward/Max', max_reward, current_step)
         self.writer.add_scalar('Reward/Min', min_reward, current_step)
 
-        # Construct the data entry for academic plotting
         log_entry = {
             'session_id': len(self.loss_history),  # Index of the training iteration
             'sim_step': current_step,  # Current simulation time-step
@@ -187,16 +180,12 @@ class RLScoringAgent:
             'min_reward': round(float(min_reward), 4),
             'sample_size': 32}  # Number of transitions in this batch
 
-        # Save to CSV using append mode to ensure data persistence
-        # file_path = os.path.join(self.log_dir, "training_reward_log.csv")
         file_path = os.path.join(self.run_dir, "reward_log.csv")
         file_exists = os.path.isfile(file_path)
 
         try:
-            # Use pandas for structured data logging
             df = pd.DataFrame([log_entry])
             df.to_csv(file_path, mode='a', header=not file_exists, index=False)
-            # Consistent console logging for real-time monitoring
             print(f"[Log] Session {log_entry['session_id']} at Step {current_step}: "
                   f"Mean Reward = {avg_reward:.3f}")
 
@@ -205,14 +194,11 @@ class RLScoringAgent:
 
     def record_plot_loss(self):
         """
-        SAVE loss history CSV
-        Plot the loss curve based on recorded training history.
-        self.loss_histrory = [(step, loss), ...]
+        SAVE loss history CSV and plot the loss curve based on recorded training history.
         """
         if not self.loss_history:
             print("[Plot] No loss history to show.")
             return
-        # save loss data
         steps, losses = zip(*self.loss_history)
         loss_csv_path = os.path.join(self.run_dir, "loss_log.csv")
         df_loss = pd.DataFrame({'step': steps, 'loss': losses})
@@ -220,9 +206,7 @@ class RLScoringAgent:
         print(f"[Plot] Loss data saved to {loss_csv_path}")
 
         if not self.IS_HPC:
-            # plot
             plt.plot(steps, losses, label="Training Loss", color='blue', linewidth=1, alpha=0.3)
-            # Smoothed loss line (moving average)
             loss_series = pd.Series(losses)
             smoothed = loss_series.rolling(window=10).mean()
             plt.plot(smoothed, label="Smoothed Loss (window=15)", color='red', linewidth=2)
@@ -236,13 +220,11 @@ class RLScoringAgent:
 
     def record_plot_scores(self, ls_score):
         """
-        save score history CSV
+        Save score history CSV and plot score distribution.
         """
-        # Save data
         score_csv_path = os.path.join(self.run_dir, "score_log.csv")
         df_scores = pd.DataFrame({'index': list(range(len(ls_score))), 'score': ls_score})
         df_scores.to_csv(score_csv_path, index=False)
-        # plot
         if not self.IS_HPC:
             plt.figure(figsize=(8, 4))
             plt.scatter(range(len(ls_score)), ls_score, s=3, c='blue', label='Score', alpha=0.5)
@@ -253,7 +235,6 @@ class RLScoringAgent:
             plt.legend()
             plt.tight_layout()
             plt.show()
-
     def save_model(self, filename):
         """
         Save the model parameters to a file.
@@ -272,3 +253,408 @@ class RLScoringAgent:
         self.model.load_state_dict(torch.load(path, map_location=self.device))
         self.model.eval()  # Set to evaluation mode (disables dropout, etc.)
         print(f"[Model] Loaded model from {path}")
+
+
+class GateMLP(nn.Module):
+    """
+    Self-gating executor network.
+
+    Input:
+        gate_input =
+        [
+            x_top(10 dims),
+
+            top_score,
+            score_gap,
+            n_candidate_norm,
+
+            task_collecting,
+            task_splitting
+        ]
+
+    Output:
+        2 logits:
+            [reject_logit, execute_logit]
+    """
+
+    def __init__(self, input_dim=6, hidden_dims=[16, 16]):
+        super(GateMLP, self).__init__()
+
+        layers = []
+        dims = [input_dim] + hidden_dims + [2]
+
+        for i in range(len(dims) - 2):
+            layers.append(nn.Linear(dims[i], dims[i + 1]))
+            layers.append(nn.ReLU())
+
+        layers.append(nn.Linear(dims[-2], dims[-1]))
+
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.net(x)
+
+
+class SelfGateAgent:
+    """
+    Task-conditioned self-gating agent.
+
+    This agent does NOT rank candidate AVs.
+    It only decides whether the top-ranked candidate selected by the score model
+    should be executed or rejected.
+    """
+
+    def __init__(self, exp_name, model_path=None, lr=5e-4, input_dim=6):
+        self.device = torch.device("cpu")  # Keep consistent with RLScoringAgent
+
+        self.model = GateMLP(input_dim=input_dim).to(self.device)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
+
+        self.memory = []
+        self.loss_history = []
+        self.acc_history = []
+        self.training_update = 0
+
+        self.c_exec = 0.03
+
+        # Same log style as RLScoringAgent
+        self.IS_HPC = "RUN_DIR" in os.environ
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        run_root = os.environ.get("RUN_DIR", os.path.join(self.base_dir, "rl_logs"))
+
+        array_id = os.environ.get("SLURM_ARRAY_TASK_ID", "")
+        suffix = f"_task{array_id}" if array_id else ""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        self.run_id = f"{exp_name}_{timestamp}_{suffix}"
+        self.run_dir = os.path.join(run_root, self.run_id)
+
+        os.makedirs(self.run_dir, exist_ok=True)
+
+        self.model_save_dir = os.path.join(self.run_dir, "models")
+        os.makedirs(self.model_save_dir, exist_ok=True)
+
+        self.writer = SummaryWriter(log_dir=self.run_dir)
+        print(f"[Gate TensorBoard] Logging to {self.run_dir}")
+
+        run_root = os.environ.get("RUN_DIR", self.run_dir)
+        os.makedirs(run_root, exist_ok=True)
+        self.gate_training_csv = os.path.join(run_root, "gate_training_log.csv")
+        if os.path.isfile(self.gate_training_csv):
+            try:
+                old_log = pd.read_csv(
+                    self.gate_training_csv,
+                    usecols=["training_update"]
+                )
+                if not old_log.empty:
+                    self.training_update = int(
+                        old_log["training_update"].max()
+                    )
+            except (ValueError, pd.errors.EmptyDataError):
+                self.training_update = 0
+
+        if model_path:
+            self.load_model(model_path)
+
+    def task_onehot(self, task_name):
+        """
+        Convert task name to one-hot vector.
+
+        collecting -> [1, 0]
+        splitting  -> [0, 1]
+        """
+        if task_name == "collecting":
+            return np.array([1.0, 0.0], dtype=np.float32)
+        elif task_name == "splitting":
+            return np.array([0.0, 1.0], dtype=np.float32)
+        else:
+            raise ValueError(f"[SelfGateAgent] Unknown task_name: {task_name}")
+
+    def build_gate_input(
+            self,
+            x_top,
+            scores,
+            top_idx=None,
+            task_name="splitting",
+            max_candidates=10,
+            d_target_to_MCZ_norm=0.0,
+            signed_insert_offset_norm=0.0
+    ):
+        """
+        Build one gate input vector.
+
+        Final gate input:
+            [
+                top_score,
+                n_candidate_norm,
+                d_target_to_MCZ_norm,
+                signed_insert_offset_norm,
+                task_collecting,
+                task_splitting
+            ]
+
+        Total dimension = 6.
+        """
+
+        scores = np.asarray(scores, dtype=np.float32).reshape(-1)
+
+        if scores.size == 0:
+            raise ValueError("[SelfGateAgent] scores cannot be empty.")
+
+        if top_idx is None:
+            top_idx = int(np.argmax(scores))
+
+        n_candidate = scores.size
+        top_score = float(scores[top_idx])
+        n_candidate_norm = min(n_candidate, max_candidates) / max_candidates
+
+        task_vec = self.task_onehot(task_name)
+
+        d_target_to_MCZ_norm = float(np.clip(d_target_to_MCZ_norm, 0.0, 1.0))
+        signed_insert_offset_norm = float(np.clip(signed_insert_offset_norm, -1.0, 1.0))
+
+        gate_input = np.concatenate([
+            np.array([
+                top_score,
+                n_candidate_norm,
+                d_target_to_MCZ_norm,
+                signed_insert_offset_norm
+            ], dtype=np.float32),
+            task_vec
+        ]).astype(np.float32)
+
+        return gate_input
+
+    def predict_execute(self, gate_input):
+        """
+        Predict execute/reject decision.
+
+        Returns
+        -------
+        execute_decision : bool
+            True means execute top AV.
+            False means reject / no action.
+
+        logits_np : np.ndarray
+            [reject_logit, execute_logit]
+
+        probs_np : np.ndarray
+            Softmax probabilities.
+        """
+        self.model.eval()
+
+        x = torch.tensor(
+            gate_input,
+            dtype=torch.float32
+        ).unsqueeze(0).to(self.device)
+
+        with torch.no_grad():
+            logits = self.model(x).squeeze(0)
+            probs = torch.softmax(logits, dim=0)
+
+        logits_np = logits.detach().cpu().numpy()
+        probs_np = probs.detach().cpu().numpy()
+
+        execute_decision = logits_np[1] > logits_np[0]
+
+        return execute_decision, logits_np, probs_np
+
+    def record_transition(self, gate_input, reward, task_name):
+        """
+        Record one delayed outcome sample for gate training.
+
+        Labels are assigned in train_on_recorded() using
+        net_reward = raw_reward - c_exec.
+        """
+        if task_name not in ("collecting", "splitting"):
+            raise ValueError(f"[SelfGateAgent] Unknown task_name: {task_name}")
+
+        self.memory.append({
+            "gate_input": np.asarray(gate_input, dtype=np.float32),
+            "reward": float(reward),
+            "task_name": task_name
+        })
+
+    def train_on_recorded(self, current_step, epochs=5, batch_size=16):
+        """
+        Train gate model using recorded delayed outcome samples.
+
+        TSG labels are generated from net reward:
+            net_reward = raw_reward - c_exec
+            net_reward > 0  -> execute
+            net_reward <= 0 -> defer/reject
+        """
+        if not self.memory:
+            return
+
+        X = np.array([m["gate_input"] for m in self.memory], dtype=np.float32)
+        raw_rewards = np.array([m["reward"] for m in self.memory], dtype=np.float32)
+        net_rewards = raw_rewards - self.c_exec
+        y = (net_rewards > 0).astype(np.int64)
+
+        X_all = torch.tensor(X, dtype=torch.float32).to(self.device)
+        y_all = torch.tensor(y, dtype=torch.long).to(self.device)
+
+        dataset_size = len(X_all)
+        indices = np.arange(dataset_size)
+
+        n_reject = int(np.sum(y == 0))
+        n_execute = int(np.sum(y == 1))
+
+        if n_reject > 0 and n_execute > 0:
+            total = n_reject + n_execute
+            class_weights = torch.tensor(
+                [
+                    total / (2.0 * n_reject),
+                    total / (2.0 * n_execute)
+                ],
+                dtype=torch.float32
+            ).to(self.device)
+            loss_fn = nn.CrossEntropyLoss(weight=class_weights)
+        else:
+            loss_fn = nn.CrossEntropyLoss()
+
+        total_loss = 0.0
+        total_acc = 0.0
+        batch_count = 0
+        epoch_metrics = []
+
+        self.model.train()
+
+        for epoch in range(epochs):
+            epoch_loss = 0.0
+            epoch_acc = 0.0
+            epoch_batch_count = 0
+
+            np.random.shuffle(indices)
+
+            for start in range(0, dataset_size, batch_size):
+                end = start + batch_size
+                batch_idx = indices[start:end]
+
+                X_batch = X_all[batch_idx]
+                y_batch = y_all[batch_idx]
+
+                logits = self.model(X_batch)
+                loss = loss_fn(logits, y_batch)
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+                pred = torch.argmax(logits, dim=1)
+                acc = (pred == y_batch).float().mean().item()
+
+                epoch_loss += loss.item()
+                epoch_acc += acc
+                epoch_batch_count += 1
+
+                total_loss += loss.item()
+                total_acc += acc
+                batch_count += 1
+
+            self.training_update += 1
+
+            epoch_metrics.append({
+                "training_update": self.training_update,
+                "current_step": current_step,
+                "epoch": epoch + 1,
+                "loss": epoch_loss / epoch_batch_count,
+                "accuracy": epoch_acc / epoch_batch_count,
+            })
+
+        avg_loss = total_loss / batch_count if batch_count > 0 else 0.0
+        avg_acc = total_acc / batch_count if batch_count > 0 else 0.0
+        avg_raw_reward = float(np.mean(raw_rewards)) if len(raw_rewards) > 0 else 0.0
+        avg_net_reward = float(np.mean(net_rewards)) if len(net_rewards) > 0 else 0.0
+
+        for row in epoch_metrics:
+            update = row["training_update"]
+
+            self.loss_history.append((update, row["loss"]))
+            self.acc_history.append((update, row["accuracy"]))
+
+            self.writer.add_scalar("Gate/Loss", row["loss"], update)
+            self.writer.add_scalar("Gate/Accuracy", row["accuracy"], update)
+
+        log_step = self.training_update
+        self.writer.add_scalar("Gate/Avg_Raw_Reward", avg_raw_reward, log_step)
+        self.writer.add_scalar("Gate/Avg_Net_Reward", avg_net_reward, log_step)
+        self.writer.add_scalar("Gate/Execute_Label_Count", n_execute, log_step)
+        self.writer.add_scalar("Gate/Reject_Label_Count", n_reject, log_step)
+        self.writer.add_scalar("Gate/C_Exec", self.c_exec, log_step)
+
+        print(
+            f"[Gate Train] samples={len(self.memory)}, "
+            f"step={current_step}, "
+            f"loss={avg_loss:.4f}, "
+            f"acc={avg_acc:.3f}, "
+            f"avg_raw_reward={avg_raw_reward:.3f}, "
+            f"avg_net_reward={avg_net_reward:.3f}, "
+            f"execute={n_execute}, reject={n_reject}"
+        )
+
+        for row in epoch_metrics:
+            row.update({
+                "avg_raw_reward": avg_raw_reward,
+                "avg_net_reward": avg_net_reward,
+                "c_exec": float(self.c_exec),
+                "execute_count": int(n_execute),
+                "reject_count": int(n_reject),
+                "sample_count": len(self.memory),
+            })
+
+        file_exists = os.path.isfile(self.gate_training_csv)
+        pd.DataFrame(epoch_metrics).to_csv(
+            self.gate_training_csv,
+            mode="a",
+            header=not file_exists,
+            index=False
+        )
+
+        self.memory.clear()
+    def save_model(self, filename):
+        """
+        Save gate model.
+        """
+        full_path = os.path.join(self.model_save_dir, filename)
+        torch.save(self.model.state_dict(), full_path)
+        print(f"[Gate Model] Saved model to {full_path}")
+
+    def save_model_to_path(self, path):
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(self.model.state_dict(), path)
+        print(f"[Gate Model] Saved model to {path}")
+
+    def load_model(self, path):
+        """
+        Load gate model.
+        """
+        self.model.load_state_dict(torch.load(path, map_location=self.device))
+        self.model.eval()
+        print(f"[Gate Model] Loaded model from {path}")
+
+    def record_gate_log(self):
+        """
+        Save gate training loss/accuracy logs.
+        """
+        if self.loss_history:
+            steps, losses = zip(*self.loss_history)
+            loss_csv_path = os.path.join(self.run_dir, "gate_loss_log.csv")
+            df_loss = pd.DataFrame({
+                "step": steps,
+                "loss": losses
+            })
+            df_loss.to_csv(loss_csv_path, index=False)
+            print(f"[Gate Plot] Gate loss data saved to {loss_csv_path}")
+
+        if self.acc_history:
+            steps, accs = zip(*self.acc_history)
+            acc_csv_path = os.path.join(self.run_dir, "gate_acc_log.csv")
+            df_acc = pd.DataFrame({
+                "step": steps,
+                "accuracy": accs
+            })
+            df_acc.to_csv(acc_csv_path, index=False)
+            print(f"[Gate Plot] Gate accuracy data saved to {acc_csv_path}")
+

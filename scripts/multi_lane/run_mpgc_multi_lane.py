@@ -83,7 +83,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
         formation_controller = fc.FormationController(data_recorder, traci,
-                                                      loss_rate=loss_rate)
+                                                      loss_rate=loss_rate, tsg_mode='off') # off/predict
         merging_controller = mc.MergingController(data_recorder, traci, av_p,
                                                   platoon_formation=True, ml=True,
                                                   loss_rate=loss_rate)
@@ -150,9 +150,11 @@ def main(args=None, root=None):
         m_fr=parsed_args.m_fr,
         seed=parsed_args.seed,
         gui=parsed_args.gui,
+        lc=False # temp for PF res
     )
     end = time.time()
     runtime = end - start
+    res = hpc_utils.get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=11)
     # CFR: coupled_following_ratio; SPR: standard_size_platoon_ratio
     cfr, spr = hpc_utils.get_fc_indicator(
         dic_follower_state, his_dic_platoon_size)
@@ -169,6 +171,10 @@ def main(args=None, root=None):
             "seed": parsed_args.seed,
             "CFR": cfr,
             "SPR": spr,
+            "over_pltn": res["over_pltn"],
+            "std_pltn": res["std_pltn"],
+            "sparse_pltn": res["sparse_pltn"],
+            "avg_pltn_size": res["avg_pltn_size"],
             "throughput": tp,
             "avg_speed": average_v,
             "ttc_ratio_3": ttc_ratio_3,
@@ -219,19 +225,20 @@ if __name__ == '__main__':
         av_p = 0.1, # 0.1
         r_fr = 0, # 1300
         m_fr = 1500, # 1500
-        seed = 7, # 1 analysis
+        seed = 6, # 1 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
-        gui = True,
+        gui = False,
         plot = False,
         display = False,
-        lc = True, # if allow HV lane-changing; True
+        lc = False, # if allow HV lane-changing; True
         st = 1200 # 1200
     )
     end = time.time()
     runtime = end - start
 
+    hpc_utils.get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=11)
     hpc_utils.get_fc_indicator(dic_follower_state, his_dic_platoon_size)
 
     tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (

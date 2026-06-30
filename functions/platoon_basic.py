@@ -15,8 +15,10 @@ class PlatoonBasic:
         self.data_recorder = data_recorder
         self.pass_recorder = pass_recorder
         # Load Random Forest model for follower state prediction
+        # fs_model_name = 'follower_state_prediction_model_251121_ndarray.pkl'
+        fs_model_name = 'follower_state_prediction_model_260610_ndarray.pkl'
         self.fs_model = joblib.load(
-            os.path.join(project_root, 'rf_models', 'follower_state_prediction_model_251121_ndarray.pkl'))
+            os.path.join(project_root, 'rf_models', fs_model_name))
 
         self.dic_pass_time = self.pass_recorder.dic_pass_time
         self.max_speed = self.data_recorder.max_speed # 27.78 m/s => 100km/h
@@ -630,6 +632,18 @@ class PlatoonBasic:
         if this_pass_time is None:
             return None
         leader_pass_time = self.dic_pass_time['pfz_entry'].get(leader_id)
+        if leader_pass_time is None:
+            fol_id, _ = self.traci.vehicle.getFollower(leader_id, 1e6)
+            fol_pass_time = self.dic_pass_time['pfz_entry'].get(fol_id)
+            if fol_pass_time is None:
+                prev_id, _ = self.traci.vehicle.getLeader(leader_id, 1e6)
+                prev_pass_time = self.dic_pass_time['pfz_entry'].get(prev_id)
+                leader_pass_time = prev_pass_time + 1.0
+            else:
+                leader_pass_time = fol_pass_time - 1.0
+            # Store virtual pass time for inserted leader
+            self.dic_pass_time['pfz_entry'][leader_id] = leader_pass_time
+
         time_headway_to_leader = this_pass_time - leader_pass_time
 
         features = [v_leader, dis_leader_to_MCZ, n_veh_between, time_headway_to_leader]
