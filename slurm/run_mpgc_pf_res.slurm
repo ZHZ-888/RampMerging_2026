@@ -87,12 +87,11 @@ echo "=================================="
 mkdir -p data/raw/pfz_res
 
 OUT_CSV="data/raw/pfz_res/pfz_res_task_${TASK_ID}.csv"
-
 # ================================
 # Run simulation
 # ================================
 python run.py \
-    --algo pf_res \
+    --algo mpgc_multi_lane \
     --av_p "$AV_P" \
     --r_fr "$R_FR" \
     --m_fr "$M_FR" \
