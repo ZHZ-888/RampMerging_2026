@@ -593,6 +593,23 @@ class DataRecording:
             i -= 1
         return int(vid[i + 1:])
 
+    def record_tsg_data(self):
+        '''
+        to evaluate the performance of tsg (gating) mode
+
+            category se/ce
+            reject_prob
+            execute_prob
+            execute
+
+            cand_av
+            target_platoon
+            reward
+        Returns
+        -------
+
+        '''
+
 
 
 

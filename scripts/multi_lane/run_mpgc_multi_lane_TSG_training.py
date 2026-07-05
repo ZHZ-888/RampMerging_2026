@@ -38,7 +38,11 @@ def ensure_local_tsg_run_dir():
     if "RUN_DIR" not in os.environ:
         root = Path(__file__).resolve().parents[2]
         # run_dir = root / "rl_model" / "rl_logs" / "TSG_local_training"
-        run_dir = root / "rl_model" / "rl_logs" / "TSG_single_6d_netreward"
+        # run_dir = root / "rl_model" / "rl_logs" / "TSG_single_6d_netreward"
+        run_dir = (
+                root / "rl_model" / "rl_logs"
+                / "TSG_single_6d_reward_weighted"
+        )
         os.environ["RUN_DIR"] = str(run_dir)
         print(f"[TSG] RUN_DIR={os.environ['RUN_DIR']}")
 
@@ -243,7 +247,7 @@ if __name__ == '__main__':
         m_fr = 1500,
         seed = 30, # 29, 1200*60
         gui = False,
-        st = 1200*30,  # 50; 100
+        st = 1200*100,  # 50; 100
         train_model = 'TSG', # 'SA', 'CA', 'TSG', None
         lr = 0.0005,  # 0.0005
         train_interval = 16,  # default => train_interval (I): 32; batch_size (I/2): 16; epoch: 5

@@ -44,13 +44,17 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
     file_name = f'trj_{r_fr}_{av_p}_{seed}_{loss_rate}_{task_id}.xml'
     xml_path = os.path.join(traj_dir, file_name)
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
-
+    lc_file_name = f"lc_{r_fr}_{av_p}_{seed}_{loss_rate}_{task_id}.xml"
+    lc_path = os.path.join(traj_dir, lc_file_name)
     ssm_file_name = f'ssm_{r_fr}_{av_p}_{seed}_{loss_rate}_{task_id}.xml'
     ssm_path = traj_dir / ssm_file_name
 
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
                 "--seed", str(seed),
-                "--fcd-output", str(xml_path), # save path
+                # fcd trajectory path
+                "--fcd-output", str(xml_path),
+                # lane-change output
+                "--lanechange-output", str(lc_path),
                 # SSM output for TTC conflicts
                 "--device.ssm.probability", "1",
                 "--device.ssm.file", str(ssm_path),
@@ -83,7 +87,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
         formation_controller = fc.FormationController(data_recorder, traci,
-                                                      loss_rate=loss_rate, tsg_mode='off') # off/predict
+                                                      loss_rate=loss_rate, tsg_mode='predict') # off/predict
         merging_controller = mc.MergingController(data_recorder, traci, av_p,
                                                   platoon_formation=True, ml=True,
                                                   loss_rate=loss_rate)
@@ -97,7 +101,8 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
     return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
             tp, speed_log, queue_log, xml_path, ssm_path)
 
-def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller, lc,
+def loop(traci, st, data_recorder,
+         veh_gen, formation_controller, merging_controller, lc,
          r_autoFollow_p, m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None):
     # START SIMULATION
     step = 0
@@ -222,10 +227,10 @@ if __name__ == '__main__':
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path, ssm_path) = mpgc_main(
-        av_p = 0.3, # 0.1
+        av_p = 0.1, # 0.1
         r_fr = 0, # 1300
         m_fr = 1500, # 1500
-        seed = 2, # 1 analysis
+        seed = 6, # 1 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15

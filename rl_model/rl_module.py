@@ -315,8 +315,6 @@ class SelfGateAgent:
         self.acc_history = []
         self.training_update = 0
 
-        self.c_exec = 0.03
-
         # Same log style as RLScoringAgent
         self.IS_HPC = "RUN_DIR" in os.environ
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -462,8 +460,10 @@ class SelfGateAgent:
         """
         Record one delayed outcome sample for gate training.
 
-        Labels are assigned in train_on_recorded() using
-        net_reward = raw_reward - c_exec.
+        Labels and sample weights are assigned in train_on_recorded():
+            reward > 0  -> execute
+            reward <= 0 -> defer
+            sample weight = abs(reward)
         """
         if task_name not in ("collecting", "splitting"):
             raise ValueError(f"[SelfGateAgent] Unknown task_name: {task_name}")
@@ -478,21 +478,33 @@ class SelfGateAgent:
         """
         Train gate model using recorded delayed outcome samples.
 
-        TSG labels are generated from net reward:
-            net_reward = raw_reward - c_exec
-            net_reward > 0  -> execute
-            net_reward <= 0 -> defer/reject
+        TSG labels and weights are generated from raw reward:
+            raw_reward > 0  -> execute
+            raw_reward <= 0 -> defer/reject
+            sample weight = abs(raw_reward)
         """
         if not self.memory:
             return
 
         X = np.array([m["gate_input"] for m in self.memory], dtype=np.float32)
-        raw_rewards = np.array([m["reward"] for m in self.memory], dtype=np.float32)
-        net_rewards = raw_rewards - self.c_exec
-        y = (net_rewards > 0).astype(np.int64)
+
+        raw_rewards = np.array(
+            [m["reward"] for m in self.memory],
+            dtype=np.float32
+        )
+
+        # The reward sign determines the execute/defer label.
+        y = (raw_rewards > 0).astype(np.int64)
+
+        # Reward magnitude determines the importance of each sample.
+        reward_weights = np.abs(raw_rewards).astype(np.float32)
 
         X_all = torch.tensor(X, dtype=torch.float32).to(self.device)
         y_all = torch.tensor(y, dtype=torch.long).to(self.device)
+        reward_weights_all = torch.tensor(
+            reward_weights,
+            dtype=torch.float32
+        ).to(self.device)
 
         dataset_size = len(X_all)
         indices = np.arange(dataset_size)
@@ -500,18 +512,7 @@ class SelfGateAgent:
         n_reject = int(np.sum(y == 0))
         n_execute = int(np.sum(y == 1))
 
-        if n_reject > 0 and n_execute > 0:
-            total = n_reject + n_execute
-            class_weights = torch.tensor(
-                [
-                    total / (2.0 * n_reject),
-                    total / (2.0 * n_execute)
-                ],
-                dtype=torch.float32
-            ).to(self.device)
-            loss_fn = nn.CrossEntropyLoss(weight=class_weights)
-        else:
-            loss_fn = nn.CrossEntropyLoss()
+        loss_fn = nn.CrossEntropyLoss(reduction="none")
 
         total_loss = 0.0
         total_acc = 0.0
@@ -524,6 +525,8 @@ class SelfGateAgent:
             epoch_loss = 0.0
             epoch_acc = 0.0
             epoch_batch_count = 0
+            epoch_weighted_correct = 0.0
+            epoch_reward_weight = 0.0
 
             np.random.shuffle(indices)
 
@@ -533,16 +536,29 @@ class SelfGateAgent:
 
                 X_batch = X_all[batch_idx]
                 y_batch = y_all[batch_idx]
+                reward_weight_batch = reward_weights_all[batch_idx]
 
                 logits = self.model(X_batch)
-                loss = loss_fn(logits, y_batch)
+
+                sample_losses = loss_fn(logits, y_batch)
+
+                loss = (
+                               sample_losses * reward_weight_batch
+                       ).sum() / reward_weight_batch.sum().clamp_min(1e-8)
 
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
 
                 pred = torch.argmax(logits, dim=1)
-                acc = (pred == y_batch).float().mean().item()
+                correct = (pred == y_batch).float()
+                acc = correct.mean().item()
+
+                epoch_weighted_correct += (
+                        correct * reward_weight_batch
+                ).sum().item()
+
+                epoch_reward_weight += reward_weight_batch.sum().item()
 
                 epoch_loss += loss.item()
                 epoch_acc += acc
@@ -554,18 +570,24 @@ class SelfGateAgent:
 
             self.training_update += 1
 
+            epoch_weighted_acc = (
+                    epoch_weighted_correct
+                    / max(epoch_reward_weight, 1e-8)
+            )
+
             epoch_metrics.append({
                 "training_update": self.training_update,
                 "current_step": current_step,
                 "epoch": epoch + 1,
                 "loss": epoch_loss / epoch_batch_count,
                 "accuracy": epoch_acc / epoch_batch_count,
+                "reward_weighted_accuracy": epoch_weighted_acc,
             })
 
         avg_loss = total_loss / batch_count if batch_count > 0 else 0.0
         avg_acc = total_acc / batch_count if batch_count > 0 else 0.0
         avg_raw_reward = float(np.mean(raw_rewards)) if len(raw_rewards) > 0 else 0.0
-        avg_net_reward = float(np.mean(net_rewards)) if len(net_rewards) > 0 else 0.0
+        avg_abs_reward = float(np.mean(reward_weights)) if len(reward_weights) > 0 else 0.0
 
         for row in epoch_metrics:
             update = row["training_update"]
@@ -575,13 +597,17 @@ class SelfGateAgent:
 
             self.writer.add_scalar("Gate/Loss", row["loss"], update)
             self.writer.add_scalar("Gate/Accuracy", row["accuracy"], update)
+            self.writer.add_scalar(
+                "Gate/Reward_Weighted_Accuracy",
+                row["reward_weighted_accuracy"],
+                update
+            )
 
         log_step = self.training_update
         self.writer.add_scalar("Gate/Avg_Raw_Reward", avg_raw_reward, log_step)
-        self.writer.add_scalar("Gate/Avg_Net_Reward", avg_net_reward, log_step)
         self.writer.add_scalar("Gate/Execute_Label_Count", n_execute, log_step)
         self.writer.add_scalar("Gate/Reject_Label_Count", n_reject, log_step)
-        self.writer.add_scalar("Gate/C_Exec", self.c_exec, log_step)
+        self.writer.add_scalar("Gate/Avg_Abs_Reward", avg_abs_reward, log_step)
 
         print(
             f"[Gate Train] samples={len(self.memory)}, "
@@ -589,15 +615,14 @@ class SelfGateAgent:
             f"loss={avg_loss:.4f}, "
             f"acc={avg_acc:.3f}, "
             f"avg_raw_reward={avg_raw_reward:.3f}, "
-            f"avg_net_reward={avg_net_reward:.3f}, "
+            f"avg_abs_reward={avg_abs_reward:.3f}, "
             f"execute={n_execute}, reject={n_reject}"
         )
 
         for row in epoch_metrics:
             row.update({
                 "avg_raw_reward": avg_raw_reward,
-                "avg_net_reward": avg_net_reward,
-                "c_exec": float(self.c_exec),
+                "avg_abs_reward": avg_abs_reward,
                 "execute_count": int(n_execute),
                 "reject_count": int(n_reject),
                 "sample_count": len(self.memory),

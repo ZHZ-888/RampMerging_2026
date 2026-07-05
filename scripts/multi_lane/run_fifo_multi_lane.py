@@ -36,10 +36,16 @@ def fifo_main(av_p, r_fr, m_fr, seed,
     traj_dir = Path(os.environ.get("TRAJ_DIR", ROOT / "data" / "multi_lane" / "algo")) # default 'data/mpgc'
     file_name = f"trj_fifo_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     xml_path = os.path.join(traj_dir, file_name)
+    lc_file_name = f"lc_fifo_seed{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
+    lc_path = os.path.join(traj_dir, lc_file_name)
     ssm_file_name = f"ssm_fifo_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     ssm_path = traj_dir / ssm_file_name
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
-                "--fcd-output", str(xml_path), # save path
+                "--seed", str(seed),
+                # FCD trajectory path
+                "--fcd-output", str(xml_path),
+                # Lane-change output
+                "--lanechange-output", str(lc_path),
                 # SSM output for TTC conflicts
                 "--device.ssm.probability", "1",
                 "--device.ssm.file", str(ssm_path),
@@ -163,9 +169,9 @@ if __name__ == '__main__':
     start = time.time()
     speed_log, tp, xml_path, ssm_path = fifo_main(
         av_p = 0,
-        r_fr = 1300, # 1300
+        r_fr = 800, # 1300
         m_fr = 1500,
-        seed = 2,
+        seed = 0,
         gui = False,
         plot = False,
         display = False,
