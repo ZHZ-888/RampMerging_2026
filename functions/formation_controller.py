@@ -38,22 +38,23 @@ class FormationController:
         else:
             self.sa_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate)  # buffer for splitting agent
             self.ca_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate)  # buffer for collecting agent
-            # self.sa_buffer = None
-            # self.ca_buffer = None
 
         self.train_interval = train_interval # rl training update interval
         self.update_interval = 10 # test
+
+        if tsg_mode == 'fix': # with gating threshold
+            self.sa_gating = 0.5 if sa_mode == 'predict' else 0
+            self.ca_gating = 0.5 if ca_mode == 'predict' else 0
+        else:
+            # no gating or use tsg_mode
+            self.sa_gating = 0 if sa_mode == 'predict' else 0
+            self.ca_gating = 0 if ca_mode == 'predict' else 0
 
         # RL Agents
         self.sa_mode = sa_mode
         self.ca_mode = ca_mode
         self.tsg_mode = tsg_mode
-        self.sa_gating = 0.5 if sa_mode == 'predict' else 0
-        self.ca_gating = 0.4 if ca_mode == 'predict' else 0
-        # self.sa_gating = 0 if sa_mode == 'predict' else 0
-        # self.ca_gating = 0 if ca_mode == 'predict' else 0
 
-        self.tsg_mode = tsg_mode
         self.tsg_manager = tsg_manager.TSGManager(
             tsg_mode=tsg_mode,
             exp_name=exp_name,
@@ -63,11 +64,13 @@ class FormationController:
 
         self.split_agent = agent.AgentHandler(
             traci, data_recorder, mode=sa_mode, tsg_mode=tsg_mode, exp_name=exp_name,
-            lr=learning_rate, gate_agent=self.tsg_manager.gate_agent) if sa_mode !='off' else None
+            lr=learning_rate, gate_agent=self.tsg_manager.gate_agent,
+            tsg_manager=self.tsg_manager) if sa_mode !='off' else None
         self.free_insert_agent = free_agent.FreeInsertAgentHandler(
             traci, data_recorder, self.p_basic,
             mode=ca_mode, tsg_mode=tsg_mode, exp_name=exp_name,
-            lr=learning_rate, gate_agent=self.tsg_manager.gate_agent) if ca_mode != 'off' else None
+            lr=learning_rate, gate_agent=self.tsg_manager.gate_agent,
+            tsg_manager=self.tsg_manager) if ca_mode != 'off' else None
 
     def platoon_initialise(self, ls_ihA_asc, ls_vehid, rf_model):
         # ******** PLATOON INITIALISATION ********

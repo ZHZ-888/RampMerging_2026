@@ -21,7 +21,8 @@ from functions import hpc_utils
 
 
 def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0,
-              gui=False, plot=False, display=False, lc=True, st=1200):
+              gui=False, plot=False, display=False, lc=True, st=1200,
+              tsg_mode='predict'):
     set_global_seed(seed, enable=True)  # set global random seed (especially for RL training)
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
@@ -87,7 +88,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
         formation_controller = fc.FormationController(data_recorder, traci,
-                                                      loss_rate=loss_rate, tsg_mode='predict') # off/predict
+                                                      loss_rate=loss_rate, tsg_mode=tsg_mode) # fix/off/predict/train/audit
         merging_controller = mc.MergingController(data_recorder, traci, av_p,
                                                   platoon_formation=True, ml=True,
                                                   loss_rate=loss_rate)
@@ -120,6 +121,8 @@ def loop(traci, st, data_recorder,
         # main vehicle generation (1 => inner lane; 0 => outer lane)
         veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
         veh_gen.veh_gen_hetero(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h # veh_gen_homo
+        # veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+        # veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')
 
         # ramp vehicle generation
         veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p)
@@ -155,7 +158,8 @@ def main(args=None, root=None):
         m_fr=parsed_args.m_fr,
         seed=parsed_args.seed,
         gui=parsed_args.gui,
-        lc=False # temp for PF res
+        lc=False, # temp for PF res
+        tsg_mode=parsed_args.tsg_mode,
     )
     end = time.time()
     runtime = end - start
@@ -230,7 +234,7 @@ if __name__ == '__main__':
         av_p = 0.1, # 0.1
         r_fr = 0, # 1300
         m_fr = 1500, # 1500
-        seed = 6, # 1 analysis
+        seed = 5, # 1 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
@@ -238,7 +242,8 @@ if __name__ == '__main__':
         plot = False,
         display = False,
         lc = False, # if allow HV lane-changing; True
-        st = 1200 # 1200
+        st = 1200, # 1200
+        tsg_mode = 'fix' # off/fix/predict/train/audit
     )
     end = time.time()
     runtime = end - start

@@ -14,7 +14,8 @@ project_root = os.path.dirname(current_dir) # Get the parent directory as the pr
 
 class AgentHandler:
     def __init__(self, traci, data_recorder, scoring_interval=10, mode='train',
-                 tsg_mode='off', exp_name='default_run', lr=5e-4, gate_agent=None):
+                 tsg_mode='off', exp_name='default_run', lr=5e-4, gate_agent=None,
+                 tsg_manager=None):
         self.traci = traci
         self.data_recorder = data_recorder
         self.mode = mode
@@ -33,7 +34,8 @@ class AgentHandler:
             lr=lr)
 
         self.gate_agent = gate_agent
-        if self.tsg_mode in ("train", "predict") and self.gate_agent is None:
+        self.tsg_manager = tsg_manager
+        if self.tsg_mode in ("train", "predict", "audit") and self.gate_agent is None:
             raise ValueError("[SA-Gate] tsg_mode requires a shared gate_agent")
         self.task_name = 'splitting'
         self.gate_collected = 0
@@ -50,6 +52,7 @@ class AgentHandler:
         self.ls_score = []
         self.dic_insertedAV = {} # plan taking action but may still in process
         self.dic_score_reward = {} # record lc_av and [score, reward], dic = {lc_av:[score, reward]}
+        self.dic_tsg_meta = {}  # track deploy-time metadata for logging
 
         self.last_update_payload_pair = None # {target leader: candidate leader}
         self.payload = None
@@ -112,6 +115,18 @@ class AgentHandler:
                 platoon_snapshot = record["platoon_snapshot"]
                 reward = self.evaluate_insertion_reward(lc_av, platoon_snapshot, dic_platoon_members)
                 self.dic_score_reward[lc_av].append(reward)
+                meta = self.dic_tsg_meta.pop(lc_av, None)
+                if self.tsg_mode in ("predict", "audit") and self.tsg_manager and meta is not None:
+                    self.tsg_manager.log_tsg_reward(
+                        decision_step=meta["step"],
+                        reward_step=current_step,
+                        category="se",
+                        cand_av_id=lc_av,
+                        target_platoon_leader_id=meta["target_platoon_leader_id"],
+                        final_reward=reward,
+                        tsg_execute=meta.get("tsg_execute"),
+                        real_execute=True
+                    )
                 if self.mode == 'train':
                     self.agent.record_transition(record['state'], reward)
                 print(f"[SplitInsert] {lc_av} reward: {'+' if reward > 0 else ''}{reward:.3f} ")
@@ -152,6 +167,18 @@ class AgentHandler:
                 )
 
                 self.dic_score_reward[lc_av].append(reward)
+                meta = self.dic_tsg_meta.pop(lc_av, None)
+                if self.tsg_mode in ("predict", "audit") and self.tsg_manager and meta is not None:
+                    self.tsg_manager.log_tsg_reward(
+                        decision_step=meta["step"],
+                        reward_step=current_step,
+                        category="se",
+                        cand_av_id=lc_av,
+                        target_platoon_leader_id=meta["target_platoon_leader_id"],
+                        final_reward=reward,
+                        tsg_execute=meta.get("tsg_execute"),
+                        real_execute=True
+                    )
 
                 # === Different training targets for different modes ===
                 if self.mode == 'train':
@@ -425,7 +452,7 @@ class AgentHandler:
         # === Build gate input at decision time ===
         gate_input = None
 
-        if self.tsg_mode in ("train", "predict"):
+        if self.tsg_mode in ("train", "predict", "audit"):
             d_target_to_MCZ_norm, signed_insert_offset_norm = (
                 self._build_tsg_timing_features_splitting(
                     leader_id=leader_id,
@@ -449,16 +476,32 @@ class AgentHandler:
             # Always execute top-ranked AV to collect delayed outcome labels.
             execute_decision = True
 
-        elif self.tsg_mode == "predict":
+        elif self.tsg_mode in ("predict", "audit"):
             execute_decision, gate_logits, gate_probs = self.gate_agent.predict_execute(gate_input)
+            gate_execute = bool(execute_decision)
+            if self.tsg_mode == "audit":
+                execute_decision = True
 
             print(
                 f"[SA-Gate] leader={leader_id}, av={selected_av}, "
                 f"score={best_score:.3f}, "
                 f"reject_prob={gate_probs[0]:.3f}, "
                 f"execute_prob={gate_probs[1]:.3f}, "
-                f"execute={execute_decision}"
+                f"tsg_execute={gate_execute}, real_execute={execute_decision}"
             )
+
+            if self.tsg_manager is not None:
+                self.tsg_manager.log_tsg_decision(
+                    decision_step=step,
+                    category="se",
+                    cand_av_id=selected_av,
+                    target_platoon_leader_id=leader_id,
+                    score=float(best_score),
+                    reject_prob=float(gate_probs[0]),
+                    execute_prob=float(gate_probs[1]),
+                    tsg_execute=gate_execute,
+                    real_execute=bool(execute_decision),
+                )
 
         else:
             # Original fixed-gating logic for train / predict mode.
@@ -477,6 +520,12 @@ class AgentHandler:
 
         # === If executed, record score for delayed reward update ===
         self.dic_score_reward[selected_av] = [best_score]
+        if self.tsg_mode in ("predict", "audit"):
+            self.dic_tsg_meta[selected_av] = {
+                "target_platoon_leader_id": leader_id,
+                "step": step,
+                "tsg_execute": gate_execute if 'gate_execute' in locals() else None,
+            }
         self.ls_score.append(best_score)
 
         return selected_av, selected_state, best_score, gate_input
@@ -491,15 +540,14 @@ class AgentHandler:
             print(f"[SplitInsert] {selected_av} selected with score {score:.3f}")
             platoon_snapshot = dic_platoon_members[leader_id]
             self.ls_splited_platoon.append(leader_id)
-
             self.insert_buffer.append({
                 "leader_id": leader_id,
                 "platoon_snapshot": platoon_snapshot,
                 "av_id": selected_av,
                 "state": selected_state,
+                "tsg_category": "se",
                 "step": step
-            }) # this data is for training
-
+            })  # this data is for training
             self.dic_insertedAV[selected_av] = 'split_insert'
             print(f'dic_insertedAVcands: {self.dic_insertedAV}')
         except self.traci.TraCIException:

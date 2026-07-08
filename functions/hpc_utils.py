@@ -23,6 +23,12 @@ def standard_arg_parser():
     parser.add_argument("--gui", action="store_true")
     parser.add_argument("--out_csv", type=str, default=None)
     parser.add_argument('--av_p', type=float, default=0, help='AV Penetration Rate')
+    parser.add_argument(
+        "--tsg_mode",
+        type=str,
+        default="predict",
+        choices=["off", "train", "predict", "audit", "fix"],
+    )
     return parser
 
 def training_arg_parser():
@@ -195,6 +201,5 @@ def write_dataframe_csv(path: str, df):
     p.parent.mkdir(parents=True, exist_ok=True)
 
     df.to_csv(p, index=False)
-
 
 

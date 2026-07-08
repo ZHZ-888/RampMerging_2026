@@ -19,7 +19,7 @@ class FreeInsertAgentHandler:
 
     def __init__(self, traci, data_recorder, p_basic, scoring_interval=10,
                  mode='train', tsg_mode='off', exp_name='default_run',
-                 lr=5e-4, gate_agent=None):
+                 lr=5e-4, gate_agent=None, tsg_manager=None):
         """
         Initialise the free-insert agent.
 
@@ -47,8 +47,9 @@ class FreeInsertAgentHandler:
                                     lr=lr) # 0.0005
 
         self.gate_agent = gate_agent
+        self.tsg_manager = tsg_manager
 
-        if self.tsg_mode in ("train", "predict") and self.gate_agent is None:
+        if self.tsg_mode in ("train", "predict", "audit") and self.gate_agent is None:
             raise ValueError("[CA-Gate] tsg_mode requires a shared gate_agent")
 
         self.task_name = 'collecting'
@@ -68,6 +69,7 @@ class FreeInsertAgentHandler:
         self.ls_score = []  # Score history for plotting
         self.dic_insertedAV = {}  # {av_id: 'free_insert'}
         self.dic_score_reward = {}  # {av_id: [score, reward]}
+        self.dic_tsg_meta = {}  # track deploy-time metadata for logging
 
         self.last_update_payload_pair = None  # {target leader: candidate leader}
         self.payload = None
@@ -144,6 +146,18 @@ class FreeInsertAgentHandler:
             # Update reward tracking & print
             if lc_av in self.dic_score_reward:
                 self.dic_score_reward[lc_av].append(reward)
+            meta = self.dic_tsg_meta.pop(lc_av, None)
+            if self.tsg_mode in ("predict", "audit") and self.tsg_manager and meta is not None:
+                self.tsg_manager.log_tsg_reward(
+                    decision_step=meta["step"],
+                    reward_step=current_step,
+                    category="ce",
+                    cand_av_id=lc_av,
+                    target_platoon_leader_id=meta["target_platoon_leader_id"],
+                    final_reward=reward,
+                    tsg_execute=meta.get("tsg_execute"),
+                    real_execute=True
+                )
             print(f"[FreeInsert] {lc_av} reward: {reward:+.3f}")
 
             # Record transition for learning
@@ -195,6 +209,18 @@ class FreeInsertAgentHandler:
 
             if lc_av in self.dic_score_reward:
                 self.dic_score_reward[lc_av].append(reward)
+            meta = self.dic_tsg_meta.pop(lc_av, None)
+            if self.tsg_mode in ("predict", "audit") and self.tsg_manager and meta is not None:
+                self.tsg_manager.log_tsg_reward(
+                    decision_step=meta["step"],
+                    reward_step=current_step,
+                    category="ce",
+                    cand_av_id=lc_av,
+                    target_platoon_leader_id=meta["target_platoon_leader_id"],
+                    final_reward=reward,
+                    tsg_execute=meta.get("tsg_execute"),
+                    real_execute=True
+                )
 
             print(f"[FreeInsert] {lc_av} reward: {reward:+.3f}")
 
@@ -404,7 +430,7 @@ class FreeInsertAgentHandler:
         # === Build gate input ===
         gate_input = None
 
-        if self.tsg_mode in ("train", "predict"):
+        if self.tsg_mode in ("train", "predict", "audit"):
             d_target_to_MCZ_norm, signed_insert_offset_norm = (
                 self._build_tsg_timing_features_collecting(
                     sparse_leader=sparse_leader,
@@ -427,16 +453,32 @@ class FreeInsertAgentHandler:
             # During TSG training, always execute top candidate to collect labels
             execute_decision = True
 
-        elif self.tsg_mode == "predict":
+        elif self.tsg_mode in ("predict", "audit"):
             execute_decision, gate_logits, gate_probs = self.gate_agent.predict_execute(gate_input)
+            gate_execute = bool(execute_decision)
+            if self.tsg_mode == "audit":
+                execute_decision = True
 
             print(
                 f"[CA-Gate] sparse_leader={sparse_leader}, top_av={selected_av}, "
                 f"score={best_score:.3f}, "
                 f"reject_prob={gate_probs[0]:.3f}, "
                 f"execute_prob={gate_probs[1]:.3f}, "
-                f"execute={execute_decision}"
+                f"tsg_execute={gate_execute}, real_execute={execute_decision}"
             )
+
+            if self.tsg_manager is not None:
+                self.tsg_manager.log_tsg_decision(
+                    decision_step=step,
+                    category="ce",
+                    cand_av_id=selected_av,
+                    target_platoon_leader_id=sparse_leader,
+                    score=float(best_score),
+                    reject_prob=float(gate_probs[0]),
+                    execute_prob=float(gate_probs[1]),
+                    tsg_execute=gate_execute,
+                    real_execute=bool(execute_decision),
+                )
 
         else: # self.tsg_mode = None; off
             # Original fixed-gating logic
@@ -456,6 +498,12 @@ class FreeInsertAgentHandler:
 
         # === If executed ===
         self.dic_score_reward[selected_av] = [best_score]
+        if self.tsg_mode in ("predict", "audit"):
+            self.dic_tsg_meta[selected_av] = {
+                "target_platoon_leader_id": sparse_leader,
+                "step": step,
+                "tsg_execute": gate_execute if 'gate_execute' in locals() else None,
+            }
         self.ls_score.append(best_score)
 
         return selected_av, selected_state, best_score, gate_input
@@ -488,6 +536,7 @@ class FreeInsertAgentHandler:
                 'lc_av': selected_av,
                 'state': selected_state,
                 'sparse_snapshot': sparse_snapshot,
+                'tsg_category': 'ce',
                 'gate_input': gate_input
             })
 

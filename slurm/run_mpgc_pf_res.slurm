@@ -7,7 +7,7 @@
 #SBATCH --error=error-logs/pfz_res_%A_%a.err
 
 # Submit with:
-# sbatch --array=0-29 run_pfz_res.sl
+# sbatch --array=0-89 run_pfz_res.sl
 
 set -euo pipefail
 
@@ -46,12 +46,14 @@ M_FR=1500
 # ================================
 # Parameter sweep
 # ================================
+TSG_MODES=(off fix predict)
 AV_P_VALS=(0.1 0.2 0.3)
 SEEDS=(0 1 2 3 4 5 6 7 8 9)
 
+NM=${#TSG_MODES[@]}
 NAV=${#AV_P_VALS[@]}
 NS=${#SEEDS[@]}
-NT=$((NAV * NS))
+NT=$((NM * NAV * NS))
 
 # ================================
 # Check task id
@@ -67,14 +69,18 @@ TASK_ID=${SLURM_ARRAY_TASK_ID}
 # ================================
 # Map task id -> (av_p, seed)
 # ================================
-av_idx=$(( TASK_ID / NS ))
-s_idx=$(( TASK_ID % NS ))
+mode_idx=$(( TASK_ID / (NAV * NS) ))
+rem=$(( TASK_ID % (NAV * NS) ))
+av_idx=$(( rem / NS ))
+s_idx=$(( rem % NS ))
 
+TSG_MODE=${TSG_MODES[$mode_idx]}
 AV_P=${AV_P_VALS[$av_idx]}
 SEED=${SEEDS[$s_idx]}
 
 echo "=================================="
 echo "TASK_ID : $TASK_ID"
+echo "TSG_MODE: $TSG_MODE"
 echo "AV_P    : $AV_P"
 echo "SEED    : $SEED"
 echo "R_FR    : $R_FR"
@@ -96,6 +102,7 @@ python run.py \
     --r_fr "$R_FR" \
     --m_fr "$M_FR" \
     --seed "$SEED" \
+    --tsg_mode "$TSG_MODE" \
     --out_csv "$OUT_CSV"
 
 echo "Finished TASK_ID=$TASK_ID"

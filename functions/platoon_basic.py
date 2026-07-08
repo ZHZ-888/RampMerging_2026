@@ -2,6 +2,7 @@
 # Core platoon management operations: tagging, size tracking, speed control, recording
 
 import os
+import re
 import joblib
 import numpy as np
 
@@ -452,7 +453,7 @@ class PlatoonBasic:
         # Ensure this leader is recorded only once
         if leader_mc_newest in self.ls_leader_fol_states_checked_sensor:
             return self.dic_follower_state_sensor
-        if leader_mc_newest == 'm_av569':
+        if leader_mc_newest == 'mb_av3448':
             pass
         self.ls_leader_fol_states_checked_sensor.append(leader_mc_newest)
         # 2. Retrieve all followers belonging to this leader's platoon
@@ -460,6 +461,8 @@ class PlatoonBasic:
         # 3. Record the state of each follower at the moment the leader enters 800m
         free_mode_detected = False # detect any free_mode fol, then all fol (same leader) behind it are in free_mode
         for fol in platoon_followers:
+            if fol == 'm_hv_cons3116':
+                pass
             state = self._check_state(fol)  # Determine free_mode or following_mode
             if free_mode_detected or state in ('free_mode', 0):
                 state = 'free_mode'
@@ -761,7 +764,7 @@ class PlatoonBasic:
                 # Save for future recovery
                 self.recover_speed_map[vid] = ori_v
 
-    def _check_state(self, veh_id):
+    def _check_state_ori(self, veh_id):
         """
         Check whether a vehicle is in free-flow mode or coupled following mode.
 
@@ -784,7 +787,56 @@ class PlatoonBasic:
         speed_diff = abs(veh_speed - pv_speed)
         is_close_enough = time_headway <= headway_threshold
         is_speed_consistent = speed_diff <= speed_diff_threshold
-        if is_close_enough and is_speed_consistent:
+        # if is_close_enough and is_speed_consistent:
+        if is_close_enough:
+            return "following_mode"
+        return "free_mode"
+
+    def _check_state(self, veh_id):
+        """
+        Check whether a vehicle is in free-flow mode or coupled following mode.
+
+        This following state check is for model training and indicator obtaining, therefore,
+        Traci has been used to gain all related information, including hv driving style
+
+        HV =>
+        jam_distance (s_0/m): 2.0; 2.5; 3.0
+        time_headway (s): 0.6; 1.0; 2.0
+
+        AV =>
+        jam_distance (s_0/m): 1.5
+        time_headway (s): 0.5
+        """
+        # gap tolerance factor
+        tolerance_fator = 1.5
+
+        # obtain id category
+        type = re.sub(r".*_([A-Za-z]+)[0-9]+$", r"\1", veh_id)
+        if type == 'av':
+            jam_dis, t_headway = 1.5, 0.5
+        elif type == 'agg':
+            jam_dis, t_headway = 2.0, 0.6
+        elif type == 'mean':
+            jam_dis, t_headway = 2.5, 1.0
+        elif type == 'cons':
+            jam_dis, t_headway = 3.0, 2.0
+        else: # HV, no driving style consideration
+            jam_dis, t_headway = 2.0, 1.0
+        min_speed = 0.1  # Avoid division by zero
+
+        # get id speed
+        p_veh_info = self.traci.vehicle.getLeader(veh_id)
+        if p_veh_info is None:
+            return "free_mode"
+        _, gap = p_veh_info
+        net_gap = jam_dis + gap
+        v_ego = self.data_recorder.get_vid_states(veh_id)['v']
+
+        # get space headway threshold
+        s_headway_thresh = jam_dis + tolerance_fator*t_headway*v_ego
+
+        # compare
+        if net_gap <= s_headway_thresh:
             return "following_mode"
         return "free_mode"
 

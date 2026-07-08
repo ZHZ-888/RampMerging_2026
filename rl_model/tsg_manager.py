@@ -1,4 +1,5 @@
 # rl_model/tsg_manager.py
+import csv
 import os
 from pathlib import Path
 from rl_model.rl_module import SelfGateAgent
@@ -30,11 +31,18 @@ class TSGManager:
                 / "task_self_gate_latest.pt" # task_self_gate_step10900.pt; task_self_gate_latest.pt
         )
 
+        if tsg_mode == "audit":
+            self.deploy_decision_csv = self.run_root / "task_self_gate_audit_decision_log.csv"
+            self.deploy_reward_csv = self.run_root / "task_self_gate_audit_reward_log.csv"
+        else:
+            self.deploy_decision_csv = self.run_root / "task_self_gate_decision_log.csv"
+            self.deploy_reward_csv = self.run_root / "task_self_gate_reward_log.csv"
+
         self.gate_agent = None
-        if tsg_mode in ("train", "predict"):
+        if tsg_mode in ("train", "predict", "audit"):
             if tsg_mode == 'train':
                 model_path = self.train_latest_model_path if self.train_latest_model_path.exists() else None
-            elif tsg_mode == 'predict':
+            elif tsg_mode in ('predict', 'audit'):
                 model_path = self.predict_model_path if self.predict_model_path.exists() else None
             self.gate_agent = SelfGateAgent(
                 exp_name=f"SHARED_TSG_{exp_name}",
@@ -42,6 +50,64 @@ class TSGManager:
                 input_dim=6,
                 lr=lr
             )
+
+    def _append_csv_row(self, path, row):
+        file_exists = path.exists()
+        with path.open("a", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=list(row.keys()))
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(row)
+
+    def log_tsg_decision(
+        self,
+        *,
+        decision_step,
+        category,
+        cand_av_id,
+        target_platoon_leader_id,
+        score,
+        reject_prob,
+        execute_prob,
+        tsg_execute,
+        real_execute,
+    ):
+        row = {
+            "decision_step": decision_step,
+            "category": category,
+            "cand_av_id": cand_av_id,
+            "target_platoon_leader_id": target_platoon_leader_id,
+            "score": score,
+            "reject_prob": reject_prob,
+            "execute_prob": execute_prob,
+            "tsg_execute": tsg_execute,
+            "real_execute": real_execute,
+        }
+        self._append_csv_row(self.deploy_decision_csv, row)
+
+    def log_tsg_reward(
+        self,
+        *,
+        decision_step,
+        reward_step,
+        category,
+        cand_av_id,
+        target_platoon_leader_id,
+        final_reward,
+        tsg_execute,
+        real_execute,
+    ):
+        row = {
+            "decision_step": decision_step,
+            "reward_step": reward_step,
+            "category": category,
+            "cand_av_id": cand_av_id,
+            "target_platoon_leader_id": target_platoon_leader_id,
+            "final_reward": final_reward,
+            "tsg_execute": tsg_execute,
+            "real_execute": real_execute,
+        }
+        self._append_csv_row(self.deploy_reward_csv, row)
 
     def train_if_needed(self, step, st):
         if self.tsg_mode != "train":

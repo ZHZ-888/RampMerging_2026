@@ -22,5 +22,10 @@ for i, head_id in enumerate(ls_m_leader_up_asc):
         else:
             headway_differences[head_id] = ts_head_current - ts_prev_tail - (
                     self.r_leader_acc_dur - ts_front_remaining)
+#%%
 
+import re
+id = 'm_av180'
+type = re.sub(r".*_([A-Za-z]+)[0-9]+$", r"\1", id)
+print(type)
 

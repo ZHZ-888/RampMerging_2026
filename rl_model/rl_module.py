@@ -462,7 +462,7 @@ class SelfGateAgent:
 
         Labels and sample weights are assigned in train_on_recorded():
             reward > 0  -> execute
-            reward <= 0 -> defer
+            reward <= 0 -> defer, weight = 1.0
             sample weight = abs(reward)
         """
         if task_name not in ("collecting", "splitting"):
@@ -480,7 +480,7 @@ class SelfGateAgent:
 
         TSG labels and weights are generated from raw reward:
             raw_reward > 0  -> execute
-            raw_reward <= 0 -> defer/reject
+            raw_reward <= 0 -> defer/reject, weight = 1.0
             sample weight = abs(raw_reward)
         """
         if not self.memory:
@@ -497,7 +497,11 @@ class SelfGateAgent:
         y = (raw_rewards > 0).astype(np.int64)
 
         # Reward magnitude determines the importance of each sample.
-        reward_weights = np.abs(raw_rewards).astype(np.float32)
+        reward_weights = np.where(
+            raw_rewards <= 0,
+            1.0,  # Failure: strongest defer feedback
+            raw_rewards  # Success: weighted by insertion quality
+        ).astype(np.float32)
 
         X_all = torch.tensor(X, dtype=torch.float32).to(self.device)
         y_all = torch.tensor(y, dtype=torch.long).to(self.device)
@@ -587,7 +591,7 @@ class SelfGateAgent:
         avg_loss = total_loss / batch_count if batch_count > 0 else 0.0
         avg_acc = total_acc / batch_count if batch_count > 0 else 0.0
         avg_raw_reward = float(np.mean(raw_rewards)) if len(raw_rewards) > 0 else 0.0
-        avg_abs_reward = float(np.mean(reward_weights)) if len(reward_weights) > 0 else 0.0
+        avg_feedback_weight = float(np.mean(reward_weights)) if len(reward_weights) > 0 else 0.0
 
         for row in epoch_metrics:
             update = row["training_update"]
@@ -607,7 +611,7 @@ class SelfGateAgent:
         self.writer.add_scalar("Gate/Avg_Raw_Reward", avg_raw_reward, log_step)
         self.writer.add_scalar("Gate/Execute_Label_Count", n_execute, log_step)
         self.writer.add_scalar("Gate/Reject_Label_Count", n_reject, log_step)
-        self.writer.add_scalar("Gate/Avg_Abs_Reward", avg_abs_reward, log_step)
+        self.writer.add_scalar("Gate/Avg_Feedback_Weight", avg_feedback_weight, log_step)
 
         print(
             f"[Gate Train] samples={len(self.memory)}, "
@@ -615,14 +619,14 @@ class SelfGateAgent:
             f"loss={avg_loss:.4f}, "
             f"acc={avg_acc:.3f}, "
             f"avg_raw_reward={avg_raw_reward:.3f}, "
-            f"avg_abs_reward={avg_abs_reward:.3f}, "
+            f"avg_feedback_weight={avg_feedback_weight:.3f}, "
             f"execute={n_execute}, reject={n_reject}"
         )
 
         for row in epoch_metrics:
             row.update({
                 "avg_raw_reward": avg_raw_reward,
-                "avg_abs_reward": avg_abs_reward,
+                "avg_feedback_weight": avg_feedback_weight,
                 "execute_count": int(n_execute),
                 "reject_count": int(n_reject),
                 "sample_count": len(self.memory),
