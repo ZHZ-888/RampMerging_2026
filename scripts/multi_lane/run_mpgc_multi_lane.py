@@ -174,6 +174,7 @@ def main(args=None, root=None):
     if parsed_args.out_csv:
         row = {
             "algo": "mpgc_multi_lane",
+            "tsg_mode": parsed_args.tsg_mode,
             "av_p": parsed_args.av_p,
             "ramp_demand": parsed_args.r_fr,
             "mainline_demand": parsed_args.m_fr,
