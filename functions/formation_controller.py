@@ -43,8 +43,8 @@ class FormationController:
         self.update_interval = 10 # test
 
         if tsg_mode == 'fix': # with gating threshold
-            self.sa_gating = 0.5 if sa_mode == 'predict' else 0
-            self.ca_gating = 0.5 if ca_mode == 'predict' else 0
+            self.sa_gating = 0.2 if sa_mode == 'predict' else 0
+            self.ca_gating = 0.2 if ca_mode == 'predict' else 0
         else:
             # no gating or use tsg_mode
             self.sa_gating = 0 if sa_mode == 'predict' else 0
