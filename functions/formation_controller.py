@@ -106,7 +106,8 @@ class FormationController:
             self.split_agent.record_loss(step, st)
         return dic_nonOversizedP
 
-    def collecting(self, st, step, ls_ihA_asc, ls_ihB_av_asc, dic_nonOversizedP, dic_platoon_members, dic_id_preState, selected_vid):
+    def collecting(self, st, step, ls_ihA_asc, ls_ihB_av_asc, dic_nonOversizedP,
+                   dic_platoon_members, dic_id_preState, selected_vid):
         # ******** HANDLE SPARSE PLATOONS ********
         if self.ca_mode == 'off':
             return {}, {}

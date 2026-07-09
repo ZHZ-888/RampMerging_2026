@@ -155,7 +155,7 @@ def main(args=None, root=None):
      tp, speed_log, queue_log, xml_path, ssm_path) = mpgc_main(
         av_p=parsed_args.av_p,
         r_fr=parsed_args.r_fr,
-        m_fr=parsed_args.m_fr,
+        m_fr=parsed_args.m_fr, # default 1500; parsed_args.m_fr
         seed=parsed_args.seed,
         gui=parsed_args.gui,
         lc=False, # temp for PF res
@@ -232,10 +232,10 @@ if __name__ == '__main__':
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path, ssm_path) = mpgc_main(
-        av_p = 0.1, # 0.1
+        av_p = 0.3, # 0.1
         r_fr = 0, # 1300
-        m_fr = 1500, # 1500
-        seed = 5, # 1 analysis
+        m_fr = 1000, # 1500
+        seed = 2, # 1 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
@@ -244,7 +244,7 @@ if __name__ == '__main__':
         display = False,
         lc = False, # if allow HV lane-changing; True
         st = 1200, # 1200
-        tsg_mode = 'fix' # off/fix/predict/train/audit
+        tsg_mode = 'off' # off/fix/predict/train/audit
     )
     end = time.time()
     runtime = end - start

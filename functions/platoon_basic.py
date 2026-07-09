@@ -53,8 +53,6 @@ class PlatoonBasic:
         self.dic_fol_last_leader = {}
         self.dic_leader_free_triggered = {}
 
-        self.check = False # this is a key update; use prediction value or sensor measurement value to determine following states
-
     def get_platoon_size3(self, ls_ihA_asc, ls_leader):
         '''
         get the platoon size/platoon members for each LEADER currently on the road
@@ -348,9 +346,8 @@ class PlatoonBasic:
                 # Platoon integrity check
                 all_following = True
                 for fol in ls_followers:
-                    state_check = self._check_state(fol)
                     state_pre = dic_id_preState.get(fol)
-                    state = state_check if self.check else state_pre
+                    state = state_pre
                     if state in ('free_mode', 0):
                         all_following = False
                         break
@@ -420,10 +417,9 @@ class PlatoonBasic:
         # 3. Record the state of each follower at the moment the leader enters 800m
         free_mode_detected = False # detect any free_mode fol, then all fol (same leader) behind it are in free_mode
         for fol in platoon_followers:
-            state_check = self._check_state(fol)  # Determine free_mode or following_mode
             state_pre = dic_id_preState.get(fol)
-            state_pre = 1 # ingore following state as in MCZ leader will continue collect followers
-            state = state_check if self.check else state_pre
+            state_pre = 1 # ingore following state as in MCZ leader will continue to collect followers
+            state = state_pre
             if free_mode_detected or state in ('free_mode', 0):
                 state = 'free_mode'
                 free_mode_detected = True
@@ -811,34 +807,58 @@ class PlatoonBasic:
         tolerance_fator = 1.5
 
         # obtain id category
-        type = re.sub(r".*_([A-Za-z]+)[0-9]+$", r"\1", veh_id)
-        if type == 'av':
-            jam_dis, t_headway = 1.5, 0.5
-        elif type == 'agg':
-            jam_dis, t_headway = 2.0, 0.6
-        elif type == 'mean':
-            jam_dis, t_headway = 2.5, 1.0
-        elif type == 'cons':
-            jam_dis, t_headway = 3.0, 2.0
-        else: # HV, no driving style consideration
-            jam_dis, t_headway = 2.0, 1.0
-        min_speed = 0.1  # Avoid division by zero
+        veh_type = re.sub(r".*_([A-Za-z]+)[0-9]+$", r"\1", veh_id)
+        jam_dis, t_headway, accel_ego, _   = self._extract_vehicle_params(veh_type)
 
         # get id speed
         p_veh_info = self.traci.vehicle.getLeader(veh_id)
         if p_veh_info is None:
             return "free_mode"
-        _, gap = p_veh_info
-        net_gap = jam_dis + gap
+        pre_vid, gap = p_veh_info
+        _, _, _, decel_pre = self._extract_vehicle_params(pre_vid)
+        actual_gap = jam_dis + gap
+        v_pre = self.data_recorder.get_vid_states(pre_vid)['v']
         v_ego = self.data_recorder.get_vid_states(veh_id)['v']
 
         # get space headway threshold
         s_headway_thresh = jam_dis + tolerance_fator*t_headway*v_ego
 
+        # speed constraint check
+        eps_speed = 0.2
+        step_length = 0.1
+        v_ref = 30
+        accel = 2.6
+        v_free_next = min(v_ref, v_ego + accel_ego * step_length) # accel => ego_accel
+        v_follow = self.traci.vehicle.getFollowSpeed(
+            veh_id,
+            v_ego,
+            gap,
+            v_pre,
+            decel_pre, # decel_pre
+            pre_vid
+        )
+
+        speed_constrained = v_follow < v_free_next - eps_speed
+
         # compare
-        if net_gap <= s_headway_thresh:
+        if actual_gap <= s_headway_thresh:
+            return "following_mode"
+        elif speed_constrained:
             return "following_mode"
         return "free_mode"
+
+    def _extract_vehicle_params(self, veh_type: str) -> tuple[float, float]:
+        if veh_type == 'av':
+            jam_dis, t_headway, acc, dec = 1.5, 0.5, 2.6, 4.5
+        elif veh_type == 'agg':
+            jam_dis, t_headway, acc, dec = 2.0, 0.6, 3.2, 5.0
+        elif veh_type == 'mean':
+            jam_dis, t_headway, acc, dec = 2.5, 1.0, 2.6, 4.5
+        elif veh_type == 'cons':
+            jam_dis, t_headway, acc, dec = 3.0, 2.0, 2.2, 4.0
+        else:  # HV, no driving style consideration
+            jam_dis, t_headway, acc, dec = 2.0, 1.0, 2.6, 4.5
+        return jam_dis, t_headway, acc, dec
 
     def _get_final_platoon_info(self, step, dic_follower_state):
         """
