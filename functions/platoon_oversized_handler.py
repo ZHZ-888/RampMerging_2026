@@ -10,8 +10,11 @@ class PlatoonOversizedHandler:
     def find_oversizedP_nearbyAV(self, ls_ihB_av_asc, dic_platoon_size, dic_platoon_members):
         '''
         Identifies oversized platoons and finds nearby side-lane AVs of oversized platoon
-        :param dic_platoon_size: {leader_AV : size, ...}
-               ls_ihB_av (descending, new av => old av)
+        :param
+                ls_ihB_av (descending, new av => old av)
+                dic_platoon_size: {leader_AV : size, ...}
+                dic_platoon_members: {leader_AV : [leader, follower1, follower2, ...], ...}
+
         :return: dic_oversized_platoon_states => {leader_AV : [head_pos,
                                                                tail_pos,
                                                                avg_speed,
@@ -35,12 +38,21 @@ class PlatoonOversizedHandler:
         dic_leader_candidates = {}
         if not dic_oversized_platoon_states:
             return dic_oversized_platoon_states, dic_leader_candidates, dic_nonOversized
+        leaders = list(dic_platoon_members)
         for leader_id, platoon_states in dic_oversized_platoon_states.items():
+            if leader_id == 'm_av1202':
+                pass
             pos_leader = platoon_states[0]
+            leader_idx = leaders.index(leader_id)
+            next_leader_id = leaders[leader_idx + 1] if leader_idx + 1 < len(leaders) else None
+            next_leader_pos = self.data_recorder.dic_pos.get(next_leader_id) if next_leader_id else None
             for index, outer_lane_av in enumerate(ls_ihB_av_asc):
                 pos_outer_av = self.data_recorder.get_vid_states(outer_lane_av)['pos']
                 if pos_outer_av < pos_leader:
                     av_candidates = ls_ihB_av_asc[index:]
+                    if next_leader_pos is not None:
+                        av_candidates = [av for av in av_candidates
+                                         if next_leader_pos <= self.data_recorder.dic_pos.get(av, -1) <= pos_leader]
                     dic_leader_candidates[leader_id] = av_candidates # dic_target_leader_av_candidates
                     break
         return dic_oversized_platoon_states, dic_leader_candidates, dic_nonOversized

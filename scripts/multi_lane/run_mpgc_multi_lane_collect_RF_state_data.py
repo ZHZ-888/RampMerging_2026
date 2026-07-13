@@ -14,7 +14,7 @@ from functions import formation_controller as fc
 from functions import data_recording as dr
 from functions import hpc_utils
 
-def mpgc_main(av_p=0.1, r_fr=0, m_fr=1500, seed=0, loss_rate=0, gui=False, st=1800):
+def mpgc_main(av_p=0.1, r_fr=0, m_fr=1500, seed=0, loss_rate=0, gui=False, st=1200):
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
     sumo_config_path = (ROOT
@@ -25,9 +25,7 @@ def mpgc_main(av_p=0.1, r_fr=0, m_fr=1500, seed=0, loss_rate=0, gui=False, st=18
     )
     # Simulation step length
     sim_step = 0.1
-    # Determine the SUMO binary based on whether GUI is needed
     sumo_bin = 'sumo-gui' if gui else 'sumo'
-    # Construct the SUMO command and options
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
                 "--seed", str(seed),
                 "--no-warnings"] # , '-S' start auto, and quit auto
@@ -44,7 +42,6 @@ def mpgc_main(av_p=0.1, r_fr=0, m_fr=1500, seed=0, loss_rate=0, gui=False, st=18
     try:
         # VEHICLE GENERATOR
         av_p0 = av_p
-        av_p1 = 0
         m0_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p0, m_fr, seed)
         m1_dpt_type = {}
 
@@ -76,11 +73,13 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, m0_dpt_type=No
             prc.print_message(f'************current_time, step:{c_ts, step}************')
 
         # vehicle generation
-        veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
-        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h
+        # veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+        # veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h
+        veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')
+        veh_gen.veh_gen_hetero(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size,
-         dic_id_features) = formation_controller.step(st, step, lc, lc_fol_av=False, rf_model=False)
+         dic_id_features) = formation_controller.step(st, step, lc, lc_av_fol=False, rf_model=False)
         step += 1
     return dic_follower_state, his_dic_platoon_size, dic_id_features
 
@@ -123,12 +122,12 @@ if __name__ == '__main__':
     dic_follower_state, his_dic_platoon_size, dic_id_features = mpgc_main(
         av_p = 0.1,
         r_fr = 0,
-        m_fr = 1500,
-        seed = 21,
-        gui = False,
+        m_fr = 1000,
+        seed = 5,
+        gui = True,
         st = 600)
 
     # record features and targets (final states)
     df_fea_tar = organise_data(dic_follower_state, dic_id_features)
-    df_fea_tar.to_csv("/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_fea_tar_260610.csv", index=False)
+    df_fea_tar.to_csv("/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_state_test.csv", index=False)
 

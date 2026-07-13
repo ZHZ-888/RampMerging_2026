@@ -67,7 +67,7 @@ class FreeInsertAgentHandler:
         self.insert_buffer = []  # Pending reward evaluation
         self.last_score_step = {}  # Cooldown control per sparse platoon
         self.ls_score = []  # Score history for plotting
-        self.dic_insertedAV = {}  # {av_id: 'free_insert'}
+        self.dic_collect_insertedAV = {}  # {av_id: 'free_insert'}
         self.dic_score_reward = {}  # {av_id: [score, reward]}
         self.dic_tsg_meta = {}  # track deploy-time metadata for logging
 
@@ -92,6 +92,8 @@ class FreeInsertAgentHandler:
         if not dic_sparse_candidates:
             return {}
         for sparse_leader, ls_candidates in dic_sparse_candidates.items():
+            if sparse_leader in ['m_av1811', 'm_av2140', 'mb_av3447', 'm_av5139']:
+                pass
             if sparse_leader not in dic_sparse_platoons:
                 continue
             # Evaluate candidates and select best
@@ -104,7 +106,7 @@ class FreeInsertAgentHandler:
                                 dic_platoon_members, dic_sparse_platoons, best_score, gate_input)
                 self.last_update_payload_pair = {sparse_leader: selected_av}
 
-        return self.dic_insertedAV
+        return self.dic_collect_insertedAV
 
     def release_insertion(self, step, laneChange_buffer):
         payload = self.payload
@@ -541,11 +543,11 @@ class FreeInsertAgentHandler:
             })
 
             self.ls_free_inserted.append(sparse_leader)
-            self.dic_insertedAV[selected_av] = 'free_insert'
+            self.dic_collect_insertedAV[selected_av] = 'free_insert'
             # record free insert AV and tag it
             self.p_basic.dic_tags[selected_av] = 1 # tag as leader
             self.p_basic.dic_AVroleChange[selected_av] = 'free_insert'
-            # print(f'[FreeInsert] dic_insertedAV: {self.dic_insertedAV}')
+            print(f'[FreeInsert] free_inserted_AV: {self.dic_collect_insertedAV}')
 
         except self.traci.TraCIException:
             print(f"[FreeInsert] {selected_av} insert failed as TraCI exception")

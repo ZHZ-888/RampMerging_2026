@@ -83,17 +83,19 @@ def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=11):
     Returns
     -------
     dict
-        {'oversized_platoon_count': int,
-        'non_oversized_platoon_count': int,
-        'standard_platoon_count': int,
-        'sparse_platoon_count': int,
-        'avg_platoon_size': float}
+        {'over_pltn': int,
+        'non_over_pltn': int,
+        'std_pltn': int,
+        'sparse_pltn': int,
+        'avg_pltn_size': float}
     """
+    ls_oversized_leader = []
+    ls_sparse_leader = []
 
-    oversized_platoon_count = 0
-    non_oversized_platoon_count = 0
-    standard_platoon_count = 0
-    sparse_platoon_count = 0
+    over_pltn = 0
+    non_over_pltn = 0
+    std_pltn = 0
+    sparse_pltn = 0
 
     # Store follower states for each leader
     leader_follower_states = defaultdict(list)
@@ -108,45 +110,47 @@ def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=11):
 
         # Count oversized platoons
         if platoon_size > max_size:
-            oversized_platoon_count += 1
+            over_pltn += 1
+            ls_oversized_leader.append(leader_id)
             continue
 
         # Count non-oversized platoons
-        non_oversized_platoon_count += 1
+        non_over_pltn += 1
 
         follower_states = leader_follower_states.get(leader_id, [])
 
         # A non-oversized platoon is considered sparse
         # if any follower is not in following_mode.
         if any(state != "following_mode" for state in follower_states):
-            sparse_platoon_count += 1
+            ls_sparse_leader.append(leader_id)
+            sparse_pltn += 1
         else:
-            standard_platoon_count += 1
+            std_pltn += 1
 
-    avg_platoon_size = (
+    avg_pltn_size = (
         total_size / len(his_dic_platoon_size)
         if his_dic_platoon_size
         else 0
     )
 
+    sum_platoon_count = over_pltn + non_over_pltn
+
     result = {
-        "over_pltn": oversized_platoon_count,
-        "nonover_pltn": non_oversized_platoon_count,
-        "std_pltn": standard_platoon_count,
-        "sparse_pltn": sparse_platoon_count,
-        "avg_pltn_size": avg_platoon_size,
+        "over_pltn": over_pltn,
+        "non_over_pltn": non_over_pltn,
+        "std_pltn": std_pltn,
+        "sparse_pltn": sparse_pltn,
+        "avg_pltn_size": avg_pltn_size,
     }
+    print("\nNon standard platoon leaders:")
+    print(f"Oversized leaders: {ls_oversized_leader}")
+    print(f"Sparse leaders: {ls_sparse_leader}")
 
     print("\nFormation Control Statistics:")
-    print(f"Over Platoons     : {result['over_pltn']}")
-    print(f"NonOver Platoons  : {result['nonover_pltn']}")
-    print(f"Standard Platoons : {result['std_pltn']}")
-    print(f"Sparse Platoons   : {result['sparse_pltn']}")
+    print(f'Sum (Over, NonOver): {sum_platoon_count} ({over_pltn}, {non_over_pltn})')
+    print(f'NonOver (Sparse, Standard): {non_over_pltn} ({sparse_pltn}, {std_pltn})')
     print(f"Avg Platoon Size  : {result['avg_pltn_size']:.2f}")
-
     return result
-
-
 
 def get_fc_indicator(dic_follower_state, his_dic_platoon_size):
     '''

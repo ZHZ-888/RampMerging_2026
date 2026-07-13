@@ -148,6 +148,8 @@ class PlatoonSparseHandler:
         dic_sparse_platoon = {}
         dic_standard_platoon = {}
         for leader, ls_followers in dic_nonOversized.items():
+            if leader == 'm_av1202':
+                pass
             first_free_follower = None
             for follower in ls_followers:
                 if (follower in dic_id_preState and dic_id_preState[follower] == 0):
@@ -200,13 +202,15 @@ class PlatoonSparseHandler:
             - dic_sparse_platoon_filtered: {sparse_leader: first_free_hv_follower}
         '''
         dic_sparse_platoon_filtered = {}
-        for sparse_leader, first_free_fol in dic_sparse_platoon.items():
+        for sparse_leader, first_free_fol in dic_sparse_platoon.items(): # leader == 'm_av1285'
+            if sparse_leader == 'm_av1202':
+                pass
             platoon_members = dic_platoon_members[sparse_leader]
             idx_first_free = platoon_members.index(first_free_fol)
             ls_free_fol = platoon_members[idx_first_free:]
             # Filter to keep only HV followers
             ls_hv_free_fol = [fol for fol in ls_free_fol if 'hv' in fol]
-            if len(ls_hv_free_fol) > 1:
+            if len(ls_hv_free_fol) >= 1: # >=
                 dic_sparse_platoon_filtered[sparse_leader] = ls_hv_free_fol[0]
         return dic_sparse_platoon_filtered
 
@@ -220,6 +224,7 @@ class PlatoonSparseHandler:
         :return: dic_sparse_candidates = {sparse_leader: [candidate_av1, candidate_av2, ...]}
         """
         dic_sparse_candidates = {}
+        leaders = list(self.p_basic.dic_platoon_members)
 
         for sparse_leader, first_free_fol in dic_sparse_platoon.items():
             if sparse_leader == 'm_av238':
@@ -240,6 +245,12 @@ class PlatoonSparseHandler:
                 if pos_side_av <= pos_sparse_leader:
                     # All AVs from this point onward are candidates
                     av_candidates = ls_ihB_av_asc[index:]
+                    leader_idx = leaders.index(sparse_leader)
+                    next_leader_id = leaders[leader_idx + 1] if leader_idx + 1 < len(leaders) else None
+                    next_leader_pos = self.data_recorder.dic_pos.get(next_leader_id) if next_leader_id else None
+                    if next_leader_pos is not None:
+                        av_candidates = [av for av in av_candidates
+                                         if next_leader_pos <= self.data_recorder.dic_pos.get(av, -1) <= pos_sparse_leader]
                     dic_sparse_candidates[sparse_leader] = av_candidates
                     break
 

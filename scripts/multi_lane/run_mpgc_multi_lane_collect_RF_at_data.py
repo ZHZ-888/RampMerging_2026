@@ -20,13 +20,7 @@ from functions import hpc_utils
 def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate=0,
               gui=False, plot=False, display=False, lc=False, st=2400):
     # SUMO SETTING
-    # path = '/home/zzha/PycharmProjects/RoadNetwork/multi_lane_motorway/multi_lane_motorway1_lefthand_noLaneChanging.sumocfg'
-    # path = 'road_network/multi_lane_motorway/cfg_pf.sumocfg'
-    # path = '../../road_network/multi_lane_motorway/real/cfg_multi_lane_merge.sumocfg'
-    # sumo_config_path = path
-    # Project root directory
     ROOT = Path(__file__).resolve().parents[2]
-    # SUMO SETTING
     sumo_config_path = (
             ROOT
             / "road_network"
@@ -41,6 +35,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
     # Construct the SUMO command and options
     file_name = f'trj_{r_fr}_{av_p}_{seed}_{loss_rate}.xml'
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
+                "--seed", str(seed),
                 "--no-warnings"]  # , '-S' start auto, and quit auto
     sumo_options = ["--step-length", str(sim_step)]
 
@@ -97,10 +92,10 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_contro
         # data_recorder.disable_all_lane_changes()
 
         # core control
-        (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
-         dic_final_platoon_info) = formation_controller.step(st, step, lc)
+        dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features = (
+            formation_controller.step(st, step, lc))
         tp, speed_log, queue_log = (
-            merging_controller.step(st, step, dic_final_platoon_info, r_dpt_type))
+            merging_controller.step(st, step, r_dpt_type))
 
         # record targets
         data_recorder.record_tail_arrival(step) # data_recorder.dic_tail_arrived_ws
@@ -166,7 +161,7 @@ if __name__ == '__main__':
         r_autoFollow_p = 1,
         r_platoon_p = 1,
         loss_rate = 0,
-        gui = True,
+        gui = False,
         plot = False,
         display = False,
         lc = False,
@@ -177,6 +172,6 @@ if __name__ == '__main__':
     # orgnise data
     # output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260123.csv"
     # output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260318.csv"
-    # output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260530.csv"
+    output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/test_260712.csv"
     collect_RF_data(dic_targets, ls_features, output_path)
 

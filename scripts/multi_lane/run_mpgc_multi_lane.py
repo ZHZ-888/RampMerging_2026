@@ -97,10 +97,16 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
          dic_id_features, tp, speed_log, queue_log) = \
             loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller,
                  lc, r_autoFollow_p, m0_dpt_type, m1_dpt_type, r_dpt_type)
+
+        split_inserted_cnt = len(formation_controller.split_agent.dic_split_insertedAV) \
+            if formation_controller.split_agent else 0
+        collect_inserted_cnt = len(formation_controller.free_insert_agent.dic_collect_insertedAV) \
+            if formation_controller.free_insert_agent else 0
+
     finally:
         traci.close()
     return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
-            tp, speed_log, queue_log, xml_path, ssm_path)
+            tp, speed_log, queue_log, xml_path, ssm_path, split_inserted_cnt, collect_inserted_cnt)
 
 def loop(traci, st, data_recorder,
          veh_gen, formation_controller, merging_controller, lc,
@@ -129,6 +135,7 @@ def loop(traci, st, data_recorder,
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size,
          dic_id_features) = formation_controller.step(st, step, lc)
+
         tp, speed_log, queue_log = merging_controller.step(st, step, r_dpt_type)
 
         data_recorder.record_tail_arrival(step)
@@ -151,8 +158,9 @@ def main(args=None, root=None):
     # 2. Run simulation
     # Call the original algorithm
     start = time.time()
-    (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
-     tp, speed_log, queue_log, xml_path, ssm_path) = mpgc_main(
+    (dic_score_reward, dic_follower_state, his_dic_platoon_size,
+     dic_id_features, tp, speed_log, queue_log, xml_path, ssm_path,
+     split_inserted_cnt, collect_inserted_cnt) = mpgc_main(
         av_p=parsed_args.av_p,
         r_fr=parsed_args.r_fr,
         m_fr=parsed_args.m_fr, # default 1500; parsed_args.m_fr
@@ -190,6 +198,8 @@ def main(args=None, root=None):
             "ttc_ratio_3": ttc_ratio_3,
             "ttc_ratio_2": ttc_ratio_2,
             "ttc_ratio_1": ttc_ratio_1,
+            "split_inserted_cnt": split_inserted_cnt,
+            "collect_inserted_cnt": collect_inserted_cnt,
             "runtime": runtime
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
@@ -231,11 +241,12 @@ if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
-     tp, speed_log, queue_log, xml_path, ssm_path) = mpgc_main(
-        av_p = 0.3, # 0.1
+     tp, speed_log, queue_log, xml_path, ssm_path,
+     split_inserted_cnt, collect_inserted_cnt) = mpgc_main(
+        av_p = 0.1, # 0.1
         r_fr = 0, # 1300
         m_fr = 1000, # 1500
-        seed = 2, # 1 analysis
+        seed = 3, # 1 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
@@ -249,6 +260,7 @@ if __name__ == '__main__':
     end = time.time()
     runtime = end - start
 
+    print(f'\nsplit_inserted_cnt: {split_inserted_cnt}, collect_inserted_cnt: {collect_inserted_cnt}')
     hpc_utils.get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=11)
     hpc_utils.get_fc_indicator(dic_follower_state, his_dic_platoon_size)
 

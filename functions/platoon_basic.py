@@ -456,13 +456,18 @@ class PlatoonBasic:
         platoon_followers = self.dic_platoon_members.get(leader_mc_newest, [])[1:]
         # 3. Record the state of each follower at the moment the leader enters 800m
         free_mode_detected = False # detect any free_mode fol, then all fol (same leader) behind it are in free_mode
+        ls_decision_info = []
         for fol in platoon_followers:
-            if fol == 'm_hv_cons3116':
+            if fol == 'm_hv_mean2096':
                 pass
-            state = self._check_state(fol)  # Determine free_mode or following_mode
+            decision_info = self._check_state(fol)  # Determine free_mode or following_mode
+            state = decision_info[-1] if decision_info is not None else None
             if free_mode_detected or state in ('free_mode', 0):
                 state = 'free_mode'
-                free_mode_detected = True
+                free_mode_detected = True # chain reaction trigger: all followers behind this one are in free_mode
+            # fol_id, v_ego, actual_gap, s_headway_thresh, following_state_receding, following_state_leader
+            decision_info.append(state)
+            ls_decision_info.append(decision_info)
             self.dic_follower_state_sensor[fol] = [state, leader_mc_newest]
         return self.dic_follower_state_sensor
 
@@ -790,21 +795,15 @@ class PlatoonBasic:
 
     def _check_state(self, veh_id):
         """
-        Check whether a vehicle is in free-flow mode or coupled following mode.
+        Check whether a vehicle is in free-flow mode or in a coupled following mode.
 
         This following state check is for model training and indicator obtaining, therefore,
         Traci has been used to gain all related information, including hv driving style
-
-        HV =>
-        jam_distance (s_0/m): 2.0; 2.5; 3.0
-        time_headway (s): 0.6; 1.0; 2.0
-
-        AV =>
-        jam_distance (s_0/m): 1.5
-        time_headway (s): 0.5
         """
-        # gap tolerance factor
-        tolerance_fator = 1.5
+        # gap tolerance factor # mhv1174
+        if veh_id in ['mhv1174', 'mhv1096', 'mhv1060']:
+            pass
+        tolerance_factor = 2.0
 
         # obtain id category
         veh_type = re.sub(r".*_([A-Za-z]+)[0-9]+$", r"\1", veh_id)
@@ -817,35 +816,18 @@ class PlatoonBasic:
         pre_vid, gap = p_veh_info
         _, _, _, decel_pre = self._extract_vehicle_params(pre_vid)
         actual_gap = jam_dis + gap
-        v_pre = self.data_recorder.get_vid_states(pre_vid)['v']
         v_ego = self.data_recorder.get_vid_states(veh_id)['v']
 
         # get space headway threshold
-        s_headway_thresh = jam_dis + tolerance_fator*t_headway*v_ego
+        s_headway_thresh = jam_dis + tolerance_factor*t_headway*v_ego
+        decision_info = [veh_id, v_ego, actual_gap, s_headway_thresh]
 
-        # speed constraint check
-        eps_speed = 0.2
-        step_length = 0.1
-        v_ref = 30
-        accel = 2.6
-        v_free_next = min(v_ref, v_ego + accel_ego * step_length) # accel => ego_accel
-        v_follow = self.traci.vehicle.getFollowSpeed(
-            veh_id,
-            v_ego,
-            gap,
-            v_pre,
-            decel_pre, # decel_pre
-            pre_vid
-        )
-
-        speed_constrained = v_follow < v_free_next - eps_speed
-
-        # compare
         if actual_gap <= s_headway_thresh:
-            return "following_mode"
-        elif speed_constrained:
-            return "following_mode"
-        return "free_mode"
+            follow_state = 'following_mode'
+        else:
+            follow_state = 'free_mode'
+        decision_info.append(follow_state)
+        return decision_info
 
     def _extract_vehicle_params(self, veh_type: str) -> tuple[float, float]:
         if veh_type == 'av':
@@ -857,7 +839,7 @@ class PlatoonBasic:
         elif veh_type == 'cons':
             jam_dis, t_headway, acc, dec = 3.0, 2.0, 2.2, 4.0
         else:  # HV, no driving style consideration
-            jam_dis, t_headway, acc, dec = 2.0, 1.0, 2.6, 4.5
+            jam_dis, t_headway, acc, dec = 2.5, 1.0, 2.6, 4.5
         return jam_dis, t_headway, acc, dec
 
     def _get_final_platoon_info(self, step, dic_follower_state):

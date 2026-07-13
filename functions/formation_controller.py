@@ -83,7 +83,8 @@ class FormationController:
         return (dic_tags, ls_leader_AV, ls_follower_AV, dic_platoon_size, dic_platoon_members,
                 his_dic_platoon_size, dic_id_preState, dic_id_features)
 
-    def splitting(self, st, step, ls_ihA_asc, ls_ihB_av_asc, dic_platoon_size, dic_platoon_members, selected_vid):
+    def splitting(self, st, step, ls_ihA_asc, ls_ihB_av_asc,
+                  dic_platoon_size, dic_platoon_members, selected_vid):
         # ******** HANDLE OVERSIZED PLATOONS ********
         if self.sa_mode == 'off': # if self.ca_mode is None:
             return None
@@ -150,13 +151,13 @@ class FormationController:
         # set follower color as light green
         self.p_basic.set_follower_color()
 
-    def step(self, st, step, lc, lc_fol_av=True, rf_model=True):
+    def step(self, st, step, lc, lc_av_fol=True, rf_model=True):
         '''
 
         :param st:
         :param step:
         :param lc:
-               lc_fol_av: whether allow lane change for av_followers; default True
+               lc_av_fol: whether allow lane change for av_followers; default True
         :return:
             dic_socre_reward: {'mbav1533': [0.6405384540557861]}
             dic_follower_state: {'mhv48': ['following_mode', 'mav38'], 'mhv65': ['following_mode', 'mav38']}
@@ -201,7 +202,7 @@ class FormationController:
         # encourage AV_leader without follower move to inner lane (from lane0 to lane1)
         self.p_lane.move_leader_no_fol_to_inner(ls_leader_AV, dic_platoon_members)
         # encourage AV followers move to inner lane (from lane0 to lane1)
-        # self.p_lane.move_av_fol_to_inner(ls_leader_AV, dic_standard_platoon, lc_fol_av)
+        # self.p_lane.move_av_fol_to_inner(ls_leader_AV, dic_standard_platoon, lc_av_fol)
 
         # control gaps between platoons
         self.control_platoon_gap(step, ls_vehid, ls_leader_AV, ls_follower_AV,

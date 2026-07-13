@@ -142,7 +142,8 @@ def mpgc_main(av_p=0.3, r_fr=0, m_fr=1200, seed=21, r_platoon_p=1, loss_rate=0,
     return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
             xml_path)
 
-def loop(traci, st, data_recorder, veh_gen, formation_controller, lc,
+def loop(traci, st, data_recorder,
+         veh_gen, formation_controller, lc,
          m0_dpt_type=None, m1_dpt_type=None):
     # START SIMULATION
     step = 0
@@ -244,7 +245,7 @@ if __name__ == '__main__':
      xml_path) = mpgc_main(
         av_p = 0.1, # 0.3
         r_fr = 0,
-        m_fr = 1500,
+        m_fr = 1000,
         seed = 30, # 29, 1200*60
         gui = False,
         st = 1200*100,  # 50; 100

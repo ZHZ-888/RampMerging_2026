@@ -50,7 +50,7 @@ class AgentHandler:
         self.insert_buffer = []
         self.last_score_step = {} # Records last scoring step for each leader_id (cooldown control)
         self.ls_score = []
-        self.dic_insertedAV = {} # plan taking action but may still in process
+        self.dic_split_insertedAV = {} # plan taking action but may still in process
         self.dic_score_reward = {} # record lc_av and [score, reward], dic = {lc_av:[score, reward]}
         self.dic_tsg_meta = {}  # track deploy-time metadata for logging
 
@@ -80,7 +80,7 @@ class AgentHandler:
                                 dic_platoon_members, score, gate_input)
                 self.last_update_payload_pair = {oversize_leader: selected_av}
 
-        return self.dic_insertedAV
+        return self.dic_split_insertedAV
 
     def release_insertion(self, step, laneChange_buffer):
         payload = self.payload
@@ -548,8 +548,8 @@ class AgentHandler:
                 "tsg_category": "se",
                 "step": step
             })  # this data is for training
-            self.dic_insertedAV[selected_av] = 'split_insert'
-            print(f'dic_insertedAVcands: {self.dic_insertedAV}')
+            self.dic_split_insertedAV[selected_av] = 'split_insert'
+            print(f'dic_insertedAVcands: {self.dic_split_insertedAV}')
         except self.traci.TraCIException:
             print(f"[SplitInsert] {selected_av} failed to insert due to TraCI exception")
 
@@ -574,7 +574,7 @@ class AgentHandler:
                 "step": step
             }) # this data is for training
 
-            self.dic_insertedAV[selected_av] = 'split_insert'
-            print(f'dic_insertedAVcands: {self.dic_insertedAV}')
+            self.dic_split_insertedAV[selected_av] = 'split_insert'
+            print(f'[SplitInsert] split_inserted_AV: {self.dic_split_insertedAV}')
         except self.traci.TraCIException:
             print(f"[SplitInsert] {selected_av} failed to insert due to TraCI exception")
