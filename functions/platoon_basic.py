@@ -108,6 +108,7 @@ class PlatoonBasic:
         self.max_team_size = max_team_size
 
         if self.ls_ihA_lastStep != ls_ihA_asc:
+            old_dic_tags = self.dic_tags.copy()
             # === get new_dic, make sure the order is correct ===
             # find the first id in ls_ihA_asc that already exists in dic_tags
             anchor_id = next((id for id in ls_ihA_asc if id in self.dic_tags), None)
@@ -124,7 +125,6 @@ class PlatoonBasic:
             self.dic_tags = new_dic
 
             # === tag every id in ls_ihA_asc ===
-            # current_leader= next((k for k in reversed(self.dic_tags) if self.dic_tags[k] == 1), None)
             current_leader = None
             current_team_size = 0
 
@@ -174,13 +174,18 @@ class PlatoonBasic:
                         current_leader = id
                         current_team_size = 1
                     else:
-                        # Assign AV as follower
-                        self.dic_tags[id] = 2
-                        if id == 'm_av1489':
-                            pass
-                        removed1 = self.dic_platoon_members.pop(id, None)
-                        removed2 = self.dic_platoon_size.pop(id, None)
-                        current_team_size += 1
+                        # new added
+                        if old_dic_tags.get(id) == 1 and current_leader in self.dic_AVroleChange:
+                            self.dic_tags[id] = 1
+                            current_leader = id
+                            current_team_size = 1
+                        else: # Assign AV as follower
+                            self.dic_tags[id] = 2
+                            if id == 'm_av1489':
+                                pass
+                            removed1 = self.dic_platoon_members.pop(id, None)
+                            removed2 = self.dic_platoon_size.pop(id, None)
+                            current_team_size += 1
                 else:
                     # HV vehicle
                     self.dic_tags[id] = 0
@@ -449,7 +454,7 @@ class PlatoonBasic:
         # Ensure this leader is recorded only once
         if leader_mc_newest in self.ls_leader_fol_states_checked_sensor:
             return self.dic_follower_state_sensor
-        if leader_mc_newest == 'mb_av3448':
+        if leader_mc_newest in ['mb_av3022', 'm_av7608']:
             pass
         self.ls_leader_fol_states_checked_sensor.append(leader_mc_newest)
         # 2. Retrieve all followers belonging to this leader's platoon

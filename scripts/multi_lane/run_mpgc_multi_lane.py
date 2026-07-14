@@ -116,7 +116,7 @@ def loop(traci, st, data_recorder,
     # scripts loop
     while step < st * 10:
         # checkpoint
-        if step > 740 * 10:
+        if step > 330 * 10:
              pass
         traci.simulationStep()  # start simulation
 
@@ -246,7 +246,7 @@ if __name__ == '__main__':
         av_p = 0.1, # 0.1
         r_fr = 0, # 1300
         m_fr = 1000, # 1500
-        seed = 3, # 1 analysis
+        seed = 6, # 1 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
@@ -255,7 +255,7 @@ if __name__ == '__main__':
         display = False,
         lc = False, # if allow HV lane-changing; True
         st = 1200, # 1200
-        tsg_mode = 'off' # off/fix/predict/train/audit
+        tsg_mode = 'predict' # off/fix/predict/train/audit
     )
     end = time.time()
     runtime = end - start
