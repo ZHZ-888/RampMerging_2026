@@ -92,7 +92,7 @@ class FreeInsertAgentHandler:
         if not dic_sparse_candidates:
             return {}
         for sparse_leader, ls_candidates in dic_sparse_candidates.items():
-            if sparse_leader in ['m_av1811', 'm_av2140', 'mb_av3447', 'm_av5139']:
+            if sparse_leader in ['m_av3413', 'mb_av4108', 'mb_av5939']:
                 pass
             if sparse_leader not in dic_sparse_platoons:
                 continue
@@ -519,7 +519,7 @@ class FreeInsertAgentHandler:
         sparse_snapshot: {sparse_leader: ori_followers} at decision time
         """
         try:
-            if selected_av == 'mb_av1738':
+            if selected_av == 'mb_av2372':
                 pass
             # Check if this sparse_leader is already being tracked
             if any(entry['sparse_leader'] == sparse_leader for entry in self.insert_buffer):

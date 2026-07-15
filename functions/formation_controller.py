@@ -117,9 +117,14 @@ class FormationController:
             return {}, {}
         # dic_id_preState, dic_id_features = self.p_basic.predict_flw_state(dic_tags, ls_vehid, model=True)
         dic_sparseP, dic_standard_platoon = self.p_sparse.find_sparse_platoon(dic_nonOversizedP, dic_id_preState)
-        self.p_sparse.free_promote(dic_sparseP, dic_platoon_members)  # ** FREE_PROMOTE **
+        addressed_leaders = self.p_sparse.free_promote(dic_sparseP, dic_platoon_members)  # ** FREE_PROMOTE **
         # filter out AV followers from sparse platoons
-        dic_sparseP_filered = self.p_sparse.filter_out_AV_followers(dic_sparseP, dic_platoon_members)
+        dic_sparseP_filered_temp = self.p_sparse.filter_out_AV_followers(dic_sparseP, dic_platoon_members)
+        dic_sparseP_filered = {
+            leader: first_free
+            for leader, first_free in dic_sparseP_filered_temp.items()
+            if leader not in addressed_leaders
+        } # if leader has been free-promoted, do not consider it for free-insertion
         # Find nearby side-lane AVs
         dic_collect_candidates = self.p_sparse.find_sparseP_nearbyAV(ls_ihB_av_asc, dic_sparseP_filered)
         dic_collect_candidates = {

@@ -14,7 +14,8 @@ from functions import formation_controller as fc
 from functions import data_recording as dr
 from functions import hpc_utils
 
-def mpgc_main(av_p=0.1, r_fr=0, m_fr=1500, seed=0, loss_rate=0, gui=False, st=1200):
+def mpgc_main(av_p=0.1, r_fr=0, m_fr=1000, seed=0,
+              loss_rate=0, gui=False, st=1200):
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
     sumo_config_path = (ROOT
@@ -57,7 +58,8 @@ def mpgc_main(av_p=0.1, r_fr=0, m_fr=1500, seed=0, loss_rate=0, gui=False, st=12
         traci.close()
     return dic_follower_state, his_dic_platoon_size, dic_id_features
 
-def loop(traci, st, data_recorder, veh_gen, formation_controller, m0_dpt_type=None, m1_dpt_type=None, lc=False):
+def loop(traci, st, data_recorder, veh_gen,
+         formation_controller, m0_dpt_type=None, m1_dpt_type=None, lc=False):
     # START SIMULATION
     step = 0
     # scripts loop
@@ -68,15 +70,11 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, m0_dpt_type=No
         if step % 10 == 0:
             pass
         traci.simulationStep()  # start simulation
-        c_ts = traci.simulation.getTime()  # current_timestep
-        if c_ts % 1 == 0:
-            prc.print_message(f'************current_time, step:{c_ts, step}************')
-
         # vehicle generation
-        # veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
-        # veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h
-        veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')
-        veh_gen.veh_gen_hetero(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')
+        veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h
+        # veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')
+        # veh_gen.veh_gen_hetero(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size,
          dic_id_features) = formation_controller.step(st, step, lc, lc_av_fol=False, rf_model=False)
@@ -102,7 +100,7 @@ def organise_data(dic_follower_state, dic_id_features):
     Record features and targets (final states)
     Parameters
         dic_follower_state: {follower: [state, leader],..., }
-        dic_id_features: {follower: [f1, f2, f3, f4],...}
+        dic_id_features: {follower: [f1, f2, f3, f4, leader],...}
     Returns
         df_fea_tar: dataframe
 
@@ -112,7 +110,8 @@ def organise_data(dic_follower_state, dic_id_features):
         state, leader = dic_follower_state.get(follower, [None, None])
         row = [follower] + features + [state, leader]
         feature_target.append(row)
-    columns = ['follower_id', 'v_leader', 'dis_leader_to_mcz', 'n_veh_between', 'time_headway_to_leader', 'state', 'leader_id']
+    columns = ['follower_id', 'v_leader', 'dis_leader_to_mcz', 'n_veh_between',
+               'time_headway_to_leader', 'state', 'leader_id']
     df_fea_tar = pd.DataFrame(feature_target, columns=columns)
     return df_fea_tar
 

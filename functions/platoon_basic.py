@@ -463,7 +463,7 @@ class PlatoonBasic:
         free_mode_detected = False # detect any free_mode fol, then all fol (same leader) behind it are in free_mode
         ls_decision_info = []
         for fol in platoon_followers:
-            if fol == 'm_hv_mean2096':
+            if fol == 'm_hv_cons3565':
                 pass
             decision_info = self._check_state(fol)  # Determine free_mode or following_mode
             state = decision_info[-1] if decision_info is not None else None
@@ -512,7 +512,7 @@ class PlatoonBasic:
         Params:
         - dic_id_type/dic_tags
         - ls_vehid: tuple, all vehicle in this step
-        - self.dic_id_features: {id: [f1, f2, ...,], ...}
+        - self.dic_id_features: {id: [f1, f2, ...,], ...} # update, add fol's leader
         - dic_fol_last_leader: {follower: last_leader, ...}
         - self.dic_id_preState: {1: following_mode, 0: free_mode}
         """
@@ -529,6 +529,8 @@ class PlatoonBasic:
         # Process newest -> oldest
         items = list(dic_id_type.items())
         for vid, tag in items:
+            if vid == 'm_hv_mean3672':
+                pass
             # only handle followers (both AV and HV)
             if tag == 1:
                 continue
@@ -574,47 +576,6 @@ class PlatoonBasic:
                     self.dic_leader_free_triggered[leader_id] = True
 
         return self.dic_id_preState, self.dic_id_features
-
-    def _get_RFfeatures(self, new_follower_id):
-        '''
-        get Random Forest features of new_follower_id
-        :return: df_select_features
-        '''
-        minGap = 4.5
-        veh_length = 5
-        # == get features ==
-        preceding_info = self.traci.vehicle.getLeader(new_follower_id)
-        if preceding_info is None:
-            return None  # No leading vehicle, skip
-        pv_id, pv_dis = preceding_info
-        # real dis to the preceding veh; FEATURE 1
-        dis_to_pv = pv_dis + minGap + veh_length
-
-        # velocity of preceding veh; FEATURE 2
-        v_pv = self.data_recorder.get_vid_states(pv_id)['v']
-        # get pos of this veh; FEATURE 4
-        pos_this = self.data_recorder.get_vid_states(new_follower_id)['pos']
-
-        # get its leader_AV id and index of this veh (COResponding)
-        leader_id, index_this = self.get_cor_leader(new_follower_id)
-        if leader_id is None:
-            return None  # No leader found, skip
-        # size (veh_num); FEATURE 5
-        veh_num = index_this + 1  # size, how many veh between this veh and its leader_AV, start from 0
-        # get pos of leader_id
-        if leader_id in self.traci.vehicle.getIDList():
-            pos_leader = self.data_recorder.get_vid_states(leader_id)['pos']
-        else:
-            pos_leader = 2000
-        # dis to the leader_AV; FEATURE 3
-        dis_to_leaderAV = pos_leader - pos_this
-        leader_id_start = leader_id
-        features = [new_follower_id, dis_to_pv, v_pv, dis_to_leaderAV, pos_this, veh_num, leader_id_start]
-        self.dic_id_features[new_follower_id] = features
-        # filtered features
-        select_features = [dis_to_pv, v_pv, dis_to_leaderAV, veh_num]  # 1, 2, 3, 5
-        arr_select_features = np.array(select_features, dtype=float).reshape(1, -1)
-        return arr_select_features
 
     def _get_RFfeatures2(self, new_follower_id):
         '''

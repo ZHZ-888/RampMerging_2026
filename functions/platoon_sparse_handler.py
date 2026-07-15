@@ -148,7 +148,7 @@ class PlatoonSparseHandler:
         dic_sparse_platoon = {}
         dic_standard_platoon = {}
         for leader, ls_followers in dic_nonOversized.items():
-            if leader == 'm_av1202':
+            if leader == 'm_av3414':
                 pass
             first_free_follower = None
             for follower in ls_followers:
@@ -169,20 +169,28 @@ class PlatoonSparseHandler:
         :param dic_platoon_members: all platoon leader and its followers
         :return:
         '''
+        addressed_sparse_leaders = set()
         for sparse_leader, first_free_follower in dic_sparse_platoon.items():
+            if sparse_leader == 'm_av3413':
+                pass
             platoon_members = dic_platoon_members[sparse_leader]
             idx_first_free = platoon_members.index(first_free_follower)
             ls_following_fol = platoon_members[1:idx_first_free]
+            ls_free_fol = platoon_members[idx_first_free:]
             # check if there are any av_follower before first_free_follower
             ls_av_following_fol = [vid for vid in ls_following_fol if 'av' in vid]
+            ls_av_free_fol = [vid for vid in ls_free_fol if 'av' in vid]
             promote_av = None
-            if 'av' in first_free_follower:
+            if 'av' in first_free_follower: # s1: first_free_follower is an AV
                 promote_av = first_free_follower
-            elif ls_av_following_fol:
+            elif ls_av_following_fol: # s2: there are AV followers before first_free_follower
                 promote_av = ls_av_following_fol[-1]
+            elif ls_av_free_fol: # s3: there are AV followers after first_free_follower
+                promote_av = ls_av_free_fol[0]
             # if no AV is available to promote, skip
             if promote_av is None:
                 continue
+            addressed_sparse_leaders.add(sparse_leader)
             # free_promote
             self.p_basic.dic_tags[promote_av] = 1
             self.p_basic.dic_AVroleChange[promote_av] = 'free_promote'
@@ -190,7 +198,7 @@ class PlatoonSparseHandler:
             # Remove prediction state since it's now a leader
             self.p_basic.dic_id_preState.pop(promote_av, None)
             # self.dic_id_preState.pop(promote_av, None)
-        return
+        return addressed_sparse_leaders
 
     def filter_out_AV_followers(self, dic_sparse_platoon, dic_platoon_members):
         '''

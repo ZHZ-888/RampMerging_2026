@@ -66,6 +66,8 @@ class AgentHandler:
         if not dic_oversized_platoon_states:
             return {}
         for oversize_leader in dic_oversized_platoon_states:
+            if oversize_leader in ['mb_av9278', 'mb_av9304', 'm_av11610']:
+                pass
             if oversize_leader in self.ls_splited_platoon or oversize_leader not in dic_leader_candidates:
                 continue
             # selected_av, selected_state, score = self._evaluate_candidates(
