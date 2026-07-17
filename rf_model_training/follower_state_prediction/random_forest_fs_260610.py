@@ -12,7 +12,8 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import joblib
 
 #%% input data
-path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_state_feature_target_260610_2.csv'
+# path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_state_feature_target_260610_2.csv'
+path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_state_feature_target_260715.csv'
 df = pd.read_csv(path)
 print(df.columns)
 print(df.head())
@@ -158,13 +159,15 @@ print(importance_df)
 
 #%% save the model
 # joblib.dump(model, 'Models/follower_state_prediction_model_250415.pkl')
-joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/follower_state_prediction_model_260610_ndarray.pkl')
+# joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/follower_state_prediction_model_260610_ndarray.pkl')
+joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/follower_state_prediction_model_260715_ndarray.pkl')
 
 #%% load model
 # loaded_model = joblib.load('Models/follower_state_prediction_model_250415.pkl')
 # loaded_model = joblib.load('Models/follower_state_prediction_model_250501.pkl')
-loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging_2026/rf_models/follower_state_prediction_model_260610_ndarray.pkl') # employed
-ls_new_features = [23, -45, 26, 62]
+# loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging_2026/rf_models/follower_state_prediction_model_260610_ndarray.pkl') # employed
+loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging_2026/rf_models/follower_state_prediction_model_260715_ndarray.pkl')
+ls_new_features = [25, 778, 3, 12.7]
 
 X_new = np.array(ls_new_features, dtype=float).reshape(1, -1)
 new_state = loaded_model.predict(X_new)

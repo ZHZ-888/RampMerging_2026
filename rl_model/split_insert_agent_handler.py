@@ -66,7 +66,7 @@ class AgentHandler:
         if not dic_oversized_platoon_states:
             return {}
         for oversize_leader in dic_oversized_platoon_states:
-            if oversize_leader in ['mb_av9278', 'mb_av9304', 'm_av11610']:
+            if oversize_leader in ['mb_av9304', 'm_av11610']:
                 pass
             if oversize_leader in self.ls_splited_platoon or oversize_leader not in dic_leader_candidates:
                 continue
@@ -532,28 +532,6 @@ class AgentHandler:
 
         return selected_av, selected_state, best_score, gate_input
 
-    def _execute_insertion_ori(self, step, leader_id, selected_av, selected_state,
-                           dic_platoon_members, score):
-        """
-        Execute the lane change for the selected AV and update tracking structures.
-        """
-        try:
-            self.traci.vehicle.changeLane(selected_av, self.target_lane, duration=100)
-            print(f"[SplitInsert] {selected_av} selected with score {score:.3f}")
-            platoon_snapshot = dic_platoon_members[leader_id]
-            self.ls_splited_platoon.append(leader_id)
-            self.insert_buffer.append({
-                "leader_id": leader_id,
-                "platoon_snapshot": platoon_snapshot,
-                "av_id": selected_av,
-                "state": selected_state,
-                "tsg_category": "se",
-                "step": step
-            })  # this data is for training
-            self.dic_split_insertedAV[selected_av] = 'split_insert'
-            print(f'dic_insertedAVcands: {self.dic_split_insertedAV}')
-        except self.traci.TraCIException:
-            print(f"[SplitInsert] {selected_av} failed to insert due to TraCI exception")
 
     def _execute_insertion(self, step, leader_id, selected_av, selected_state,
                            dic_platoon_members, score, gate_input):

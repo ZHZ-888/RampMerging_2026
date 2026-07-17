@@ -92,7 +92,7 @@ class FreeInsertAgentHandler:
         if not dic_sparse_candidates:
             return {}
         for sparse_leader, ls_candidates in dic_sparse_candidates.items():
-            if sparse_leader in ['m_av3413', 'mb_av4108', 'mb_av5939']:
+            if sparse_leader in ['mb_av4108', 'mb_av5939', 'mb_av7435']:
                 pass
             if sparse_leader not in dic_sparse_platoons:
                 continue

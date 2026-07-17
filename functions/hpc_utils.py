@@ -110,6 +110,8 @@ def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=11):
 
         # Count oversized platoons
         if platoon_size > max_size:
+            if leader_id in ['mb_av9304', 'm_av11610']:
+                pass
             over_pltn += 1
             ls_oversized_leader.append(leader_id)
             continue
@@ -122,6 +124,8 @@ def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=11):
         # A non-oversized platoon is considered sparse
         # if any follower is not in following_mode.
         if any(state != "following_mode" for state in follower_states):
+            if leader_id in ['mb_av5939', 'mb_av7435']:
+                pass
             ls_sparse_leader.append(leader_id)
             sparse_pltn += 1
         else:

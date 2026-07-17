@@ -17,7 +17,7 @@ class PlatoonBasic:
         self.pass_recorder = pass_recorder
         # Load Random Forest model for follower state prediction
         # fs_model_name = 'follower_state_prediction_model_251121_ndarray.pkl'
-        fs_model_name = 'follower_state_prediction_model_260610_ndarray.pkl'
+        fs_model_name = 'follower_state_prediction_model_260715_ndarray.pkl'
         self.fs_model = joblib.load(
             os.path.join(project_root, 'rf_models', fs_model_name))
 
@@ -237,7 +237,7 @@ class PlatoonBasic:
             if id in self.dec_av:
                 self.dec_av.remove(id)
         for leader in ls_leader_av:
-            if leader == 'mb_av422':
+            if leader == 'mb_av5939':
                 pass
             self.traci.vehicle.setColor(leader, (255, 255, 0, 255))  # yellow
             # platoon space control
@@ -248,7 +248,7 @@ class PlatoonBasic:
         for index, leader in enumerate(ls_leader_av):  # ascending order
             preceding_veh_info = self.traci.vehicle.getLeader(leader)
             if preceding_veh_info is not None:
-                if leader == 'mb_av422':
+                if leader == 'mb_av5939':
                     pass
                 dis_to_pv = preceding_veh_info[1]
                 speed_leader = self.data_recorder.get_vid_states(leader)['v']
@@ -320,7 +320,7 @@ class PlatoonBasic:
 
             # STRATEGY A: Merging Zone
             if leader in leaders_on_merging_control:
-                if leader == 'mb_av422':
+                if leader == 'mb_av5939':
                     pass
                 # Unconditional acceleration to level3 speed for merging zone
                 self.traci.vehicle.setMaxSpeed(leader, speed_level3)
@@ -343,7 +343,7 @@ class PlatoonBasic:
 
                 # Single vehicle (no followers): accelerates immediately
                 if not ls_followers:
-                    if leader == 'mb_av422':
+                    if leader == 'mb_av5939':
                         pass
                     self.traci.vehicle.setMaxSpeed(leader, speed_level3)
                     continue
@@ -351,8 +351,14 @@ class PlatoonBasic:
                 # Platoon integrity check
                 all_following = True
                 for fol in ls_followers:
-                    state_pre = dic_id_preState.get(fol)
-                    state = state_pre
+                    if fol in ['m_hv_cons5973', 'm_hv_agg6067']:
+                        pass
+                    state = dic_id_preState.get(fol)
+
+                    features = self._get_RFfeatures2(fol)
+                    features[0][0] = speed_level3 # use level3 speed as input for prediction; as once leader accelerates, followers state may change
+                    state = self.fs_model.predict(features)
+
                     if state in ('free_mode', 0):
                         all_following = False
                         break
@@ -361,7 +367,7 @@ class PlatoonBasic:
                     if leader == 'mb_av422':
                         pass
                     # Platoon is intact, leader accelerates
-                    self.traci.vehicle.setMaxSpeed(leader, speed_level3)
+                    # self.traci.vehicle.setMaxSpeed(leader, speed_level3)
                     for fol in ls_followers: # record followers's state as '1' (following mode)
                         self.dic_follower_state[fol] = ['following_mode', leader]
                     self.ls_leader_fol_states_checked.append(leader) # record this leader then no need to check its followers' state
@@ -554,7 +560,7 @@ class PlatoonBasic:
                 continue
 
             # extract features (this also stores features in self.dic_id_features)
-            # arr_select_features = self._get_RFfeatures(vid)
+            # v_leader, dis_leader_to_MCZ, n_veh_between, time_headway_to_leader
             arr_select_features = self._get_RFfeatures2(vid)
             if arr_select_features is None:
                 # missing data now; clear last-leader to try again later
@@ -582,9 +588,12 @@ class PlatoonBasic:
         current selected features: v_leader, dis_leader_to_MCZ, n_veh_between, time_headway_to_leader
         previous selected features: dis_to_pv, v_pv, dis_to_leaderAV, veh_num
         get Random Forest features of new_follower_id
-        :return: df_select_features
+
+        :return: df_select_features: v_leader, dis_leader_to_MCZ, n_veh_between, time_headway_to_leader
         '''
         # get its leader_AV id and index of this veh (COResponding)
+        if new_follower_id == 'm_hv_agg6067':
+            pass
         leader_id, index_this = self.get_cor_leader(new_follower_id)
         if leader_id is None:
             return None  # No leader found, skip
@@ -607,12 +616,16 @@ class PlatoonBasic:
         if leader_pass_time is None:
             fol_id, _ = self.traci.vehicle.getFollower(leader_id, 1e6)
             fol_pass_time = self.dic_pass_time['pfz_entry'].get(fol_id)
-            if fol_pass_time is None:
-                prev_id, _ = self.traci.vehicle.getLeader(leader_id, 1e6)
+            if fol_pass_time is None: # based on leader's preceding vehicle to estimate leader's pass time
+                prev_id, gap_leader_prev = self.traci.vehicle.getLeader(leader_id, 1e6)
+                th_leader_prev = (gap_leader_prev+5+2.5)/ v_leader # time headway between leader and its preceding vehicle
                 prev_pass_time = self.dic_pass_time['pfz_entry'].get(prev_id)
-                leader_pass_time = prev_pass_time + 1.0
-            else:
-                leader_pass_time = fol_pass_time - 1.0
+                leader_pass_time = prev_pass_time + th_leader_prev
+            else: # based on leader's following vehicle to estimate leader's pass time
+                v_fol = self.data_recorder.get_vid_states(fol_id)['v']
+                _, gap_fol_leader = self.traci.vehicle.getLeader(fol_id, 1e6)
+                th_fol_leader = (gap_fol_leader+5+2.5) / v_fol # time headway between fol and leader
+                leader_pass_time = fol_pass_time - th_fol_leader
             # Store virtual pass time for inserted leader
             self.dic_pass_time['pfz_entry'][leader_id] = leader_pass_time
 
@@ -688,6 +701,8 @@ class PlatoonBasic:
 
         # Step 3: Check recovery condition with leader-first constraint
         for vid in sorted_vids:
+            if vid == 'mb_av5939':
+                pass
             ori_v = self.recover_speed_map[vid]
             try:
                 # Retrieve leader information (leader_id, gap)
@@ -724,6 +739,8 @@ class PlatoonBasic:
         # Step 5: Apply speed limit to new vehicles
         for vid in ls_second_decAV:
             if vid not in self.recover_speed_map:
+                if vid == 'mb_av5939':
+                    pass
                 # Store original max speed
                 ori_v = self.traci.vehicle.getMaxSpeed(vid)
                 # Apply temporary speed constraint
@@ -731,33 +748,6 @@ class PlatoonBasic:
                 # Save for future recovery
                 self.recover_speed_map[vid] = ori_v
 
-    def _check_state_ori(self, veh_id):
-        """
-        Check whether a vehicle is in free-flow mode or coupled following mode.
-
-        The final state is used as the training label for the prediction model.
-        Since the exact driving style of each vehicle is unavailable, the label is
-        determined by a unified time-headway threshold and a relative-speed check.
-        """
-
-        headway_threshold = 2.5  # s
-        speed_diff_threshold = 2.0  # m/s
-        min_speed = 0.1  # avoid division by zero
-
-        p_veh_info = self.traci.vehicle.getLeader(veh_id)
-        if p_veh_info is None:
-            return "free_mode"
-        pv_id, gap = p_veh_info
-        veh_speed = self.data_recorder.get_vid_states(veh_id)['v']
-        pv_speed = self.data_recorder.get_vid_states(pv_id)['v']
-        time_headway = gap / max(veh_speed, min_speed)
-        speed_diff = abs(veh_speed - pv_speed)
-        is_close_enough = time_headway <= headway_threshold
-        is_speed_consistent = speed_diff <= speed_diff_threshold
-        # if is_close_enough and is_speed_consistent:
-        if is_close_enough:
-            return "following_mode"
-        return "free_mode"
 
     def _check_state(self, veh_id):
         """
@@ -767,9 +757,9 @@ class PlatoonBasic:
         Traci has been used to gain all related information, including hv driving style
         """
         # gap tolerance factor # mhv1174
-        if veh_id in ['mhv1174', 'mhv1096', 'mhv1060']:
+        if veh_id in ['mhv1174', 'mhv1096', 'mhv1060', 'm_hv_agg6067']:
             pass
-        tolerance_factor = 2.0
+        tolerance_factor = 2 # 2.0
 
         # obtain id category
         veh_type = re.sub(r".*_([A-Za-z]+)[0-9]+$", r"\1", veh_id)
@@ -797,9 +787,11 @@ class PlatoonBasic:
 
     def _extract_vehicle_params(self, veh_type: str) -> tuple[float, float]:
         if veh_type == 'av':
-            jam_dis, t_headway, acc, dec = 1.5, 0.5, 2.6, 4.5
+            # jam_dis, t_headway, acc, dec = 1.5, 0.5, 2.6, 4.5
+            jam_dis, t_headway, acc, dec = 2.5, 1.0, 2.6, 4.5 # mean
         elif veh_type == 'agg':
-            jam_dis, t_headway, acc, dec = 2.0, 0.6, 3.2, 5.0
+            # jam_dis, t_headway, acc, dec = 2.0, 0.6, 3.2, 5.0
+            jam_dis, t_headway, acc, dec = 2.5, 1.0, 2.6, 4.5 # mean
         elif veh_type == 'mean':
             jam_dis, t_headway, acc, dec = 2.5, 1.0, 2.6, 4.5
         elif veh_type == 'cons':

@@ -146,6 +146,7 @@ class FormationController:
     def control_platoon_gap(self, step, ls_vehid, ls_leader_AV, ls_follower_AV,
                             ls_m_leader_up_asc, ls_wsB_av_asc, dic_id_preState):
         '''
+        leader speed control
         control gaps between platoons; do not rely on V2X, it is onboard decision
         '''
         if step % self.update_interval != 0:
