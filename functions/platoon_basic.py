@@ -787,11 +787,11 @@ class PlatoonBasic:
 
     def _extract_vehicle_params(self, veh_type: str) -> tuple[float, float]:
         if veh_type == 'av':
-            # jam_dis, t_headway, acc, dec = 1.5, 0.5, 2.6, 4.5
-            jam_dis, t_headway, acc, dec = 2.5, 1.0, 2.6, 4.5 # mean
+            jam_dis, t_headway, acc, dec = 1.5, 0.5, 2.6, 4.5
+            # jam_dis, t_headway, acc, dec = 2.5, 1.0, 2.6, 4.5 # mean
         elif veh_type == 'agg':
-            # jam_dis, t_headway, acc, dec = 2.0, 0.6, 3.2, 5.0
-            jam_dis, t_headway, acc, dec = 2.5, 1.0, 2.6, 4.5 # mean
+            jam_dis, t_headway, acc, dec = 2.0, 0.6, 3.2, 5.0
+            # jam_dis, t_headway, acc, dec = 2.5, 1.0, 2.6, 4.5 # mean
         elif veh_type == 'mean':
             jam_dis, t_headway, acc, dec = 2.5, 1.0, 2.6, 4.5
         elif veh_type == 'cons':
