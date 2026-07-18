@@ -24,6 +24,12 @@ def standard_arg_parser():
     parser.add_argument("--out_csv", type=str, default=None)
     parser.add_argument('--av_p', type=float, default=0, help='AV Penetration Rate')
     parser.add_argument(
+        "--max_team_size",
+        type=int,
+        default=11,
+        help="Maximum platoon size used for tagging and evaluation",
+    )
+    parser.add_argument(
         "--tsg_mode",
         type=str,
         default="predict",
@@ -156,13 +162,15 @@ def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=11):
     print(f"Avg Platoon Size  : {result['avg_pltn_size']:.2f}")
     return result
 
-def get_fc_indicator(dic_follower_state, his_dic_platoon_size):
+def get_fc_indicator(dic_follower_state, his_dic_platoon_size, max_size=11):
     '''
     get formation control indicators
     Parameters
     ----------
     dic_follower_state: {'mhv48': ['following_mode', 'mav38'], 'mhv65': ['following_mode', 'mav38']}
     his_dic_platoon_size: {'mav38': 11, 'mav278': 11, 'mav754': 11}; history of dic_platoon_size
+    max_size: int, optional
+        Maximum allowed platoon size used to define a standard platoon.
     '''
     # PLATOON FORMATION results
     # indicator 1: num.platoon_followers/num.followers %
@@ -178,7 +186,7 @@ def get_fc_indicator(dic_follower_state, his_dic_platoon_size):
     ca_indicator = round(num_platoon_follower / num_follower, 3)
     # indicator 2: num.normal_size_platoon/num.platoon
     num_platoon = len(his_dic_platoon_size)
-    num_normal_size_platoon = len([k for k, v in his_dic_platoon_size.items() if v <= 11])
+    num_normal_size_platoon = len([k for k, v in his_dic_platoon_size.items() if v <= max_size])
     print(f"index2: {num_normal_size_platoon} standard_platoon, {num_platoon} platoon, "
           f"ratio: {num_normal_size_platoon / num_platoon * 100:.2f}%, ")
     sa_indicator = round(num_normal_size_platoon / num_platoon, 3)
@@ -209,5 +217,4 @@ def write_dataframe_csv(path: str, df):
     p.parent.mkdir(parents=True, exist_ok=True)
 
     df.to_csv(p, index=False)
-
 

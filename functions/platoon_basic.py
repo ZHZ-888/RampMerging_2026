@@ -11,7 +11,7 @@ project_root = os.path.dirname(current_dir)
 
 
 class PlatoonBasic:
-    def __init__(self, traci, data_recorder, pass_recorder):
+    def __init__(self, traci, data_recorder, pass_recorder, max_team_size=11):
         self.traci = traci
         self.data_recorder = data_recorder
         self.pass_recorder = pass_recorder
@@ -26,7 +26,7 @@ class PlatoonBasic:
         self.speed_level3 = 25
         self.speed_level2 = 22.22  # 19.44 m/s (70km/h);
         self.speed_level1 = 16.67  # 16.67 m/s (60km/h)
-        self.max_team_size = 11
+        self.max_team_size = max_team_size
 
         self.dec_av = []
         self.dic_tags = {}
@@ -835,4 +835,3 @@ class PlatoonBasic:
         self.dic_final_platoon_info[step//10] = platoon_string
         # update to dic_avhid_ptype; this is truly pass to merging controller
         self.data_recorder.get_avhid_ptype(m_dpt_type={newest_leader: platoon_string})
-

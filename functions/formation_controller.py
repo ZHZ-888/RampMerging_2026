@@ -12,7 +12,7 @@ from rl_model import tsg_manager
 class FormationController:
     def __init__(self, data_recorder, traci, sa_mode='predict', ca_mode='predict',
                  tsg_mode='off', exp_name='default_run', loss_rate=0, learning_rate=5e-4,
-                 train_interval=32):
+                 train_interval=32, max_team_size=11):
         '''
         Train split_agent, "sa_mode='train', ca_mode='off'"
         Train free_insert_agent, "sa_mode='off', ca_mode='train'
@@ -22,11 +22,12 @@ class FormationController:
         '''
 
         self.data_recorder = data_recorder
+        self.max_team_size = max_team_size
 
         # Initialise platoon modules
         self.pass_recorder = detector.DetectorPassRecorder(
             traci, data_recorder) # use sumo instantInductionLoop detector to count platoon members
-        self.p_basic = pbasic.PlatoonBasic(traci, data_recorder, self.pass_recorder)
+        self.p_basic = pbasic.PlatoonBasic(traci, data_recorder, self.pass_recorder, max_team_size=max_team_size)
         self.p_oversized = poversized.PlatoonOversizedHandler(traci, data_recorder, self.p_basic)
         self.p_sparse = psparse.PlatoonSparseHandler(traci, data_recorder, self.p_basic)
         self.p_lane = plane.PlatoonLaneManager(traci, data_recorder)
@@ -75,7 +76,7 @@ class FormationController:
     def platoon_initialise(self, ls_ihA_asc, ls_vehid, rf_model):
         # ******** PLATOON INITIALISATION ********
         dic_tags, ls_leader_AV, ls_follower_AV, dic_AVroleChange \
-            = self.p_basic.tag_vehicles13(ls_ihA_asc, max_team_size=11)  # ** SPLIT_PROMOTE **
+            = self.p_basic.tag_vehicles13(ls_ihA_asc, max_team_size=self.max_team_size)  # ** SPLIT_PROMOTE **
         his_dic_platoon_size, dic_platoon_size, dic_platoon_members \
             = self.p_basic.get_platoon_size3(ls_ihA_asc, ls_leader_AV)
         dic_id_preState, dic_id_features \
@@ -173,8 +174,6 @@ class FormationController:
             dic_final_platoon_info: {66: 'AHHHHHHHHHH', 90: 'AHHHHH', 138: 'AHHHHHHHHH', 174: 'AH', 177: 'AHH'}
         '''
         selected_vid = set()
-        dic_score_reward = {}  # Initialise dic_score_reward to avoid uninitialised variable issues
-        dic_standard_platoon = {}
         # === Unpack veh info ===
         # print(f"*******step: {step}*********")
         dic_vid_groups = self.data_recorder.record_multi_lane_info()
@@ -225,4 +224,4 @@ class FormationController:
         _ = self.p_basic.record_follower_state2(step, dic_id_preState) # for algorithm
         # use detector to recognise follower state; for performance evaluation only
         dic_follower_state = self.p_basic.record_follower_state_by_sensor()
-        return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features)
+        return (dic_follower_state, his_dic_platoon_size, dic_id_features)

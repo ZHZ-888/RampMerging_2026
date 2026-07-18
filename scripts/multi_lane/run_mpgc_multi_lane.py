@@ -22,7 +22,7 @@ from functions import hpc_utils
 
 def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0,
               gui=False, plot=False, display=False, lc=True, st=1200,
-              tsg_mode='predict'):
+              tsg_mode='predict', max_team_size=11):
     set_global_seed(seed, enable=True)  # set global random seed (especially for RL training)
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
@@ -42,12 +42,13 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
     '''
     traj_dir = Path(os.environ.get("TRAJ_DIR", ROOT / "data" / "multi_lane" / "algo"))
     task_id = os.environ.get("SLURM_ARRAY_TASK_ID", "local")
-    file_name = f'trj_{r_fr}_{av_p}_{seed}_{loss_rate}_{task_id}.xml'
+    size_tag = f"mts{max_team_size}"
+    file_name = f"trj_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{task_id}.xml"
     xml_path = os.path.join(traj_dir, file_name)
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    lc_file_name = f"lc_{r_fr}_{av_p}_{seed}_{loss_rate}_{task_id}.xml"
+    lc_file_name = f"lc_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{task_id}.xml"
     lc_path = os.path.join(traj_dir, lc_file_name)
-    ssm_file_name = f'ssm_{r_fr}_{av_p}_{seed}_{loss_rate}_{task_id}.xml'
+    ssm_file_name = f"ssm_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{task_id}.xml"
     ssm_path = traj_dir / ssm_file_name
 
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
@@ -88,12 +89,13 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
         formation_controller = fc.FormationController(data_recorder, traci,
-                                                      loss_rate=loss_rate, tsg_mode=tsg_mode) # fix/off/predict/train/audit
+                                                      loss_rate=loss_rate, tsg_mode=tsg_mode,
+                                                      max_team_size=max_team_size) # fix/off/predict/train/audit
         merging_controller = mc.MergingController(data_recorder, traci, av_p,
                                                   platoon_formation=True, ml=True,
                                                   loss_rate=loss_rate)
 
-        (dic_score_reward, dic_follower_state, his_dic_platoon_size,
+        (dic_follower_state, his_dic_platoon_size,
          dic_id_features, tp, speed_log, queue_log) = \
             loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller,
                  lc, r_autoFollow_p, m0_dpt_type, m1_dpt_type, r_dpt_type)
@@ -117,14 +119,9 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
         ce_reward_avg = ce_reward_sum / ce_counts if ce_counts else 0
         ce_result = [ce_counts, ce_reward_sum, ce_reward_avg]
 
-        # print("**************")
-        # print(formation_controller.split_agent.dic_split_insertedAV, formation_controller.free_insert_agent.dic_collect_insertedAV)
-        # print(split_reward_log, collect_reward_log)
-        # print(se_result, ce_result)
-
     finally:
         traci.close()
-    return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
+    return (dic_follower_state, his_dic_platoon_size, dic_id_features,
             tp, speed_log, queue_log, xml_path, ssm_path, se_result, ce_result)
 
 def loop(traci, st, data_recorder,
@@ -152,14 +149,14 @@ def loop(traci, st, data_recorder,
         # ramp vehicle generation
         veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p)
 
-        (dic_score_reward, dic_follower_state, his_dic_platoon_size,
+        (dic_follower_state, his_dic_platoon_size,
          dic_id_features) = formation_controller.step(st, step, lc)
 
         tp, speed_log, queue_log = merging_controller.step(st, step, r_dpt_type)
 
         data_recorder.record_tail_arrival(step)
         step += 1
-    return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
+    return (dic_follower_state, his_dic_platoon_size, dic_id_features,
             tp, speed_log, queue_log)
 
 def main(args=None, root=None):
@@ -177,7 +174,7 @@ def main(args=None, root=None):
     # 2. Run simulation
     # Call the original algorithm
     start = time.time()
-    (dic_score_reward, dic_follower_state, his_dic_platoon_size,
+    (dic_follower_state, his_dic_platoon_size,
      dic_id_features, tp, speed_log, queue_log, xml_path, ssm_path,
      se_result, ce_result) = mpgc_main(
         av_p=parsed_args.av_p,
@@ -187,13 +184,14 @@ def main(args=None, root=None):
         gui=parsed_args.gui,
         lc=False, # temp for PF res
         tsg_mode=parsed_args.tsg_mode,
+        max_team_size=parsed_args.max_team_size,
     )
     end = time.time()
     runtime = end - start
-    res = hpc_utils.get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=11)
+    res = hpc_utils.get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=parsed_args.max_team_size)
     # CFR: coupled_following_ratio; SPR: standard_size_platoon_ratio
     cfr, spr = hpc_utils.get_fc_indicator(
-        dic_follower_state, his_dic_platoon_size)
+        dic_follower_state, his_dic_platoon_size, max_size=parsed_args.max_team_size)
     tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
         hpc_utils.get_mc_indicator(speed_log, tp, ssm_path, runtime))
 
@@ -206,6 +204,7 @@ def main(args=None, root=None):
             "ramp_demand": parsed_args.r_fr,
             "mainline_demand": parsed_args.m_fr,
             "seed": parsed_args.seed,
+            "max_team_size": parsed_args.max_team_size,
             "CFR": cfr,
             "SPR": spr,
             "over_pltn": res["over_pltn"],
@@ -263,7 +262,8 @@ def _set_dynamic_traffic(step, start_t, r_dpt_type, dynamic=True):
 if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
-    (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
+    max_team_size = 9
+    (dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path, ssm_path,
      se_result, ce_result) = mpgc_main(
         av_p = 0.1, # 0.1
@@ -277,15 +277,16 @@ if __name__ == '__main__':
         plot = False,
         display = False,
         lc = False, # if allow HV lane-changing; True
-        st = 1200, # 1200
-        tsg_mode = 'off' # off/fix/predict/train/audit
+        st = 600, # 1200
+        tsg_mode = 'off', # off/fix/predict/train/audit
+        max_team_size = max_team_size
     )
     end = time.time()
     runtime = end - start
 
     print(f'\nse_result: {se_result}, ce_result: {ce_result}')
-    hpc_utils.get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=11)
-    hpc_utils.get_fc_indicator(dic_follower_state, his_dic_platoon_size)
+    hpc_utils.get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=max_team_size)
+    hpc_utils.get_fc_indicator(dic_follower_state, his_dic_platoon_size, max_size=max_team_size)
 
     tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
         hpc_utils.get_mc_indicator(speed_log, tp, ssm_path, runtime)) # 1 => 1.5s
