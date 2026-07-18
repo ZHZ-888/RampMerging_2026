@@ -98,15 +98,34 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
             loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller,
                  lc, r_autoFollow_p, m0_dpt_type, m1_dpt_type, r_dpt_type)
 
-        split_inserted_cnt = len(formation_controller.split_agent.dic_split_insertedAV) \
-            if formation_controller.split_agent else 0
-        collect_inserted_cnt = len(formation_controller.free_insert_agent.dic_collect_insertedAV) \
-            if formation_controller.free_insert_agent else 0
+        split_reward_log = (
+            {av_id: list(v) for av_id, v in formation_controller.split_agent.dic_score_reward.items()}
+            if formation_controller.split_agent else {})
+        collect_reward_log = (
+            {av_id: list(v) for av_id, v in formation_controller.free_insert_agent.dic_score_reward.items()}
+            if formation_controller.free_insert_agent else {})
+
+        se_rewards = [v[1] for v in split_reward_log.values() if len(v) == 2]
+        se_counts = len(se_rewards)
+        se_reward_sum = sum(se_rewards)
+        se_reward_avg = se_reward_sum / se_counts if se_counts else 0
+        se_result = [se_counts, se_reward_sum, se_reward_avg]
+
+        ce_rewards = [v[1] for v in collect_reward_log.values() if len(v) == 2]
+        ce_counts = len(ce_rewards)
+        ce_reward_sum = sum(ce_rewards)
+        ce_reward_avg = ce_reward_sum / ce_counts if ce_counts else 0
+        ce_result = [ce_counts, ce_reward_sum, ce_reward_avg]
+
+        # print("**************")
+        # print(formation_controller.split_agent.dic_split_insertedAV, formation_controller.free_insert_agent.dic_collect_insertedAV)
+        # print(split_reward_log, collect_reward_log)
+        # print(se_result, ce_result)
 
     finally:
         traci.close()
     return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
-            tp, speed_log, queue_log, xml_path, ssm_path, split_inserted_cnt, collect_inserted_cnt)
+            tp, speed_log, queue_log, xml_path, ssm_path, se_result, ce_result)
 
 def loop(traci, st, data_recorder,
          veh_gen, formation_controller, merging_controller, lc,
@@ -160,7 +179,7 @@ def main(args=None, root=None):
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size,
      dic_id_features, tp, speed_log, queue_log, xml_path, ssm_path,
-     split_inserted_cnt, collect_inserted_cnt) = mpgc_main(
+     se_result, ce_result) = mpgc_main(
         av_p=parsed_args.av_p,
         r_fr=parsed_args.r_fr,
         m_fr=parsed_args.m_fr, # default 1500; parsed_args.m_fr
@@ -198,8 +217,12 @@ def main(args=None, root=None):
             "ttc_ratio_3": ttc_ratio_3,
             "ttc_ratio_2": ttc_ratio_2,
             "ttc_ratio_1": ttc_ratio_1,
-            "split_inserted_cnt": split_inserted_cnt,
-            "collect_inserted_cnt": collect_inserted_cnt,
+            "se_cnt": se_result[0],
+            "se_reward_sum": se_result[1],
+            "se_reward_avg": se_result[2],
+            "ce_cnt": ce_result[0],
+            "ce_reward_sum": ce_result[1],
+            "ce_reward_avg": ce_result[2],
             "runtime": runtime
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
@@ -242,11 +265,11 @@ if __name__ == '__main__':
     start = time.time()
     (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path, ssm_path,
-     split_inserted_cnt, collect_inserted_cnt) = mpgc_main(
+     se_result, ce_result) = mpgc_main(
         av_p = 0.1, # 0.1
         r_fr = 0, # 1300
         m_fr = 1000, # 1500
-        seed = 8, # 8 analysis
+        seed = 0, # 8 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
@@ -255,12 +278,12 @@ if __name__ == '__main__':
         display = False,
         lc = False, # if allow HV lane-changing; True
         st = 1200, # 1200
-        tsg_mode = 'predict' # off/fix/predict/train/audit
+        tsg_mode = 'off' # off/fix/predict/train/audit
     )
     end = time.time()
     runtime = end - start
 
-    print(f'\nsplit_inserted_cnt: {split_inserted_cnt}, collect_inserted_cnt: {collect_inserted_cnt}')
+    print(f'\nse_result: {se_result}, ce_result: {ce_result}')
     hpc_utils.get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=11)
     hpc_utils.get_fc_indicator(dic_follower_state, his_dic_platoon_size)
 

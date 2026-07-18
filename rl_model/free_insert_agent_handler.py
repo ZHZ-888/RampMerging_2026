@@ -122,63 +122,6 @@ class FreeInsertAgentHandler:
                 self._execute_insertion(step, *payload)
                 self.payload = None
 
-    def update_reward_ori(self, current_step, st, dic_platoon_members, train_interval):
-        """
-        Check insert_buffer for completed insertions and calculate rewards.
-        Safely iterates using a shallow copy to remove vehicles.
-        """
-        for entry in self.insert_buffer:
-            sparse_leader = entry['sparse_leader']
-            # Check if original leader has exited control zone or disappeared
-            try:
-                lane_id = self.traci.vehicle.getLaneID(sparse_leader)
-            except self.traci.TraCIException:
-                # Leader already exited or removed
-                self.insert_buffer.remove(entry)
-                continue
-
-            if lane_id != 'ws_1':  # Exit lane
-                continue
-
-            # --- Leader exited → evaluate reward ---
-            lc_av = entry['lc_av']
-            reward = self.evaluate_free_insert_reward(lc_av, entry['first_free_follower'],
-                                                      entry['sparse_snapshot'], dic_platoon_members)
-
-            # Update reward tracking & print
-            if lc_av in self.dic_score_reward:
-                self.dic_score_reward[lc_av].append(reward)
-            meta = self.dic_tsg_meta.pop(lc_av, None)
-            if self.tsg_mode in ("predict", "audit") and self.tsg_manager and meta is not None:
-                self.tsg_manager.log_tsg_reward(
-                    decision_step=meta["step"],
-                    reward_step=current_step,
-                    category="ce",
-                    cand_av_id=lc_av,
-                    target_platoon_leader_id=meta["target_platoon_leader_id"],
-                    final_reward=reward,
-                    tsg_execute=meta.get("tsg_execute"),
-                    real_execute=True
-                )
-            print(f"[FreeInsert] {lc_av} reward: {reward:+.3f}")
-
-            # Record transition for learning
-            if self.mode == 'train':
-                self.agent.record_transition(entry['state'], reward)
-                self.collected += 1
-
-                # Trigger training after warmup
-                if self.collected >= train_interval and current_step > self.training_warmup_steps:
-                    self.agent.log_training_metrics(current_step) # log performance metrics BEFORE updating model
-                    self.agent.train_on_recorded(current_step, epochs=5, batch_size=int(train_interval/2))
-                    self.collected = 0
-            # Clean up processed entry
-            self.insert_buffer.remove(entry)
-
-        if self.mode == 'train': # Periodic model saving
-            self._save_model_if_needed(current_step, st)
-
-        return self.dic_score_reward
 
     def update_reward(self, current_step, st, dic_platoon_members, train_interval):
         """
@@ -284,6 +227,8 @@ class FreeInsertAgentHandler:
         penalty = -0.1
 
         try:
+            if lc_av == 'mb_av948':
+                pass
             # Check if AV is on correct lane
             lane_id = self.traci.vehicle.getLaneID(lc_av)
             if 'inflow_highway_0' not in lane_id:
@@ -519,7 +464,7 @@ class FreeInsertAgentHandler:
         sparse_snapshot: {sparse_leader: ori_followers} at decision time
         """
         try:
-            if selected_av == 'mb_av2372':
+            if selected_av == 'mb_av948':
                 pass
             # Check if this sparse_leader is already being tracked
             if any(entry['sparse_leader'] == sparse_leader for entry in self.insert_buffer):

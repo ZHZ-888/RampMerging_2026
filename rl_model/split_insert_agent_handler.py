@@ -99,50 +99,6 @@ class AgentHandler:
                 self.payload = None
 
 
-    def update_reward_ori(self, current_step, st, dic_platoon_members, train_interval):
-        '''
-        Check insert_buffer and issue rewards if leader has exited control zone.
-        '''
-        updated = False
-        # iterate over a shallow copy to safely remove items during loop
-        for record in self.insert_buffer[:]:
-            leader_id = record['leader_id']
-            try:
-                lane_id = self.traci.vehicle.getLaneID(leader_id)
-            except self.traci.TraCIException:
-                lane_id = None
-
-            if lane_id == 'ws_1': # inflow_highway_0
-                lc_av = record['av_id']
-                platoon_snapshot = record["platoon_snapshot"]
-                reward = self.evaluate_insertion_reward(lc_av, platoon_snapshot, dic_platoon_members)
-                self.dic_score_reward[lc_av].append(reward)
-                meta = self.dic_tsg_meta.pop(lc_av, None)
-                if self.tsg_mode in ("predict", "audit") and self.tsg_manager and meta is not None:
-                    self.tsg_manager.log_tsg_reward(
-                        decision_step=meta["step"],
-                        reward_step=current_step,
-                        category="se",
-                        cand_av_id=lc_av,
-                        target_platoon_leader_id=meta["target_platoon_leader_id"],
-                        final_reward=reward,
-                        tsg_execute=meta.get("tsg_execute"),
-                        real_execute=True
-                    )
-                if self.mode == 'train':
-                    self.agent.record_transition(record['state'], reward)
-                print(f"[SplitInsert] {lc_av} reward: {'+' if reward > 0 else ''}{reward:.3f} ")
-                self.insert_buffer.remove(record)
-                updated = True
-        if updated and self.mode == 'train':
-            self.collected += 1
-            if self.collected >= train_interval: # update interval/2 = batch_size
-                self.agent.log_training_metrics(current_step)  # log performance metrics BEFORE updating model
-                self.agent.train_on_recorded(current_step, epochs=5, batch_size=int(train_interval/2))
-                self.collected = 0
-                self._save_model_if_needed(current_step, st)
-        return self.dic_score_reward
-
     def update_reward(self, current_step, st, dic_platoon_members, train_interval):
         """
         Check insert_buffer and issue rewards if leader has exited control zone.
@@ -221,6 +177,7 @@ class AgentHandler:
 
         return self.dic_score_reward
 
+
     def _evaluate_insertion_reward(self, lc_av, platoon_snapshot, dic_platoon_members):
         """
         Evaluate insertion success and return a reward score for split_insert scenario.
@@ -266,6 +223,8 @@ class AgentHandler:
                   (0, 1.0] = success (quality based on split balance)
         """
         try:
+            if lc_av == 'mb_av948':
+                pass
             leader_av = platoon_snapshot[0]
             tail_id = platoon_snapshot[-1]
 
