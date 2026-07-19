@@ -35,7 +35,7 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # Fixed traffic settings for max-size sensitivity analysis
 # ================================
 AV_P=0.1
-R_FR=0
+R_FR=800
 M_FR=1500
 TSG_MODE=predict
 

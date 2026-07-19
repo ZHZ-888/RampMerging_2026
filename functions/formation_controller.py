@@ -205,9 +205,9 @@ class FormationController:
         self.p_lane.manage_hv_lc_behaviour(lc, dic_tags) # mange hv_followers lane change behavior
         self.p_lane.restrict_av_lc(ls_ihAB_av_asc) # only restrict AV strategic lane change
         # encourage AV_leader without follower move to inner lane (from lane0 to lane1)
-        # self.p_lane.move_leader_no_fol_to_inner(ls_leader_AV, dic_platoon_members)
+        self.p_lane.move_leader_no_fol_to_inner(ls_leader_AV, dic_platoon_members)
         # encourage AV followers move to inner lane (from lane0 to lane1)
-        # self.p_lane.move_av_fol_to_inner(ls_leader_AV, dic_standard_platoon, lc_av_fol)
+        self.p_lane.move_av_fol_to_inner(ls_leader_AV, dic_standard_platoon, lc_av_fol)
 
         # control gaps between platoons
         self.control_platoon_gap(step, ls_vehid, ls_leader_AV, ls_follower_AV,
