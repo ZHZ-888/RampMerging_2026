@@ -182,7 +182,7 @@ def main(args=None, root=None):
         m_fr=parsed_args.m_fr, # default 1500; parsed_args.m_fr
         seed=parsed_args.seed,
         gui=parsed_args.gui,
-        lc=True, # temp for PF res
+        lc=False, # temp for PF res
         tsg_mode=parsed_args.tsg_mode,
         max_team_size=parsed_args.max_team_size,
     )
@@ -267,13 +267,13 @@ if __name__ == '__main__':
      tp, speed_log, queue_log, xml_path, ssm_path,
      se_result, ce_result) = mpgc_main(
         av_p = 0.1, # 0.1
-        r_fr = 800, # 1300
-        m_fr = 1500, # 1500
+        r_fr = 0, # 1300
+        m_fr = 1000, # 1500
         seed = 0, # 8 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
-        gui = False,
+        gui = True,
         plot = False,
         display = False,
         lc = True, # if allow HV lane-changing; True
