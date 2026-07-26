@@ -22,7 +22,7 @@ from functions import hpc_utils
 
 def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0,
               gui=False, plot=False, display=False, lc=True, st=1200,
-              tsg_mode='predict', max_team_size=11):
+              tsg_mode='predict', max_team_size=12):
     set_global_seed(seed, enable=True)  # set global random seed (especially for RL training)
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
@@ -177,14 +177,14 @@ def main(args=None, root=None):
     (dic_follower_state, his_dic_platoon_size,
      dic_id_features, tp, speed_log, queue_log, xml_path, ssm_path,
      se_result, ce_result, ts_first_jam) = mpgc_main(
-        av_p=parsed_args.av_p,
-        r_fr=parsed_args.r_fr,
+        av_p=parsed_args.av_p, # default 0.1
+        r_fr=parsed_args.r_fr, # default 800
         m_fr=parsed_args.m_fr, # default 1500; parsed_args.m_fr
         seed=parsed_args.seed,
         gui=parsed_args.gui,
-        lc=False, # temp for PF res
-        tsg_mode=parsed_args.tsg_mode,
-        max_team_size=parsed_args.max_team_size,
+        lc=True, # temp for PF res
+        tsg_mode=parsed_args.tsg_mode, # default 'predict'
+        max_team_size=parsed_args.max_team_size, # default 12
     )
     end = time.time()
     runtime = end - start
@@ -268,9 +268,9 @@ if __name__ == '__main__':
      tp, speed_log, queue_log, xml_path, ssm_path,
      se_result, ce_result, ts_first_jam) = mpgc_main(
         av_p = 0.1, # 0.1
-        r_fr = 1000, # 1300
+        r_fr = 1100, # 1300
         m_fr = 1500, # 1500
-        seed = 0, # 8 analysis
+        seed = 9, # 8 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15

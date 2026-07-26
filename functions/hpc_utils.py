@@ -17,16 +17,16 @@ from collections import defaultdict
 def standard_arg_parser():
     """Returns a parser with the standard arguments for your experiments."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--r_fr", type=float, default=720)
+    parser.add_argument("--r_fr", type=float, default=800)
     parser.add_argument("--m_fr", type=float, default=1500)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--gui", action="store_true")
     parser.add_argument("--out_csv", type=str, default=None)
-    parser.add_argument('--av_p', type=float, default=0, help='AV Penetration Rate')
+    parser.add_argument('--av_p', type=float, default=0.1, help='AV Penetration Rate')
     parser.add_argument(
         "--max_team_size",
         type=int,
-        default=11,
+        default=12,
         help="Maximum platoon size used for tagging and evaluation",
     )
     parser.add_argument(

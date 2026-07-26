@@ -1037,6 +1037,10 @@ class ShiftMode:
         self.length_ih = self.traci.lane.getLength('inflow_highway_0')
         self.length_ws0 = self.traci.lane.getLength('ws_0')
 
+        self.ws1_slow_ts = None
+        self.r_leader_past_half_acc_ts = None
+        self.mode_trigger_window = 1.0
+
     def determine_mode4(self, ls_m_veh_up_asc, ls_r_veh_up, ls_r_leader_up):
         '''
         determine_mode_fixed_merge_point
@@ -1186,24 +1190,35 @@ class ShiftMode:
 
         '''
         v_jam = 5.0
-        check_length = 100
 
-        # AVs on ws_1 for the low-speed trigger
-        ws1_av_speeds = [
-            self.data_recorder.dic_speed[vid]
+        ws1_slow = any(
+            self.data_recorder.dic_speed.get(vid, float("inf")) < v_jam
             for vid in ls_wsB_av_asc
-            if vid in self.data_recorder.dic_speed
-        ]
-        mainline_slow = bool(ws1_av_speeds) and any(speed < v_jam for speed in ws1_av_speeds)
+        )
 
         # Ramp leader closest to the merge point.
         # ls_r_leader_wsA_asc is sorted by position, so the first element is the farthest downstream.
-        ramp_position_ready = False
+        r_leader_past_half_acc = False
         if ls_r_leader_wsA_asc:
             farthest_r_leader = ls_r_leader_wsA_asc[0]
             farthest_pos = self.data_recorder.dic_pos.get(farthest_r_leader)
             if farthest_pos is not None:
-                ramp_position_ready = farthest_pos >= self.length_ws0 / 2
+                r_leader_past_half_acc = farthest_pos >= self.length_ws0 / 2
+
+        now = self.traci.simulation.getTime()
+        if ws1_slow:
+            self.ws1_slow_ts = now
+        if r_leader_past_half_acc:
+            self.r_leader_past_half_acc_ts = now
+
+        ws1_slow_recent = (
+            self.ws1_slow_ts is not None
+            and now - self.ws1_slow_ts <= self.mode_trigger_window
+        )
+        r_leader_past_half_recent = (
+            self.r_leader_past_half_acc_ts is not None
+            and now - self.r_leader_past_half_acc_ts <= self.mode_trigger_window
+        )
 
         ls_veh_c1_0_0 = self.traci.lane.getLastStepVehicleIDs(':c1_0_0')
         ls_r_leader_up = self.data_recorder.dic_vid_groups['ls_r_leader_up']
@@ -1217,13 +1232,13 @@ class ShiftMode:
             self.data_recorder.dic_speed[vid]
             for vid in ls_r_leader_wsA_asc
         ]
+        ws1_av_speeds = [
+            self.data_recorder.dic_speed[vid]
+            for vid in ls_wsB_av_asc
+            if vid in self.data_recorder.dic_speed
+        ]
 
-        if ramp_position_ready:
-            pass
-        if mainline_slow:
-            pass
-
-        if self.regular_mode and mainline_slow and ramp_position_ready:
+        if self.regular_mode and ws1_slow_recent and r_leader_past_half_recent:
             self.regular_mode = False
             self.jam_mode = True
 
