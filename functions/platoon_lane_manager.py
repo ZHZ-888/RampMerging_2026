@@ -125,8 +125,8 @@ class PlatoonLaneManager:
         for leader_id in ls_leader_AV_filtered:
             if leader_id == 'mav38':
                 pass
-            if "b_av" in leader_id: # for compare tsg on/off
-                continue
+            # if "b_av" in leader_id: # for compare tsg on/off
+            #     continue
             # Check if the AV leader has no followers
             followers = dic_platoon_members.get(leader_id, [])[1:]  # Exclude the leader itself
             if not followers:

@@ -28,6 +28,8 @@ class MergingController:
         self.pf = platoon_formation
         self.speed_log = []  # [step, avg_speed, True/False], True/False Jam
 
+        self.ts_first_jam = None
+
     def step(self, st, step, r_dpt_type):
         '''
 
@@ -57,12 +59,18 @@ class MergingController:
         ls_veh_id = dic_vid_groups['ls_vehid']
         ls_r_veh_net_asc = dic_vid_groups['ls_r_veh_net_asc']
         ls_r_veh_net_last_asc = dic_vid_groups['ls_r_veh_net_last_asc']
+        # below leader lists all are before the MS (merging section)
         ls_r_leader_up = dic_vid_groups['ls_r_leader_up']
         ls_r_leader_up_asc = dic_vid_groups['ls_r_leader_up_asc']  # min => max
         ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']  # min => max
+
         ls_m_veh_up_asc = dic_vid_groups['ls_m_veh_up_asc']
         ls_wsA_asc = dic_vid_groups['ls_wsA_asc']
+        ls_wsB_av_asc = dic_vid_groups['ls_wsB_av_asc']
+        # ramp leader on MS_0
+        ls_r_leader_wsA_asc = dic_vid_groups['ls_r_leader_wsA_asc']
         ls_wsB_asc = dic_vid_groups['ls_wsB_asc']
+
 
         # === 2. Platoon info (scripts + ramp) ===
         dic_platoon_info = self.merge_regular.get_platoon_info2()
@@ -84,10 +92,15 @@ class MergingController:
         #     ls_r_leader_up
         # )
 
-        regular_mode, jam_mode = self.mode_switch.determine_mode_flexible_merge_point(
-            ls_wsB_asc,
-            ls_wsA_asc,
-            ls_r_leader_up)
+        # regular_mode, jam_mode = self.mode_switch.determine_mode_flexible_merge_point(
+        #     ls_wsB_asc,
+        #     ls_wsA_asc,
+        #     ls_r_leader_up)
+
+        regular_mode, jam_mode = self.mode_switch.determine_mode_low_sensor_reliance(
+            ls_m_leader_up_asc,
+            ls_r_leader_wsA_asc,
+            ls_wsB_av_asc)
 
         # jam_mode = True
         # regular_mode = False
@@ -95,6 +108,8 @@ class MergingController:
 
         # === 4. Apply corresponding control logic ===
         if jam_mode:
+            if self.ts_first_jam is None:
+                self.ts_first_jam = c_ts
             # Jam mode control
             queue_log = self.merge_jam.jam_control(
                 step,
@@ -134,4 +149,4 @@ class MergingController:
         self.speed_log.append(step_speed)  # collect into one list
 
         # If neither regular nor jam_mode, jam_mode is False by default.
-        return tp, self.speed_log, queue_log
+        return tp, self.speed_log, queue_log, self.ts_first_jam

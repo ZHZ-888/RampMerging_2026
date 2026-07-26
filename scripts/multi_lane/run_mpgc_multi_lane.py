@@ -96,7 +96,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
                                                   loss_rate=loss_rate)
 
         (dic_follower_state, his_dic_platoon_size,
-         dic_id_features, tp, speed_log, queue_log) = \
+         dic_id_features, tp, speed_log, queue_log, ts_first_jam) = \
             loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller,
                  lc, r_autoFollow_p, m0_dpt_type, m1_dpt_type, r_dpt_type)
 
@@ -122,7 +122,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
     finally:
         traci.close()
     return (dic_follower_state, his_dic_platoon_size, dic_id_features,
-            tp, speed_log, queue_log, xml_path, ssm_path, se_result, ce_result)
+            tp, speed_log, queue_log, xml_path, ssm_path, se_result, ce_result, ts_first_jam)
 
 def loop(traci, st, data_recorder,
          veh_gen, formation_controller, merging_controller, lc,
@@ -152,12 +152,12 @@ def loop(traci, st, data_recorder,
         (dic_follower_state, his_dic_platoon_size,
          dic_id_features) = formation_controller.step(st, step, lc)
 
-        tp, speed_log, queue_log = merging_controller.step(st, step, r_dpt_type)
+        tp, speed_log, queue_log, ts_first_jam = merging_controller.step(st, step, r_dpt_type)
 
         data_recorder.record_tail_arrival(step)
         step += 1
     return (dic_follower_state, his_dic_platoon_size, dic_id_features,
-            tp, speed_log, queue_log)
+            tp, speed_log, queue_log, ts_first_jam)
 
 def main(args=None, root=None):
     """
@@ -176,7 +176,7 @@ def main(args=None, root=None):
     start = time.time()
     (dic_follower_state, his_dic_platoon_size,
      dic_id_features, tp, speed_log, queue_log, xml_path, ssm_path,
-     se_result, ce_result) = mpgc_main(
+     se_result, ce_result, ts_first_jam) = mpgc_main(
         av_p=parsed_args.av_p,
         r_fr=parsed_args.r_fr,
         m_fr=parsed_args.m_fr, # default 1500; parsed_args.m_fr
@@ -222,6 +222,7 @@ def main(args=None, root=None):
             "ce_cnt": ce_result[0],
             "ce_reward_sum": ce_result[1],
             "ce_reward_avg": ce_result[2],
+            "ts_first_jam": ts_first_jam,
             "runtime": runtime
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
@@ -262,18 +263,18 @@ def _set_dynamic_traffic(step, start_t, r_dpt_type, dynamic=True):
 if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
-    max_team_size = 11
+    max_team_size = 12
     (dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, xml_path, ssm_path,
-     se_result, ce_result) = mpgc_main(
+     se_result, ce_result, ts_first_jam) = mpgc_main(
         av_p = 0.1, # 0.1
-        r_fr = 0, # 1300
-        m_fr = 1000, # 1500
+        r_fr = 1000, # 1300
+        m_fr = 1500, # 1500
         seed = 0, # 8 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
-        gui = True,
+        gui = False,
         plot = False,
         display = False,
         lc = True, # if allow HV lane-changing; True
@@ -290,3 +291,4 @@ if __name__ == '__main__':
 
     tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
         hpc_utils.get_mc_indicator(speed_log, tp, ssm_path, runtime)) # 1 => 1.5s
+    print(f'ts_first_jam: {ts_first_jam}')

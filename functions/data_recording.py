@@ -265,7 +265,7 @@ class DataRecording:
         if 'ws_0' in self.traci.lane.getIDList():
             ls_wsA = list(self.traci.lane.getLastStepVehicleIDs("ws_0"))
             ls_wsA_asc = self._sort_by_pos(ls_wsA)
-            ls_wsA_av_asc = [vid for vid in ls_wsA_asc if 'av' in vid]
+            ls_r_leader_wsA_asc = [vid for vid in ls_wsA_asc if 'ravh' in vid]
             ls_wsA_hv_asc = [vid for vid in ls_wsA_asc if 'hv' in vid]  # decrease
         else:
             ls_wsA_asc = []
@@ -355,6 +355,7 @@ class DataRecording:
 
         # veh on weaving section (ws)
         self.dic_vid_groups['ls_wsA_asc'] = ls_wsA_asc
+        self.dic_vid_groups['ls_r_leader_wsA_asc'] = ls_r_leader_wsA_asc
         self.dic_vid_groups['ls_wsB_asc'] = ls_wsB_asc
         self.dic_vid_groups['ls_wsB_av_asc'] = ls_wsB_av_asc
         self.dic_vid_groups['ls_wsB_hv_asc'] = ls_wsB_hv_asc

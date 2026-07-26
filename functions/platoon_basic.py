@@ -355,9 +355,9 @@ class PlatoonBasic:
                         pass
                     state = dic_id_preState.get(fol)
 
-                    features = self._get_RFfeatures2(fol)
-                    features[0][0] = speed_level3 # use level3 speed as input for prediction; as once leader accelerates, followers state may change
-                    state = self.fs_model.predict(features)
+                    # features = self._get_RFfeatures2(fol)
+                    # features[0][0] = speed_level3 # use level3 speed as input for prediction; as once leader accelerates, followers state may change
+                    # state = self.fs_model.predict(features)
 
                     if state in ('free_mode', 0):
                         all_following = False

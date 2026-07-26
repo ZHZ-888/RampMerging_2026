@@ -54,7 +54,6 @@ class MergingControlJam:
         self.cooldown_dur = 60
         self.last_m_leader = None
 
-
         if ml:
             self.speed_level3 = 25
             # the time needed for ramp AV leader moving from stop point to the merging section (weaving section)
@@ -1035,6 +1034,9 @@ class ShiftMode:
         self.data_recorder = instance_dr
         self.av_p = av_p
 
+        self.length_ih = self.traci.lane.getLength('inflow_highway_0')
+        self.length_ws0 = self.traci.lane.getLength('ws_0')
+
     def determine_mode4(self, ls_m_veh_up_asc, ls_r_veh_up, ls_r_leader_up):
         '''
         determine_mode_fixed_merge_point
@@ -1163,6 +1165,75 @@ class ShiftMode:
         )
 
         if self.jam_mode and recover_condition: # new condtion: len(ls_veh_f) < max_jam_vnum
+            self.regular_mode = True
+            self.jam_mode = False
+
+        return self.regular_mode, self.jam_mode
+
+
+    def determine_mode_low_sensor_reliance(self, ls_m_leader_up_asc, ls_r_leader_wsA_asc,
+                                           ls_wsB_av_asc):
+        '''
+
+        Parameters
+        ----------
+        ls_m_leader_up_asc: list of leader on inflow_highway_0
+        ls_r_leader_wsA_asc: list of ramp leader on ws_0 (or ms)
+        ls_wsB_av_asc: list of av on ws_1 (or ms)
+
+        Returns
+        -------
+
+        '''
+        v_jam = 5.0
+        check_length = 100
+
+        # AVs on ws_1 for the low-speed trigger
+        ws1_av_speeds = [
+            self.data_recorder.dic_speed[vid]
+            for vid in ls_wsB_av_asc
+            if vid in self.data_recorder.dic_speed
+        ]
+        mainline_slow = bool(ws1_av_speeds) and any(speed < v_jam for speed in ws1_av_speeds)
+
+        # Ramp leader closest to the merge point.
+        # ls_r_leader_wsA_asc is sorted by position, so the first element is the farthest downstream.
+        ramp_position_ready = False
+        if ls_r_leader_wsA_asc:
+            farthest_r_leader = ls_r_leader_wsA_asc[0]
+            farthest_pos = self.data_recorder.dic_pos.get(farthest_r_leader)
+            if farthest_pos is not None:
+                ramp_position_ready = farthest_pos >= self.length_ws0 / 2
+
+        ls_veh_c1_0_0 = self.traci.lane.getLastStepVehicleIDs(':c1_0_0')
+        ls_r_leader_up = self.data_recorder.dic_vid_groups['ls_r_leader_up']
+        num_leader_ramp_proper = len(ls_r_leader_up)
+        num_leader_c1_0_0 = sum(1 for vid in ls_veh_c1_0_0 if 'ravh' in vid)
+        num_leader_wsA = len(ls_r_leader_wsA_asc)
+        num_leader_wsB = sum(1 for vid in ls_wsB_av_asc if 'ravh' in vid)
+        num_leader_ramp_ws = num_leader_c1_0_0 + num_leader_wsA + num_leader_wsB + num_leader_ramp_proper
+
+        ws0_av_speeds = [
+            self.data_recorder.dic_speed[vid]
+            for vid in ls_r_leader_wsA_asc
+        ]
+
+        if ramp_position_ready:
+            pass
+        if mainline_slow:
+            pass
+
+        if self.regular_mode and mainline_slow and ramp_position_ready:
+            self.regular_mode = False
+            self.jam_mode = True
+
+        recover_condition = (
+            num_leader_ramp_ws < 1
+            and all(speed > v_jam for speed in ws0_av_speeds)
+            and all(speed > v_jam for speed in ws1_av_speeds)
+        )
+
+        if self.jam_mode and recover_condition:
             self.regular_mode = True
             self.jam_mode = False
 
