@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=rm_ml_array            # Job name shown in the queue
-#SBATCH --time=01:00:00                  # Walltime limit (hh:mm:ss)
+#SBATCH --time=00:20:00                  # Walltime limit (hh:mm:ss)
 #SBATCH --cpus-per-task=1                # Number of CPU cores per task
 #SBATCH --mem=4G                         # Memory per task
 #SBATCH --output=output-logs/out_%A_%a.txt   # Standard output log

@@ -193,7 +193,7 @@ def main(args=None, root=None):
     This function is called by run.py.
     It parses command-line arguments and calls mpgc_main().
     """
-    prc.PRINT_ENABLED = False
+    prc.PRINT_ENABLED = True
 
     # 1. Parse Args (HPC/CLI Mode)
     parser = hpc_utils.standard_arg_parser()
@@ -305,10 +305,10 @@ if __name__ == '__main__':
     (dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam) = mpgc_main(
-        av_p = 0.3, # 0.1
-        r_fr = 800, # 1300
+        av_p = 0.1, # 0.1
+        r_fr = 200, # 1300
         m_fr = 1500, # 1500
-        seed = 4, # 9 analysis
+        seed = 1, # 9 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
