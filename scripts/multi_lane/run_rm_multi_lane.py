@@ -183,14 +183,17 @@ def main(args=None, root=None):
         r_fr=parsed_args.r_fr,
         m_fr=parsed_args.m_fr,
         seed=parsed_args.seed,
-        gui=parsed_args.gui
+        gui=parsed_args.gui,
+        st=parsed_args.st
     )
     end = time.time()
     runtime = end - start
 
     tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
-        hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st))
+        hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'],
+                                   runtime, max_time=parsed_args.st))
     delay_res = hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
+
     # 3. Save results
     if parsed_args.out_csv:
         row = {
@@ -219,9 +222,9 @@ if __name__ == '__main__':
     st = 1200
     speed_log, tp, output_file_path = rm_main(
         av_p = 0,
-        r_fr = 1400,
+        r_fr = 800,
         m_fr = 1500,
-        seed = 9,
+        seed = 4,
         gui = False,
         plot = False,
         display = False,

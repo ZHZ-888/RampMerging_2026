@@ -570,11 +570,14 @@ class DataRecording:
 
         # Cache basic vehicle properties
         for vid in ls_vehid:
+            if 'av' in vid:
+                max_speed = self.traci.vehicle.getMaxSpeed(vid)
+                self.dic_max_speed[vid] = max_speed
             # These TraCI calls are expensive; cache them once per step.
             lane_id = self.traci.vehicle.getLaneID(vid)
             pos = self.traci.vehicle.getLanePosition(vid)
             lane_length = self.dic_lane_length.get(lane_id)
-            max_speed = self.traci.vehicle.getMaxSpeed(vid)
+
             if lane_length is None:
                 lane_length = self.traci.lane.getLength(lane_id)
                 self.dic_lane_length[lane_id] = lane_length
@@ -583,7 +586,7 @@ class DataRecording:
             self.dic_lane[vid] = lane_id
             self.dic_pos[vid] = pos
             self.dic_dis[vid] = lane_length - pos
-            self.dic_max_speed[vid] = max_speed
+
             # Build lane-specific lists (Phase 1 optimization)
             if 'inflow_highway_0' in lane_id:
                 self.ls_lane0_veh.append(vid)

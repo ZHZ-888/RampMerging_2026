@@ -211,17 +211,20 @@ def main(args=None, root=None):
         seed=parsed_args.seed,
         gui=parsed_args.gui,
         lc=True, # temp for PF res
+        st=parsed_args.st,
         tsg_mode=parsed_args.tsg_mode, # default 'predict'
         max_team_size=parsed_args.max_team_size, # default 12
     )
     end = time.time()
     runtime = end - start
-    res = hpc_utils.get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=parsed_args.max_team_size)
+    res = hpc_utils.get_fc_detail(dic_follower_state, his_dic_platoon_size,
+                                  max_size=parsed_args.max_team_size)
     # CFR: coupled_following_ratio; SPR: standard_size_platoon_ratio
     cfr, spr = hpc_utils.get_fc_indicator(
         dic_follower_state, his_dic_platoon_size, max_size=parsed_args.max_team_size)
     tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
-        hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st))
+        hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'],
+                                   runtime, max_time=parsed_args.st))
     delay_res = hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
 
     # 3. Save results
@@ -302,10 +305,10 @@ if __name__ == '__main__':
     (dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam) = mpgc_main(
-        av_p = 0.2, # 0.1
+        av_p = 0.3, # 0.1
         r_fr = 800, # 1300
         m_fr = 1500, # 1500
-        seed = 3, # 9 analysis
+        seed = 4, # 9 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15

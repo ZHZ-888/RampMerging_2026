@@ -25,6 +25,7 @@ def standard_arg_parser():
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--gui", action="store_true")
     parser.add_argument("--out_csv", type=str, default=None)
+    parser.add_argument("--st", type=int, default=1200)
     parser.add_argument('--av_p', type=float, default=0.1, help='AV Penetration Rate')
     parser.add_argument(
         "--max_team_size",
