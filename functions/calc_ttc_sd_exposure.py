@@ -78,7 +78,7 @@ def calc_ttc_and_speed_std(xml_file, ttc_threshold=1.5, veh_length=5.0,
     return ttc_ratio, avg_speed_std
 
 
-def calc_ttc_conflict_metrics(ssm_file, total_vehicles=None, ttc_threshold=1.5, y_tolerance=0.5):
+def calc_ttc_conflict_metrics(ssm_file, total_vehicles=None, ttc_threshold=1.5, y_tolerance=0.5, max_time=None):
     """
     Calculate TTC conflict metrics from a SUMO SSM output file with filtering conditions.
 
@@ -87,6 +87,7 @@ def calc_ttc_conflict_metrics(ssm_file, total_vehicles=None, ttc_threshold=1.5, 
         total_vehicles: Total number of vehicles (for conflict rate calculation)
         ttc_threshold: Only keep TTC values less than or equal to this threshold (e.g., 1.5)
         y_tolerance: Allowed tolerance for y ≈ 0 (default ±0.5)
+        max_time: Ignore conflicts after this simulation time.
 
     Returns:
         avg_min_ttc: Average TTC of filtered conflicts
@@ -111,6 +112,16 @@ def calc_ttc_conflict_metrics(ssm_file, total_vehicles=None, ttc_threshold=1.5, 
     for min_ttc in root.findall(".//minTTC"):
         # Extract attributes
         value = min_ttc.get("value")
+
+        if max_time is not None:
+            event_time = min_ttc.get("time")
+            if event_time is None:
+                continue
+            try:
+                if float(event_time) > max_time:
+                    continue
+            except ValueError:
+                continue
 
         pos = min_ttc.get("position")
         if pos is None:

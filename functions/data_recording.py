@@ -36,6 +36,7 @@ class DataRecording:
         self.dic_dis = {}
         self.dic_speed = {}
         self.dic_lane = {}
+        self.dic_max_speed = {}
         self.ls_tail_ids = []
         self.dic_lane_length = {} # {lane_id: lane_length}; record lane_id and it's length, save traci calls
 
@@ -51,7 +52,7 @@ class DataRecording:
         dic_member_to_leader = {follower_id: leader_id}
         '''
         self.dic_follower_state = {} # {follower_id: [state, leader_id]}
-        self.dic_member_to_leader = {} # only multi-lane scenario have this dic; from platoon_formation2.py
+        self.dic_member_to_leader = {} # only multi-lane scenario have this dic
         self.length_mcz = 800  # the length of merging control section
         self.length_pfz = int(self.length_ih - self.length_mcz)
 
@@ -226,10 +227,10 @@ class DataRecording:
         ls_ihA_asc = self._sort_by_pos(ls_ihA)
         ls_ihA_av_asc = [vid for vid in ls_ihA_asc if 'av' in vid]
         ls_ihA_hv_asc = [vid for vid in ls_ihA_asc if 'hv' in vid]
-        ls_ihA_ms_asc = [vid for vid in ls_ihA_asc
+        ls_ihA_mcz_asc = [vid for vid in ls_ihA_asc
                         if self.dic_pos.get(vid, -1.0) > (self.length_ih - 800)
                         ]
-        ls_ihA_av_ms_asc = [vid for vid in ls_ihA_av_asc
+        ls_ihA_av_mcz_asc = [vid for vid in ls_ihA_av_asc
                             if self.dic_pos.get(vid, -1.0) > (self.length_ih - 800)
                             ] # m => merging section
 
@@ -317,7 +318,7 @@ class DataRecording:
         # update ls_vehid_last_step
         self.ls_vehid_last_step = ls_vehid
 
-        # vehicle info for merging control
+        # vehicle info in merging control section (MCZ)
         self.dic_vid_groups['ls_vehid'] = ls_vehid
         self.dic_vid_groups['ls_m_leader_net_asc'] = ls_ms_leader_net_asc  # small => big
         self.dic_vid_groups['ls_m_leader_up_asc'] = ls_ms_leader_up_asc
@@ -338,8 +339,8 @@ class DataRecording:
         self.dic_vid_groups['ls_ihA_asc'] = ls_ihA_asc  # ascending
         self.dic_vid_groups['ls_ihA_av_asc'] = ls_ihA_av_asc
         self.dic_vid_groups['ls_ihA_hv_asc'] = ls_ihA_hv_asc
-        self.dic_vid_groups['ls_ihA_ms_asc'] = ls_ihA_ms_asc
-        self.dic_vid_groups['ls_ihA_av_ms_asc'] = ls_ihA_av_ms_asc  # ms => merging section
+        self.dic_vid_groups['ls_ihA_mcz_asc'] = ls_ihA_mcz_asc
+        self.dic_vid_groups['ls_ihA_av_mcz_asc'] = ls_ihA_av_mcz_asc  # ms => merging section
         self.dic_vid_groups['ls_ihB_asc'] = ls_ihB_asc
         self.dic_vid_groups['ls_ihB_av_asc'] = ls_ihB_av_asc # asc
         self.dic_vid_groups['ls_ihB_hv_asc'] = ls_ihB_hv_asc
@@ -491,12 +492,14 @@ class DataRecording:
             lane_id = self.dic_lane.get(vid) # lane_id = self.traci.vehicle.getLaneID(vid)
             pos = round(self.dic_pos.get(vid, -1), 1)
             dis = self.dic_dis.get(vid)
+            max_speed = self.dic_max_speed.get(vid)
         except Exception:
             return dic_vid_states
         dic_vid_states['v'] = v
         dic_vid_states['lane'] = lane_id
         dic_vid_states['pos'] = pos
         dic_vid_states['dis'] = dis
+        dic_vid_states['max_speed'] = max_speed
         return dic_vid_states # v, lane, pos, dis
 
     def record_rf_at_features(self, leader_id, features, c_ts):
@@ -561,6 +564,7 @@ class DataRecording:
         self.dic_lane.clear()
         self.dic_pos.clear()
         self.dic_dis.clear() # distance to end of lane
+        self.dic_max_speed.clear() # max_speed of this vid
         self.ls_lane0_veh.clear()
         self.ls_lane1_veh.clear()
 
@@ -570,6 +574,7 @@ class DataRecording:
             lane_id = self.traci.vehicle.getLaneID(vid)
             pos = self.traci.vehicle.getLanePosition(vid)
             lane_length = self.dic_lane_length.get(lane_id)
+            max_speed = self.traci.vehicle.getMaxSpeed(vid)
             if lane_length is None:
                 lane_length = self.traci.lane.getLength(lane_id)
                 self.dic_lane_length[lane_id] = lane_length
@@ -578,6 +583,7 @@ class DataRecording:
             self.dic_lane[vid] = lane_id
             self.dic_pos[vid] = pos
             self.dic_dis[vid] = lane_length - pos
+            self.dic_max_speed[vid] = max_speed
             # Build lane-specific lists (Phase 1 optimization)
             if 'inflow_highway_0' in lane_id:
                 self.ls_lane0_veh.append(vid)
@@ -593,23 +599,6 @@ class DataRecording:
         while i >= 0 and vid[i].isdigit():
             i -= 1
         return int(vid[i + 1:])
-
-    def record_tsg_data(self):
-        '''
-        to evaluate the performance of tsg (gating) mode
-
-            category se/ce
-            reject_prob
-            execute_prob
-            execute
-
-            cand_av
-            target_platoon
-            reward
-        Returns
-        -------
-
-        '''
 
 
 

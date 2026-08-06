@@ -233,33 +233,38 @@ class PlatoonBasic:
         ls_second_decAV = []
         for id in ls_follower_av:
             self.traci.vehicle.setColor(id, (255, 0, 0, 255))  # red
-            self.traci.vehicle.setMaxSpeed(id, self.data_recorder.max_speed)
-            if id in self.dec_av:
-                self.dec_av.remove(id)
+            # current_max_ori = self.traci.vehicle.getMaxSpeed(id)
+            current_max = self.data_recorder.get_vid_states(id)['max_speed']
+            if current_max < self.data_recorder.max_speed:
+                self.traci.vehicle.setMaxSpeed(id, self.data_recorder.max_speed)
+            if id in self.dec_av: self.dec_av.remove(id)
+
         for leader in ls_leader_av:
-            if leader == 'mb_av5939':
-                pass
             self.traci.vehicle.setColor(leader, (255, 255, 0, 255))  # yellow
             # platoon space control
-            if leader not in self.dec_av: # av that has dec to level1 speed?
+            if leader not in self.dec_av: # av in max speed_level2 (22.22)
+                if leader == 'm_av2847':
+                    pass
                 self.traci.vehicle.setMaxSpeed(leader, speed_level2)
                 self.dec_av.append(leader)
+
+        ls_ihA_av_mcz_asc = self.data_recorder.dic_vid_groups['ls_ihA_av_mcz_asc']
+        ls_leader_av = [leader for leader in ls_leader_av if leader not in ls_ihA_av_mcz_asc]
         # check if any leader av is very close to it's preceding vehicle
         for index, leader in enumerate(ls_leader_av):  # ascending order
             preceding_veh_info = self.traci.vehicle.getLeader(leader)
             if preceding_veh_info is not None:
-                if leader == 'mb_av5939':
-                    pass
                 dis_to_pv = preceding_veh_info[1]
                 speed_leader = self.data_recorder.get_vid_states(leader)['v']
-                current_max_speed = self.traci.vehicle.getMaxSpeed(leader)
+                # current_max_speed_ori = self.traci.vehicle.getMaxSpeed(leader)
+                current_max_speed = self.data_recorder.get_vid_states(leader)['max_speed']
                 if dis_to_pv < min_dis and current_max_speed != speed_level1 and speed_leader <= speed_level2:
                     '''
-                    if find LEADER do not has enough space from its preceding veh, 
+                    if find LEADER very close to its preceding veh, 
                     this LEADER (and other LEADER after this LEADER) need to 
-                    take a second dec action (to level_1 speed)
+                    take a second-level dec action (to level_1 speed)
                     '''
-                    ls_second_decAV = ls_leader_av[index:]
+                    ls_second_decAV = ls_leader_av[index:] # check order
                     break
         self._set_hold_speed2(ls_second_decAV, speed_level1, min_dis)
 
@@ -272,6 +277,8 @@ class PlatoonBasic:
         '''
 
         for vid in ls_av:
+            if vid == 'm_av2847':
+                pass
             if vid in self.ls_speed_ok:
                 continue
             current_max = self.traci.vehicle.getMaxSpeed(vid)
@@ -644,17 +651,17 @@ class PlatoonBasic:
         with a leader-first recovery constraint.
 
         Description:
-            Vehicles are temporarily assigned a reduced maximum speed (set_v).
-            A vehicle can recover its original speed only when:
-                1. The gap to its leader exceeds a predefined threshold.
-                2. Its leader has already recovered (or is not under control).
+            Leads are temporarily assigned a reduced maximum speed //set_v (speed_level1): 16.67.
+            A leader can recover its original speed only when:
+                1. The gap to its preceding vehicle exceeds a predefined threshold.
+                2. Its leader has already recovered (or is not under control). ??
 
             This ensures a front-to-back recovery order and avoids gap shrinkage
             caused by rear vehicles accelerating earlier than their leaders.
 
         Parameters:
-            ls_second_decAV (list): list of vehicle IDs (ordered from front to back)
-            set_v (float): temporary speed limit
+            ls_second_decAV (list): list of leaders need to down to speed_level1 (ordered from front to back)
+            set_v (float): temporary speed limit (speed_level1)
             gap_threshold (float): minimum gap required for speed recovery (meters)
 
         Internal state:
@@ -664,82 +671,51 @@ class PlatoonBasic:
         # Step 1: Collect all currently controlled vehicles
         controlled_ids = list(self.recover_speed_map.keys())
         # fileter out vehicles that left
-        net_vids = self.data_recorder.dic_vid_groups['ls_vehid'] # all vehicle in this step
-        controlled_ids = [
-            vid for vid in controlled_ids
-            if vid in net_vids
-        ]
+        ls_ihA_av_asc = self.data_recorder.dic_vid_groups['ls_ihA_av_asc'] # all av in inflow_highway_0
+        controlled_ids = [vid for vid in controlled_ids if vid in ls_ihA_av_asc]
 
         # Step 2: Sort vehicles from front to back based on lane position
-        veh_positions = {}
-        for vid in controlled_ids:
-            if vid == 'mb_av7600':
-                pass
-            try:
-                veh_positions[vid] = self.data_recorder.get_vid_states(vid)['pos'] # == None; may have crash
-            except:
-                veh_positions[vid] = -1  # fallback if vehicle is missing
-
-        for vid in controlled_ids:
-            if vid is None:
-                print("Error: vid is None")
-                raise ValueError("vid is None before sorting")
-
-            if vid not in veh_positions:
-                print(f"Error: {vid} is missing in veh_positions")
-                raise KeyError(f"{vid} is missing in veh_positions")
-
-            if veh_positions[vid] is None:
-                print(f"Error: {vid} has None position")
-                print("controlled_ids:", controlled_ids)
-                print("veh_positions:", veh_positions)
-                raise ValueError(f"{vid} has None position before sorting")
-
-        sorted_vids = sorted(controlled_ids, key=lambda x: veh_positions[x], reverse=True)
+        sorted_vids = sorted(
+            controlled_ids,
+            key=lambda vid: self.data_recorder.get_vid_states(vid)['pos'],
+            reverse=True
+        )
         recovered_set = set()  # vehicles recovered in this step
-        to_remove = []  # vehicles to remove from tracking map
 
         # Step 3: Check recovery condition with leader-first constraint
-        for vid in sorted_vids:
-            if vid == 'mb_av5939':
-                pass
+        for i, vid in enumerate(sorted_vids):
             ori_v = self.recover_speed_map[vid]
-            try:
-                # Retrieve leader information (leader_id, gap)
-                leader_info = self.traci.vehicle.getLeader(vid)
-                if leader_info is None:
-                    # No leader (free-flow condition) → recover immediately
-                    self.traci.vehicle.setMaxSpeed(vid, ori_v)
-                    recovered_set.add(vid)
-                    to_remove.append(vid)
-                    continue
-                leader_id, gap = leader_info
 
-                # Enforce leader-first recovery:
-                # if leader is still under control and not yet recovered, skip
-                if leader_id in self.recover_speed_map and leader_id not in recovered_set:
-                    continue
-                # Recover if gap condition is satisfied
-                if gap >= gap_threshold:
-                    self.traci.vehicle.setMaxSpeed(vid, ori_v)
-                    recovered_set.add(vid)
-                    to_remove.append(vid)
+            # Find the nearest controlled AV leader ahead.
+            front_controlled_leader = sorted_vids[i - 1] if i > 0 else None
+            # Enforce AV-leader-first recovery:
+            # if the front controlled AV leader has not recovered, this leader can't recover.
+            if (front_controlled_leader is not None
+                and front_controlled_leader not in recovered_set):
+                continue
 
-            except Exception:
-                # Handle edge cases (vehicle removed from simulation, etc.)
-                to_remove.append(vid)
+            # Retrieve preceding vehicle information (vehicle_id, gap)
+            prev_veh_info = self.traci.vehicle.getLeader(vid, 99999)
+            if prev_veh_info is not None:
+                prev_veh, gap = prev_veh_info
+                if gap < gap_threshold:
+                    continue
+            if vid == 'm_av2847':
+                pass
+            self.traci.vehicle.setMaxSpeed(vid, ori_v)
+            recovered_set.add(vid)
 
         # Step 4: Remove recovered vehicles from tracking map
-        for vid in to_remove:
-            if vid == 'mb_av422':
-                pass
+        for vid in recovered_set:
             if vid in self.recover_speed_map:
+                if vid == 'm_av2847':
+                    pass
                 del self.recover_speed_map[vid]
 
-        # Step 5: Apply speed limit to new vehicles
+        # Step 5: Apply speed_level1 to new leaders
         for vid in ls_second_decAV:
             if vid not in self.recover_speed_map:
-                if vid == 'mb_av5939':
+                if vid == 'm_av2847':
                     pass
                 # Store original max speed
                 ori_v = self.traci.vehicle.getMaxSpeed(vid)

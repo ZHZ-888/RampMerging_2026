@@ -53,6 +53,8 @@ class MergingControlRegular:
         self.dic_leader_action_emerged = {} # record the emerged leader and its action
         self.dic_leader_action_updated = {} # update action start time
 
+        self.speed_control_released = set()
+
         self.ml = ml
         # random forest arrival time prediction model
         if self.ml:
@@ -223,6 +225,7 @@ class MergingControlRegular:
 
     def find_rm_leader_map(self, step):
         """
+        Decide the action_leader (r_leader or m_leader) to take action
         Params:
             self.dic_mplatoon_et: {m_vid, [platoon_type, ts_head, ts_tail, c_ts]}
             self.dic_rplatoon_et:
@@ -243,7 +246,7 @@ class MergingControlRegular:
         dic_mplatoon_tail_et = {m_leader: ls_ts[2] for m_leader, ls_ts in dic_mplatoon_et_valid.items()}
 
         for r_leader in dic_rplatoon_et_valid.keys():
-            if r_leader in ('ravh3700'):
+            if r_leader in ('ravh7310'):
                 pass
             r_ts_head = dic_rplatoon_et_valid[r_leader][1] # ramp platoon head timestamp
             dic_mplatoon_tail_et_asc = sorted(dic_mplatoon_tail_et.items(),
@@ -265,7 +268,8 @@ class MergingControlRegular:
                     # prc.print_message(f'r_leader:{r_leader}, m_leader:{m_leader}')
 
         # sorted dic_rm_leader_map, r_leader in increase sequence
-        self.dic_rm_leader_map = {k: v for k, v in sorted(self.dic_rm_leader_map.items(), key=lambda item: int(item[0][4:]))}
+        self.dic_rm_leader_map = {k: v for k, v in sorted(self.dic_rm_leader_map.items(),
+                                                          key=lambda item: int(item[0][4:]))}
         # once Mfleet or Rfleet completed pass through the intersection, delete r_leader:m_leader pair
         self._update_dic_rm_leader_map()
         # compare delay_loss of R_leader or M_leader, to decided which one taking action
@@ -288,47 +292,48 @@ class MergingControlRegular:
         -------
         ls_acc_profile : list
             the acc/dec strategy.
-            (t1, a1, t3, a3, v_reach) or (T, a) v_reach => velocity of reaching moment
+            (t1, a1, t3, a3, v_arrival) or (T, a) v_arrival => velocity of reaching moment
         '''
-        fomula = '2*v0*t+2*a*t*t1-a*t1**2-2*self.dis'
 
-        t1 = (self.max_speed - v0) / self.amax  # duration to accelerate to peak velocity
-        x1 = v0 * t1 + 0.5 * self.amax * t1 ** 2  # distance for speed increase to max_v
+        t_v0_vmax = (self.max_speed - v0) / self.amax  # duration to accelerate to peak velocity
+        dis_v0_vmax = v0 * t_v0_vmax + 0.5 * self.amax * t_v0_vmax ** 2  # distance for speed increase to max_v
 
-        t2 = t - t1
-        x2 = t2 * self.max_speed
-        xx = x1 + x2  # farthest driving distance in period t
+        t_left = t - t_v0_vmax
+        dis_left = t_left * self.max_speed
+        dis_sum = dis_v0_vmax + dis_left  # farthest driving distance in period t
 
-        if xx >= dis:  # TODO: this part should be replaced
-            prc.print_message(f"S1: leader will arrive WS in {t} (eg: r_platoon will encounter m_platoon),\n "
-                              f"max_travel_dis_in_t {xx} >= current_dis_to_WS {dis}")
+        if dis_sum >= dis:  # TODO: this part should be replaced
+            prc.print_message(
+                f"CASE 1: this leader will arrive MS within {t:.2f} s "
+                f"(e.g., r_platoon will encounter with m_platoon),\n"
+                f"        max_travel_dis_in_t {dis_sum:.2f} m >= current_dis_to_WS {dis:.2f} m"
+            )
             if self.optimizer:
                 # new add min speed
-                optm = GetBVCurve2(v0, t, dis=dis, min_speed=5)
-                # v_reach: velocity of reaching moment
-                r, v_reach = optm.optimize()  # r.x = (t1, a1, t3, a3)
-                # r.x[3] < 0.01 updated 110824, to avoid stop at the end of ramp caused by conflict
-                if v_reach < 1 or r.x[3] < 0.01: # to avoid sudden stop; 241003update, avoid stop can start
-                    prc.print_message("**Too big sacrifice, can't avoid encounter**")
+                optm = GetBVCurve2(v0, t, dis=dis, min_speed=5, max_speed=25) # self.max_speed
+                # v_arrival: velocity of reaching moment
+                res, v_arrival = optm.optimize()  # res.x = (t1, a1, t3, a3)
+                # res.x[3] < 0.01 updated 110824, to avoid stop at the end of ramp caused by conflict
+                if v_arrival < 1 or res.x[3] < 0.01:  # to avoid sudden stop; 241003update, avoid stop can start
+                    prc.print_message("**Huge difference, NO WAY to avoid the conflict**")
                     return [None, self.amax]
-                ls_acc_profile = list(np.append(r.x, v_reach))  # ls_acc_profile = (t1, a1, t3, a3, v_reach)
+                ls_acc_profile = list(np.append(res.x, v_arrival))  # ls_acc_profile = (t1, a1, t3, a3, v_arrival)
                 return ls_acc_profile
             else:
+                equation = '2*v0*t+2*a*t*t_v0_vmax-a*t_v0_vmax**2-2*self.dis'
                 self.ls_v0.append(v0)
                 self.ls_teR.append(t)
-                optimal_a, optimal_vt, optimal_t1 = self.calculate_optimal_acceleration(v0, t, fomula)
+                optimal_a, optimal_vt, optimal_t1 = self.calculate_optimal_acceleration(v0, t, equation)
                 a = optimal_a
                 vt = optimal_vt
                 T = optimal_t1
-                acc_dis = v0 * T + 0.5 * a * T * T
-                cons_dis = vt * (t - T) # consistent speed distance
                 ls_acc_profile = [T, a]
                 return ls_acc_profile
-            prc.print_message(f"action: apply_dec in {optimal_a} last {T}s, then keep vt {vt} for {t - T}s")
-            prc.print_message(f'acc_dis {acc_dis}, cons_dis {avg_dis}')
         else:
-            prc.print_message(f"S2: leader can't arrive WS in {t} (eg: no conflict), \n"
-             f"max_travel_dis_in_t {xx} < current_dis_to_WS {dis}")
+            prc.print_message(
+                f"CASE 2: this leader can't arrive MS in {t:.2f} s (eg: no conflict), \n"
+                f"        max_travel_dis_in_t {dis_sum:.2f} m < current_dis_to_WS {dis:.2f} m"
+            )
             ls_acc_profile = [None, self.amax]
             prc.print_message(f'action: apply_acc {self.amax}')
             return ls_acc_profile
@@ -382,6 +387,8 @@ class MergingControlRegular:
 
     def _get_action_params_upper_level(self, c_ts, r_leader, m_leader, action_leader, gap):
         # action leader info
+        if r_leader == 'ravh7310':
+            pass
         action_leader_info = self.data_recorder.get_vid_states(action_leader)
         dis_action_leader = action_leader_info['dis']
         if dis_action_leader is None:
@@ -395,7 +402,8 @@ class MergingControlRegular:
             # 241210updated: if m_leader in ls_action_leader, then should remove m_leader from ls_m_leaders_followup
             self.ls_m_leaders_followup.remove(m_leader) if m_leader in self.ls_m_leaders_followup else None
             self.dic_m_leader_followup_action.pop(m_leader, None)
-        ts_head_adj = ts_tail + gap
+        ts_head_adj = ts_tail + gap # ts_head_desired
+        # (t1, a1, t3, a3, v_arrival)
         ls_acc_profile = self.get_action_params(ts_head_adj - c_ts, dis_action_leader, v_action_leader)  # acc strategy
         if ls_acc_profile and len(ls_acc_profile) > 2: # only take action then update info
             # update head/tail reaching time information
@@ -451,13 +459,23 @@ class MergingControlRegular:
         Parameters
         ----------
         step
-        dic_leader_action: {leader: [t1, a1, t3, a3, c_ts], ...}
+        ls_mr_leader_up:
+        dic_leader_action: {leader: [t1, a1 (dec), t3, a3 (acc), c_ts], ...}
         '''
         c_ts = round(step / 10 + 0.1, 1)
         dic_vid_groups = self.data_recorder.dic_vid_groups
+        ls_r_leader_wsA_asc = dic_vid_groups['ls_r_leader_wsA_asc']
+        ls_wsB_av_asc = dic_vid_groups['ls_wsB_av_asc']
+        for leader in set(ls_r_leader_wsA_asc + ls_wsB_av_asc):
+            if leader not in self.speed_control_released:
+                self.traci.vehicle.setSpeed(leader, -1)
+                self.dic_leader_action_emerged.pop(leader, None)
+                self.dic_leader_action_updated.pop(leader, None)
+                self.speed_control_released.add(leader)
 
         ls_mr_leader_up = dic_vid_groups['ls_mr_leader_up'] # all AVid that before merging
-        dic_leader_up_action = {leader: v for leader, v in dic_leader_action.items() if leader in ls_mr_leader_up}  # action_before Merging
+        # action_before Merging
+        dic_leader_up_action = {leader: v for leader, v in dic_leader_action.items() if leader in ls_mr_leader_up}
 
         for leader, ls_action in dic_leader_up_action.items():
             if self.dic_leader_action_emerged.get(leader) == ls_action:
@@ -477,18 +495,26 @@ class MergingControlRegular:
                 a1 = ls_action[1]
                 t3 = ls_action[2]
                 a3 = ls_action[3]
-                if c_ts < t1 + ls_action[-1]: # ls_action[-1] => the action start time
+                action_start = ls_action[-1]
+                elapsed = c_ts - action_start
+                if elapsed < t1: # ls_action[-1] => the action start time
                     dec_st = ls_action[-1] # dec start time
                     if c_ts % 1 == 0:
                         prc.print_message(f"{leader} in dec_phase!\n a1:{a1}, start_time:{dec_st}, current_time:{c_ts}")
-                    if a1 < 1:
-                        pass
                     self._apply_acceleration(leader, a1, smooth=True)
-                else:
-                    acc_st = t1 + ls_action[-1] # acc started time
+                elif elapsed < t1 + t3:
+                    acc_st = action_start + t1
                     if c_ts % 1 == 0:
                         prc.print_message(f"{leader} in acc_phase!\n a3:{a3}, start_time:{acc_st}, current_time:{c_ts}") #\n => line break
                     self._apply_acceleration(leader, a3, smooth=True)
+                else:
+                    if c_ts % 1 == 0:
+                        prc.print_message(f"{leader} action finished!\n a3:{a3}, start_time:{action_start}, current_time:{c_ts}")
+                    self.traci.vehicle.setSpeed(leader, -1)
+                    self.dic_leader_action_emerged.pop(leader, None)
+                    self.dic_leader_action_updated.pop(leader, None)
+                    self.speed_control_released.add(leader)
+
             else:
                 acc2 = 2.6
                 if c_ts % 1 == 0:
@@ -568,7 +594,9 @@ class MergingControlRegular:
             this_vel = self.traci.vehicle.getSpeed(vid)
             next_vel = max([this_vel + acc * self.sim_step, 0])
             if smooth:
-                self.traci.vehicle.slowDown(vid, next_vel, 1e-3)  # 1e-3: 0.001
+                # self.traci.vehicle.setSpeed(vid, next_vel)
+                self.traci.vehicle.slowDown(vid, next_vel, self.sim_step)  # 1e-3: 0.001
+                # self.traci.vehicle.slowDown(vid, next_vel, 1e-3)
             else:
                 self.traci.vehicle.setSpeed(vid, next_vel)
 
@@ -688,7 +716,7 @@ class MergingControlRegular:
             if (r_leader, m_leader) in self.dic_rm_leader_actor: # update in 260601!
                 continue # already compared, skip
             if r_leader is not None and m_leader is not None:  # make sure r_leader/m_leader is not None
-                if r_leader == 'ravh3700':
+                if r_leader == 'ravh7310':
                     pass
                 ts_rp_head = self.dic_rplatoon_et[r_leader][1] # ramp platoon leader (head) estimate arrival timestamp (head_tr)
                 ts_rp_tail = self.dic_rplatoon_et[r_leader][2] # tail time (tail_tr)

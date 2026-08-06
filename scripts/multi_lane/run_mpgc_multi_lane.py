@@ -50,6 +50,9 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
     lc_path = os.path.join(traj_dir, lc_file_name)
     ssm_file_name = f"ssm_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{task_id}.xml"
     ssm_path = traj_dir / ssm_file_name
+    # delay indicators
+    trip_file_name = f'tripinfo_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{task_id}.xml'
+    tripinfo_path = os.path.join(traj_dir, trip_file_name)
 
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
                 "--seed", str(seed),
@@ -57,6 +60,8 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
                 "--fcd-output", str(xml_path),
                 # lane-change output
                 "--lanechange-output", str(lc_path),
+                # tripinfo output/delay indicators
+                "--tripinfo-output", str(tripinfo_path),
                 # SSM output for TTC conflicts
                 "--device.ssm.probability", "1",
                 "--device.ssm.file", str(ssm_path),
@@ -118,21 +123,24 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
         ce_reward_sum = sum(ce_rewards)
         ce_reward_avg = ce_reward_sum / ce_counts if ce_counts else 0
         ce_result = [ce_counts, ce_reward_sum, ce_reward_avg]
+        output_file_path = {'xml_path': xml_path, 'ssm_path': ssm_path, 'tripinfo_path': tripinfo_path}
 
     finally:
         traci.close()
     return (dic_follower_state, his_dic_platoon_size, dic_id_features,
-            tp, speed_log, queue_log, xml_path, ssm_path, se_result, ce_result, ts_first_jam)
+            tp, speed_log, queue_log, output_file_path,
+            se_result, ce_result, ts_first_jam)
 
 def loop(traci, st, data_recorder,
          veh_gen, formation_controller, merging_controller, lc,
          r_autoFollow_p, m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None):
     # START SIMULATION
     step = 0
+    horizon_steps = st * 10
     # scripts loop
-    while step < st * 10:
+    while step < horizon_steps:
         # checkpoint
-        if step > 593 * 10:
+        if step > 400 * 10:
              pass
         traci.simulationStep()  # start simulation
 
@@ -156,6 +164,26 @@ def loop(traci, st, data_recorder,
 
         data_recorder.record_tail_arrival(step)
         step += 1
+
+    # Flush-out stage: stop generating vehicles, but keep merging control active
+    # so stopped ramp vehicles can be released and complete their trips.
+    horizon_speed_len = len(speed_log)
+    horizon_tp = tp
+    horizon_queue_log = queue_log
+    horizon_ts_first_jam = ts_first_jam
+    while traci.simulation.getMinExpectedNumber() > 0:
+        traci.simulationStep()
+        data_recorder.record_multi_lane_info()
+        formation_controller.step(st, step, lc)
+        merging_controller.step(st, step, r_dpt_type)
+        step += 1
+
+    del merging_controller.speed_log[horizon_speed_len:]
+    speed_log = merging_controller.speed_log
+    tp = horizon_tp
+    queue_log = horizon_queue_log
+    ts_first_jam = horizon_ts_first_jam
+
     return (dic_follower_state, his_dic_platoon_size, dic_id_features,
             tp, speed_log, queue_log, ts_first_jam)
 
@@ -174,8 +202,8 @@ def main(args=None, root=None):
     # 2. Run simulation
     # Call the original algorithm
     start = time.time()
-    (dic_follower_state, his_dic_platoon_size,
-     dic_id_features, tp, speed_log, queue_log, xml_path, ssm_path,
+    (dic_follower_state, his_dic_platoon_size, dic_id_features,
+     tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam) = mpgc_main(
         av_p=parsed_args.av_p, # default 0.1
         r_fr=parsed_args.r_fr, # default 800
@@ -193,7 +221,8 @@ def main(args=None, root=None):
     cfr, spr = hpc_utils.get_fc_indicator(
         dic_follower_state, his_dic_platoon_size, max_size=parsed_args.max_team_size)
     tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
-        hpc_utils.get_mc_indicator(speed_log, tp, ssm_path, runtime))
+        hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st))
+    delay_res = hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
 
     # 3. Save results
     if parsed_args.out_csv:
@@ -222,6 +251,11 @@ def main(args=None, root=None):
             "ce_cnt": ce_result[0],
             "ce_reward_sum": ce_result[1],
             "ce_reward_avg": ce_result[2],
+            'avg_time_loss': delay_res["avg_time_loss"],
+            'mainline_time_loss': delay_res["mainline_time_loss"],
+            'ramp_time_loss': delay_res["ramp_time_loss"],
+            'completed_mainline': delay_res["completed_mainline"],
+            'completed_ramp': delay_res["completed_ramp"],
             "ts_first_jam": ts_first_jam,
             "runtime": runtime
         }
@@ -264,13 +298,14 @@ if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
     max_team_size = 12
+    st = 1200 # 300
     (dic_follower_state, his_dic_platoon_size, dic_id_features,
-     tp, speed_log, queue_log, xml_path, ssm_path,
+     tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam) = mpgc_main(
-        av_p = 0.1, # 0.1
-        r_fr = 1100, # 1300
+        av_p = 0.2, # 0.1
+        r_fr = 800, # 1300
         m_fr = 1500, # 1500
-        seed = 9, # 8 analysis
+        seed = 3, # 9 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
@@ -278,7 +313,7 @@ if __name__ == '__main__':
         plot = False,
         display = False,
         lc = True, # if allow HV lane-changing; True
-        st = 1200, # 1200
+        st = st, # 1200
         tsg_mode = 'predict', # off/fix/predict/train/audit
         max_team_size = max_team_size
     )
@@ -290,5 +325,6 @@ if __name__ == '__main__':
     hpc_utils.get_fc_indicator(dic_follower_state, his_dic_platoon_size, max_size=max_team_size)
 
     tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
-        hpc_utils.get_mc_indicator(speed_log, tp, ssm_path, runtime)) # 1 => 1.5s
+        hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st)) # 1 => 1.5s
+    hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
     print(f'ts_first_jam: {ts_first_jam}')

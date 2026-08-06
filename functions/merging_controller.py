@@ -16,6 +16,7 @@ from functions import merging_control_jam as mcj
 class MergingController:
     def __init__(self, data_recorder, traci, av_p, platoon_formation=False, ml=False, loss_rate=0,
                  mpc_interval=60, delta_t=12):  # ml: multi-lane
+        self.traci = traci
         self.data_recorder = data_recorder
         self.merge_regular = mcr.MergingControlRegular(traci, self.data_recorder, ml)
         self.action_mgr = act_mgr.ActionManager(self.data_recorder, self.merge_regular, loss_rate)
@@ -92,15 +93,15 @@ class MergingController:
         #     ls_r_leader_up
         # )
 
-        regular_mode, jam_mode = self.mode_switch.determine_mode_flexible_merge_point(
-            ls_wsB_asc,
-            ls_wsA_asc,
-            ls_r_leader_up)
+        # regular_mode, jam_mode = self.mode_switch.determine_mode_flexible_merge_point(
+        #     ls_wsB_asc,
+        #     ls_wsA_asc,
+        #     ls_r_leader_up)
 
-        # regular_mode, jam_mode = self.mode_switch.determine_mode_low_sensor_reliance(
-        #     ls_m_leader_up_asc,
-        #     ls_r_leader_wsA_asc,
-        #     ls_wsB_av_asc)
+        regular_mode, jam_mode = self.mode_switch.determine_mode_low_sensor_reliance(
+            ls_m_leader_up_asc,
+            ls_r_leader_wsA_asc,
+            ls_wsB_av_asc)
 
         # jam_mode = True
         # regular_mode = False
@@ -125,10 +126,9 @@ class MergingController:
             )  # queue_length
 
         elif regular_mode:
-            # for cooldown function: reset jam_mode parameters
-            self.merge_jam.jam_mode_start_ts = None
-            self.merge_jam.first_ramp_stop_ts = None
-            self.merge_jam.stop_times = {}
+            # reset jam_mode params
+            self.reset_jam_mode()
+
             # Regular mode control
             queue_log = []
             _, new_leader_flag = self.merge_regular.update_platoon_et(step, ls_r_leader_up_asc, m=False,
@@ -136,10 +136,11 @@ class MergingController:
 
             if c_ts % 1 == 0: prc.print_message('**in regular mode**')
             # find head rav; if can be ingored
-            r_leader = self.merge_regular.find_r_leader(ls_r_veh_net_asc, ls_r_veh_net_last_asc)
+            _ = self.merge_regular.find_r_leader(ls_r_veh_net_asc, ls_r_veh_net_last_asc)
             # get action information
             (dic_leader_action, dic_m_leader_followup_action) = self.action_mgr.get_action_info(
                 step, new_leader_flag, interval=self.mpc_interval)
+
             # execute actions
             self.action_mgr.execute_action(step, dic_leader_action)
             self.action_mgr.execute_action(step, dic_m_leader_followup_action)
@@ -150,3 +151,21 @@ class MergingController:
 
         # If neither regular nor jam_mode, jam_mode is False by default.
         return tp, self.speed_log, queue_log, self.ts_first_jam
+
+
+    def reset_jam_mode(self):
+        # for cooldown function: reset jam_mode parameters
+        if not self.merge_jam.r_leader_stop:
+            return
+        vid = self.merge_jam.r_leader_stop
+        if vid in self.traci.vehicle.getIDList():
+            try:
+                self.traci.vehicle.resume(vid)
+            except:
+                self.traci.vehicle.replaceStop(vid, 0, "")
+        self.merge_jam.r_leader_stop = None
+        self.merge_jam.stop_state = False
+        self.merge_jam.r_leader_stop = None
+        self.merge_jam.jam_mode_start_ts = None
+        self.merge_jam.first_ramp_stop_ts = None
+        self.merge_jam.stop_times = {}

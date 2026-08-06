@@ -182,6 +182,10 @@ class ActionManager:
         for key, value in action_dic_filter.items():
             r_leader = key[0]
             m_leader = key[1]
+
+            if r_leader == 'ravh7310':
+                pass
+
             action_avh = value
             prc.print_message(f'STATE: {r_leader} encounter {m_leader}')
             if 'm' in action_avh:

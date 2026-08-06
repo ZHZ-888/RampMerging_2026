@@ -13,6 +13,9 @@ import argparse
 from pathlib import Path
 from functions import calc_ttc_sd_exposure
 from collections import defaultdict
+import xml.etree.ElementTree as ET
+import numpy as np
+
 
 def standard_arg_parser():
     """Returns a parser with the standard arguments for your experiments."""
@@ -52,12 +55,12 @@ def training_arg_parser():
     # Note: Training usually doesn't need out_csv for traffic KPIs
     return parser
 
-def get_mc_indicator(speed_log, tp, ssm_path, runtime):
+def get_mc_indicator(speed_log, tp, ssm_path, runtime, max_time=None):
     """Calculates performance indicators after simulation."""
     total_vehicle_num = int(tp/3)
-    ttc_metrics_3 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(ssm_path, total_vehicle_num, ttc_threshold=3)
-    ttc_metrics_2 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(ssm_path, total_vehicle_num, ttc_threshold=2)
-    ttc_metrics_1 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(ssm_path, total_vehicle_num, ttc_threshold=1.5) # 1.5
+    ttc_metrics_3 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(ssm_path, total_vehicle_num, ttc_threshold=3, max_time=max_time)
+    ttc_metrics_2 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(ssm_path, total_vehicle_num, ttc_threshold=2, max_time=max_time)
+    ttc_metrics_1 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(ssm_path, total_vehicle_num, ttc_threshold=1.5, max_time=max_time) # 1.5
     ttc_ratio_3 = ttc_metrics_3[2]
     ttc_ratio_2 = ttc_metrics_2[2]
     ttc_ratio_1 = ttc_metrics_1[2]
@@ -71,6 +74,55 @@ def get_mc_indicator(speed_log, tp, ssm_path, runtime):
           f'ttc_ratio_1.5: {ttc_ratio_1:.8f}, '
           f'execution_time:{runtime:.2f} s')
     return tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime
+
+
+def get_delay_indicator(tripinfo_path):
+    """
+    Calculate delay indicators from tripinfo XML file.
+    Parameters
+    ----------
+    tripinfo_path : str
+        "/home/zzha/PycharmProjects/RampMerging_2026/data
+        /multi_lane/algo/tripinfo_0_0.1_9_0_mts12_local.xml"
+        Path to the tripinfo XML file.
+
+    Returns
+    -------
+    dict
+        Dictionary containing delay indicators.
+    """
+    tree = ET.parse(tripinfo_path)
+    root = tree.getroot()
+
+    overall = []
+    mainline = []
+    ramp = []
+
+    for trip in root.findall("tripinfo"):
+        veh_id = trip.attrib["id"]
+        time_loss = float(trip.attrib["timeLoss"])
+
+        overall.append(time_loss)
+
+        if veh_id.startswith("r"):
+            ramp.append(time_loss)
+        else:
+            if time_loss > 10:
+                pass
+            mainline.append(time_loss)
+
+    result = {
+        "avg_time_loss": np.mean(overall) if overall else np.nan,
+        "mainline_time_loss": np.mean(mainline) if mainline else np.nan,
+        "ramp_time_loss": np.mean(ramp) if ramp else np.nan,
+        "completed_veh": len(overall),
+        "completed_mainline": len(mainline),
+        "completed_ramp": len(ramp),
+    }
+    print("\n           ---delay indicators---")
+    print(result)
+    return result
+
 
 def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=11):
     """

@@ -1,38 +1,62 @@
-for i, head_id in enumerate(ls_m_leader_up_asc):
-    if head_id not in self.dic_mplatoon_et:
-        headway_differences[head_id] = 0
+def get_action_params(self, t, dis, v0):
+    '''
 
-    elif i == 0 and head_id != first_veh:
-        ts_head_current = self.dic_mplatoon_et[head_id][1]
-        prev_leader = list(self.dic_mplatoon_et.keys())[
-            list(self.dic_mplatoon_et.keys()).index(head_id) - 1]
-        ts_prev_tail = self.dic_mplatoon_et[prev_leader][2]
-        headway_differences[head_id] = ts_head_current - ts_prev_tail
+    Parameters
+    ----------
+    t : TYPE
+        time require.
+    dis : TYPE
+        the remaining distance to weaving section of this leader.
+    v0 : TYPE
+        current speed.
 
-    elif i > 0:
-        # Get the arrival time of the current head vehicle
-        ts_head_current = self.dic_mplatoon_et[head_id][1]
-        prev_leader = list(self.dic_mplatoon_et.keys())[list(self.dic_mplatoon_et.keys()).index(head_id) - 1]
-        ts_prev_tail = self.dic_mplatoon_et[prev_leader][2]
-        ts_front_remaining = ts_prev_tail - c_ts
+    Returns
+    -------
+    ls_acc_profile : list
+        the acc/dec strategy.
+        (t1, a1, t3, a3, v_arrival) or (T, a) v_arrival => velocity of reaching moment
+    '''
+    
 
-        if ts_front_remaining >= self.r_leader_acc_dur:
-            # Calculate the time difference
-            headway_differences[head_id] = ts_head_current - ts_prev_tail
+    t_v0_vmax = (self.max_speed - v0) / self.amax  # duration to accelerate to peak velocity
+    dis_v0_vmax = v0 * t_v0_vmax + 0.5 * self.amax * t_v0_vmax ** 2  # distance for speed increase to max_v
+
+    t_left = t - t_v0_vmax
+    dis_left = t_left * self.max_speed
+    dis_sum = dis_v0_vmax + dis_left  # farthest driving distance in period t
+
+    if dis_sum >= dis:  # TODO: this part should be replaced
+        prc.print_message(
+            f"CASE 1: this leader will arrive MS within {t:.2f} s "
+            f"(e.g., r_platoon will encounter with m_platoon),\n"
+            f"max_travel_dis_in_t {dis_sum:.2f} m >= current_dis_to_WS {dis:.2f} m"
+        )
+        if self.optimizer:
+            # new add min speed
+            optm = GetBVCurve2(v0, t, dis=dis, min_speed=5)
+            # v_arrival: velocity of reaching moment
+            res, v_arrival = optm.optimize()  # res.x = (t1, a1, t3, a3)
+            # res.x[3] < 0.01 updated 110824, to avoid stop at the end of ramp caused by conflict
+            if v_arrival < 1 or res.x[3] < 0.01:  # to avoid sudden stop; 241003update, avoid stop can start
+                prc.print_message("**Huge difference, NO WAY to avoid the conflict**")
+                return [None, self.amax]
+            ls_acc_profile = list(np.append(res.x, v_arrival))  # ls_acc_profile = (t1, a1, t3, a3, v_arrival)
+            return ls_acc_profile
         else:
-            headway_differences[head_id] = ts_head_current - ts_prev_tail - (
-                    self.r_leader_acc_dur - ts_front_remaining)
-#%%
-
-import re
-id = 'm_av180'
-type = re.sub(r".*_([A-Za-z]+)[0-9]+$", r"\1", id)
-print(type)
-
-
-#%%
-dic = {'mb_av10092': [0.8310068845748901, 0.99], 'mb_av10324': [0.4607242941856384, 0.5], 'mb_av1232': [0.8249494433403015, 0.97], 'mb_av2582': [0.3528490662574768, 0.3333333333333333], 'mb_av2639': [0.8219226002693176, -0.1], 'mb_av2812': [0.3494994044303894], 'mb_av3004': [0.2935275137424469, 0.5], 'mb_av3229': [0.23408839106559753, 0.5], 'mb_av4027': [0.3964613974094391, 0.5], 'mb_av4108': [0.833189845085144, 1.0], 'mb_av4420': [0.3317866921424866, 0.42857142857142855], 'mb_av5939': [0.8055134415626526, 1.0], 'mb_av7435': [0.4051932394504547, 0.5], 'mb_av747': [0.8289699554443359, 1.0], 'mb_av7870': [0.8294432163238525, 0.99], 'mb_av8117': [0.8165528774261475, 1.0], 'mb_av931': [0.8308647274971008, 0.99]}
-rewards = [v[1] for v in dic.values() if len(v) == 2]
-count = len(rewards)
-reward_sum = sum(rewards)
-reward_avg = reward_sum / count if count else 0
+            fomula = '2*v0*t+2*a*t*t_v0_vmax-a*t_v0_vmax**2-2*self.dis'
+            self.ls_v0.append(v0)
+            self.ls_teR.append(t)
+            optimal_a, optimal_vt, optimal_t1 = self.calculate_optimal_acceleration(v0, t, fomula)
+            a = optimal_a
+            vt = optimal_vt
+            T = optimal_t1
+            ls_acc_profile = [T, a]
+            return ls_acc_profile
+    else:
+        prc.print_message(
+            f"CASE 2: this leader can't arrive MS in {t:.2f} s (eg: no conflict), \n"
+            f"max_travel_dis_in_t {dis_sum:.2f} m < current_dis_to_WS {dis:.2f} m"
+        )
+        ls_acc_profile = [None, self.amax]
+        prc.print_message(f'action: apply_acc {self.amax}')
+        return ls_acc_profile

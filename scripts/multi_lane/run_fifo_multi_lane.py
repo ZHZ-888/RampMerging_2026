@@ -40,12 +40,18 @@ def fifo_main(av_p, r_fr, m_fr, seed,
     lc_path = os.path.join(traj_dir, lc_file_name)
     ssm_file_name = f"ssm_fifo_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     ssm_path = traj_dir / ssm_file_name
+    # delay indicators
+    trip_file_name = f"tripinfo_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
+    tripinfo_path = os.path.join(traj_dir, trip_file_name)
+
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
                 "--seed", str(seed),
                 # FCD trajectory path
                 "--fcd-output", str(xml_path),
                 # Lane-change output
                 "--lanechange-output", str(lc_path),
+                # tripinfo output/delay indicators
+                "--tripinfo-output", str(tripinfo_path),
                 # SSM output for TTC conflicts
                 "--device.ssm.probability", "1",
                 "--device.ssm.file", str(ssm_path),
@@ -73,21 +79,23 @@ def fifo_main(av_p, r_fr, m_fr, seed,
         # ramp road veh depature schedule
         vgvg = vg.VehGen(traci)  # function related to veh generation
         data_recorder = dr.DataRecording(traci)
+        output_file_path = {'xml_path': xml_path, 'ssm_path': ssm_path, 'tripinfo_path': tripinfo_path}
         # run loop
         speed_log, tp = \
             loop(traci, st, vgvg, data_recorder,
                  m0_dpt_type, m1_dpt_type, r_dpt_type)
     finally:
         traci.close()
-    return (speed_log, tp, xml_path, ssm_path)
+    return (speed_log, tp, output_file_path)
 
 def loop(traci, st, vgvg, data_recorder,
          m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None):
     # START SIMULATION
     step = 0
+    horizon_steps = st * 10
     speed_log = []
     # scripts loop
-    while step < st * 10:
+    while step < horizon_steps:
         # checkpoint
         if step > 1126 * 10:
             pass
@@ -117,6 +125,12 @@ def loop(traci, st, vgvg, data_recorder,
         tp = data_recorder.record_throughput(st, ls_veh_id, 'center')  # throughput
 
         step += 1
+
+    # Flush-out stage: stop generating vehicles and let all generated trips finish.
+    while traci.simulation.getMinExpectedNumber() > 0:
+        traci.simulationStep()
+        step += 1
+
     return (speed_log, tp)
 
 def main(args=None, root=None):
@@ -135,7 +149,7 @@ def main(args=None, root=None):
     # 2. Run simulation
     start = time.time()
     # Call the original algorithm
-    speed_log, tp, xml_path, ssm_path = fifo_main(
+    speed_log, tp, output_file_path = fifo_main(
         av_p=0,
         r_fr=parsed_args.r_fr,
         m_fr=parsed_args.m_fr,
@@ -146,7 +160,8 @@ def main(args=None, root=None):
     runtime = end - start
 
     tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
-        hpc_utils.get_mc_indicator(speed_log, tp, ssm_path, runtime))
+        hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st))
+    delay_res = hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
     # 3. Save results
     if parsed_args.out_csv:
         row = {
@@ -159,6 +174,11 @@ def main(args=None, root=None):
             "ttc_ratio_3": ttc_ratio_3,
             "ttc_ratio_2": ttc_ratio_2,
             "ttc_ratio_1": ttc_ratio_1,
+            'avg_time_loss': delay_res["avg_time_loss"],
+            'mainline_time_loss': delay_res["mainline_time_loss"],
+            'ramp_time_loss': delay_res["ramp_time_loss"],
+            'completed_mainline': delay_res["completed_mainline"],
+            'completed_ramp': delay_res["completed_ramp"],
             "runtime": runtime
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
@@ -167,18 +187,20 @@ if __name__ == '__main__':
     print(">>> Running Local FIFO Test (Direct Function Call)...")
     prc.PRINT_ENABLED = False
     start = time.time()
-    speed_log, tp, xml_path, ssm_path = fifo_main(
+    st = 1200
+    speed_log, tp, output_file_path = fifo_main(
         av_p = 0,
-        r_fr = 800, # 1300
+        r_fr = 1400, # 1300
         m_fr = 1500,
-        seed = 0,
+        seed = 9,
         gui = False,
         plot = False,
         display = False,
-        st = 1200
+        st = st
     )
     end = time.time()
     runtime = end - start
-    hpc_utils.get_mc_indicator(speed_log, tp, ssm_path, runtime)
+    hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st)
+    hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
 
 
