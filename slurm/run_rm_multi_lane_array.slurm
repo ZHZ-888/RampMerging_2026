@@ -39,7 +39,7 @@ SEEDS=(1 2 3 4 5 6 7 8 9 10)   # Random seeds (10 seeds)
 
 NR=${#RAMPS[@]}
 NS=${#SEEDS[@]}
-NT=$((NR * NS))   # 50 tasks
+NT=$((NR * NS))   # 130 tasks
 
 # Check SLURM array task ID
 if [ -z "${SLURM_ARRAY_TASK_ID:-}" ]; then
@@ -79,4 +79,5 @@ python run.py \
   --r_fr "$RAMP" \
   --m_fr "$MAINLINE" \
   --seed "$SEED" \
+  --st 1200 \
   --out_csv "$OUT_CSV"

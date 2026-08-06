@@ -9,6 +9,9 @@
 
 set -euo pipefail
 
+# Ensure relative paths are resolved from the submission directory
+cd "$SLURM_SUBMIT_DIR"
+
 # ================================
 # Load Python environment
 # ================================
@@ -70,4 +73,5 @@ python run.py \
   --r_fr "$RAMP" \
   --m_fr "$MAINLINE" \
   --seed "$SEED" \
+  --st 1200 \
   --out_csv "$OUT_CSV"

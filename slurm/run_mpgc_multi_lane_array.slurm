@@ -5,7 +5,7 @@
 #SBATCH --mem=4G                            # Memory per task
 #SBATCH --output=output-logs/out_%A_%a.txt  # Standard output log
 #SBATCH --error=error-logs/err_%A_%a.txt    # Standard error log
-# NOTE: Submit with --array=0-419  (3 AV_Ps * 10 Seeds * 14 RAMPS = 420 jobs)
+# NOTE: Submit with --array=0-389  (3 AV_Ps * 10 Seeds * 13 RAMPS = 390 jobs)
 
 set -euo pipefail
 
@@ -37,6 +37,7 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # ================================
 # Experiment parameter grid
 # ================================
+MAINLINE=1500                                # Mainline demand (veh/h)
 AV_P_VALS=(0.1 0.2 0.3)                     # AV penetration
 SEEDS=(1 2 3 4 5 6 7 8 9 10)                      # Random seeds
 RAMPS=(200 300 400 500 600 700 800 900 1000 1100 1200 1300 1400) # Ramp demands
@@ -63,7 +64,7 @@ AV_P=${AV_P_VALS[$av_idx]}
 RAMP=${RAMPS[$r_idx]}
 SEED=${SEEDS[$s_idx]}
 
-echo "TASK_ID=$TASK_ID | AV_P=$AV_P | RAMP=$RAMP | SEED=$SEED | (Indices: av=$av_idx, ramp=$r_idx, seed=$s_idx)"
+echo "TASK_ID=$TASK_ID | AV_P=$AV_P | RAMP=$RAMP | MAINLINE=$MAINLINE | SEED=$SEED | (Indices: av=$av_idx, ramp=$r_idx, seed=$s_idx)"
 
 # ================================
 # Per-task XML output (safe for parallel jobs)
@@ -79,5 +80,7 @@ python run.py \
   --algo mpgc_multi_lane \
   --av_p "$AV_P" \
   --r_fr "$RAMP" \
+  --m_fr "$MAINLINE" \
   --seed "$SEED" \
+  --st 1200 \
   --out_csv "$OUT_CSV"
