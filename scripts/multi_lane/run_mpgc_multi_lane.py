@@ -193,7 +193,7 @@ def main(args=None, root=None):
     This function is called by run.py.
     It parses command-line arguments and calls mpgc_main().
     """
-    prc.PRINT_ENABLED = True
+    prc.PRINT_ENABLED = False
 
     # 1. Parse Args (HPC/CLI Mode)
     parser = hpc_utils.standard_arg_parser()
