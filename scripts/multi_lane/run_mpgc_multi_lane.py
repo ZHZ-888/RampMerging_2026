@@ -20,7 +20,7 @@ from functions import data_recording as dr
 from functions import hpc_utils
 
 
-def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0.15,
+def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0,
               gui=False, plot=False, display=False, lc=True, st=1500,
               tsg_mode='predict', max_team_size=12):
     set_global_seed(seed, enable=True)  # set global random seed (especially for RL training)
