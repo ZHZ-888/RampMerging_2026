@@ -100,13 +100,13 @@ class MergingController:
         #     ls_wsA_asc,
         #     ls_r_leader_up)
 
-        # regular_mode, jam_mode = self.mode_switch.determine_mode_low_sensor_reliance(
-        #     ls_m_leader_up_asc,
-        #     ls_r_leader_wsA_asc,
-        #     ls_wsB_av_asc)
+        regular_mode, jam_mode = self.mode_switch.determine_mode_low_sensor_reliance(
+            ls_m_leader_up_asc,
+            ls_r_leader_wsA_asc,
+            ls_wsB_av_asc)
 
-        jam_mode = True
-        regular_mode = False
+        # jam_mode = True
+        # regular_mode = False
         # self.merge_regular.set_veh_color()
 
         # === 4. Apply corresponding control logic ===
@@ -152,7 +152,7 @@ class MergingController:
         self.speed_log.append(step_speed)  # collect into one list
 
         # If neither regular nor jam_mode, jam_mode is False by default.
-        return tp, self.speed_log, queue_log, self.ts_first_jam
+        return tp, queue_log, self.ts_first_jam
 
 
     def reset_jam_mode(self):

@@ -163,14 +163,13 @@ def loop(traci, st, data_recorder,
         (dic_follower_state, his_dic_platoon_size,
          dic_id_features) = formation_controller.step(st, step, lc)
 
-        tp, speed_log, queue_log, ts_first_jam = merging_controller.step(st, step, r_dpt_type)
+        tp, queue_log, ts_first_jam = merging_controller.step(st, step, r_dpt_type)
 
         data_recorder.record_tail_arrival(step)
         step += 1
 
     # Flush-out stage: stop generating vehicles, but keep merging control active
     # so stopped ramp vehicles can be released and complete their trips.
-    horizon_speed_len = len(speed_log)
     horizon_tp = tp
     horizon_queue_log = queue_log
     horizon_ts_first_jam = ts_first_jam
@@ -181,7 +180,7 @@ def loop(traci, st, data_recorder,
         merging_controller.step(st, step, r_dpt_type)
         step += 1
 
-    del merging_controller.speed_log[horizon_speed_len:]
+    del merging_controller.speed_log[st*10+1:]
     speed_log = merging_controller.speed_log
     tp = horizon_tp
     queue_log = horizon_queue_log
@@ -311,7 +310,7 @@ if __name__ == '__main__':
         av_p = 0.1, # 0.1
         r_fr = 1400, # 1300
         m_fr = 1500, # 1500
-        seed = 3, # 9 analysis
+        seed = 1, # 9 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
