@@ -17,6 +17,9 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 
+DEFAULT_WARMUP_TIME = 180
+
+
 def standard_arg_parser():
     """Returns a parser with the standard arguments for your experiments."""
     parser = argparse.ArgumentParser()
@@ -25,7 +28,7 @@ def standard_arg_parser():
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--gui", action="store_true")
     parser.add_argument("--out_csv", type=str, default=None)
-    parser.add_argument("--st", type=int, default=1200)
+    parser.add_argument("--st", type=int, default=1500)
     parser.add_argument('--av_p', type=float, default=0.1, help='AV Penetration Rate')
     parser.add_argument(
         "--max_team_size",
@@ -56,16 +59,22 @@ def training_arg_parser():
     # Note: Training usually doesn't need out_csv for traffic KPIs
     return parser
 
-def get_mc_indicator(speed_log, tp, ssm_path, runtime, max_time=None):
+def get_mc_indicator(speed_log, tp, ssm_path, runtime,
+                     max_time=None, warmup_time=DEFAULT_WARMUP_TIME):
     """Calculates performance indicators after simulation."""
-    total_vehicle_num = int(tp/3)
-    ttc_metrics_3 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(ssm_path, total_vehicle_num, ttc_threshold=3, max_time=max_time)
-    ttc_metrics_2 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(ssm_path, total_vehicle_num, ttc_threshold=2, max_time=max_time)
-    ttc_metrics_1 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(ssm_path, total_vehicle_num, ttc_threshold=1.5, max_time=max_time) # 1.5
+    duration = (max_time if max_time is not None else 1500) - warmup_time
+    total_vehicle_num = int(tp * max(duration, 0) / 3600)
+    ttc_metrics_3 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(
+        ssm_path, total_vehicle_num, ttc_threshold=3, min_time=warmup_time, max_time=max_time)
+    ttc_metrics_2 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(
+        ssm_path, total_vehicle_num, ttc_threshold=2, min_time=warmup_time, max_time=max_time)
+    ttc_metrics_1 = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(
+        ssm_path, total_vehicle_num, ttc_threshold=1.5, min_time=warmup_time, max_time=max_time) # 1.5
     ttc_ratio_3 = ttc_metrics_3[2]
     ttc_ratio_2 = ttc_metrics_2[2]
     ttc_ratio_1 = ttc_metrics_1[2]
-    avg_speeds = [item[1] for item in speed_log]
+    warmup_step = int(warmup_time * 10)
+    avg_speeds = [item[1] for item in speed_log if item[0] >= warmup_step]
     clean_avg_speeds = [v for v in avg_speeds if v is not None]
     average_v = sum(clean_avg_speeds) / len(clean_avg_speeds)
     print("\n           ---merging control performance indicators---")
@@ -77,7 +86,7 @@ def get_mc_indicator(speed_log, tp, ssm_path, runtime, max_time=None):
     return tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime
 
 
-def get_delay_indicator(tripinfo_path):
+def get_delay_indicator(tripinfo_path, warmup_time=DEFAULT_WARMUP_TIME):
     """
     Calculate delay indicators from tripinfo XML file.
     Parameters
@@ -100,6 +109,10 @@ def get_delay_indicator(tripinfo_path):
     ramp = []
 
     for trip in root.findall("tripinfo"):
+        depart = float(trip.attrib.get("depart", 0))
+        if depart < warmup_time:
+            continue
+
         veh_id = trip.attrib["id"]
         time_loss = float(trip.attrib["timeLoss"])
 
@@ -125,7 +138,7 @@ def get_delay_indicator(tripinfo_path):
     return result
 
 
-def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=11):
+def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=12):
     """
     Get formation control statistics.
 
@@ -215,7 +228,7 @@ def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=11):
     print(f"Avg Platoon Size  : {result['avg_pltn_size']:.2f}")
     return result
 
-def get_fc_indicator(dic_follower_state, his_dic_platoon_size, max_size=11):
+def get_fc_indicator(dic_follower_state, his_dic_platoon_size, max_size=12):
     '''
     get formation control indicators
     Parameters

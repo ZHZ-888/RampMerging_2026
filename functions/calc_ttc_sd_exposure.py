@@ -8,229 +8,102 @@ import math
 from tqdm import tqdm   # pip install tqdm
 from pathlib import Path
 
-# -----------------------------
-# Function to calculate TTC ratio (high-risk exposure) and average speed std
-# -----------------------------
-def calc_ttc_and_speed_std(xml_file, ttc_threshold=1.5, veh_length=5.0,
-                           merge_xmin=392, merge_xmax=615):
-    '''
-     <vehicle id="m1_hv_avg" x="5.05" y="139.82" angle="90.00" type="hv_avg"
-     speed="24.50" pos="5.10" lane="inflow_highway_0" slope="0.00"/>
 
-    :return:
-    '''
-    tree = ET.parse(xml_file)
-    root = tree.getroot()
-
-    total_pairs = 0
-    high_risk_pairs = 0
-    speed_std_list = []  # store speed std for each timestep
-
-    for timestep in root.findall('timestep'):
-        vehs = []
-        merge_speeds = []  # store speeds in merge zone for this timestep
-
-        for veh in timestep.findall('vehicle'):
-            vid = veh.get('id')
-            x = float(veh.get('x'))
-            y = float(veh.get('y'))
-            speed = float(veh.get('speed'))
-            angle = math.radians(float(veh.get('angle')))
-            vx = speed * math.cos(angle)
-            vy = speed * math.sin(angle)
-            vehs.append((vid, x, y, vx, vy))
-
-            # If the vehicle is in merge zone (x-range)
-            if merge_xmin <= x <= merge_xmax:
-                merge_speeds.append(speed)
-
-        # Calculate local speed std for this timestep
-        if len(merge_speeds) > 1:
-            speed_std_list.append(np.std(merge_speeds))
-
-        # Calculate TTC exposure ratio
-        for i in range(len(vehs)):
-            for j in range(len(vehs)):
-                if i == j:
-                    continue
-                id1, x1, y1, vx1, vy1 = vehs[i]
-                id2, x2, y2, vx2, vy2 = vehs[j]
-
-                dx = x2 - x1
-                dy = y2 - y1
-                dist = math.hypot(dx, dy) - veh_length
-                if dist <= 0:
-                    continue
-
-                dvx = vx2 - vx1
-                dvy = vy2 - vy1
-                rel_speed_along_line = -(dx * dvx + dy * dvy) / dist
-
-                if rel_speed_along_line > 0:
-                    ttc = dist / rel_speed_along_line
-                    total_pairs += 1
-                    if ttc < ttc_threshold:
-                        high_risk_pairs += 1
-
-    # Final results
-    ttc_ratio = high_risk_pairs / total_pairs if total_pairs > 0 else 0
-    avg_speed_std = np.mean(speed_std_list) if speed_std_list else 0
-    return ttc_ratio, avg_speed_std
+def _parse_xy(pos):
+    if pos is None or pos == "NA":
+        return None
+    try:
+        x_str, y_str = pos.split(",")
+        return float(x_str), float(y_str)
+    except (ValueError, AttributeError):
+        return None
 
 
-def calc_ttc_conflict_metrics(ssm_file, total_vehicles=None, ttc_threshold=1.5, y_tolerance=0.5, max_time=None):
-    """
-    Calculate TTC conflict metrics from a SUMO SSM output file with filtering conditions.
+def _in_ms_lane(lane_id):
+    return lane_id is not None and lane_id.startswith("ws_")
 
-    Args:
-        ssm_file: Path to the SSM XML file
-        total_vehicles: Total number of vehicles (for conflict rate calculation)
-        ttc_threshold: Only keep TTC values less than or equal to this threshold (e.g., 1.5)
-        y_tolerance: Allowed tolerance for y ≈ 0 (default ±0.5)
-        max_time: Ignore conflicts after this simulation time.
 
-    Returns:
-        avg_min_ttc: Average TTC of filtered conflicts
-        conflict_count: Number of filtered conflicts
-        conflict_rate: Conflicts per vehicle (if total_vehicles is given)
-    """
-
+def calc_ttc_conflict_metrics(ssm_file, total_vehicles=None, ttc_threshold=3.0,
+                              measure="TTC", min_time=None, max_time=None):
+    """Calculate TTC or DRAC conflict metrics within the merging section."""
 
     ssm_file = Path(ssm_file)
-
-    # Check if file exists
     if not ssm_file.exists():
         return 0.0, 0, 0.0
 
-    # Parse XML file
-    tree = ET.parse(ssm_file)
-    root = tree.getroot()
+    root = ET.parse(ssm_file).getroot()
+    measure = measure.upper()
 
-    ttc_values = []
+    span_name = "TTCSpan" if measure == "TTC" else "DRACSpan"
+    min_name = "minTTC" if measure == "TTC" else "maxDRAC"
 
-    # Iterate through all minTTC elements
-    for min_ttc in root.findall(".//minTTC"):
-        # Extract attributes
-        value = min_ttc.get("value")
+    pair_values = {}
 
-        if max_time is not None:
-            event_time = min_ttc.get("time")
-            if event_time is None:
+    for conflict in root.findall(".//conflict"):
+        ego = conflict.get("ego")
+        foe = conflict.get("foe")
+        pair = tuple(sorted((ego, foe)))
+
+        time_span = conflict.find("timeSpan")
+        measure_span = conflict.find(span_name)
+        ego_lanes = conflict.find("egoLane")
+        foe_lanes = conflict.find("foeLane")
+
+        if (time_span is None or measure_span is None
+                or ego_lanes is None or foe_lanes is None):
+            continue
+
+        times = time_span.get("values", "").split()
+        values = measure_span.get("values", "").split()
+        ego_lane = ego_lanes.get("values", "").split()
+        foe_lane = foe_lanes.get("values", "").split()
+
+        for t, value, e_lane, f_lane in zip(times, values, ego_lane, foe_lane):
+            if value == "NA":
                 continue
+
             try:
-                if float(event_time) > max_time:
-                    continue
+                t = float(t)
+                value = float(value)
             except ValueError:
                 continue
 
-        pos = min_ttc.get("position")
-        if pos is None:
-            continue
-        try:
-            x_str, y_str = pos.split(",")
-            x = float(x_str)
-            y = float(y_str)
-        except:
-            continue
+            if min_time is not None and t < min_time:
+                continue
+            if max_time is not None and t > max_time:
+                continue
 
-        v_type = min_ttc.get("type")
+            if not (_in_ms_lane(e_lane) or _in_ms_lane(f_lane)):
+                continue
 
-        # Skip invalid TTC values
-        if value is None or value == "NA":
-            continue
+            if measure == "TTC":
+                if pair not in pair_values or value < pair_values[pair]:
+                    pair_values[pair] = value
+            else:
+                if pair not in pair_values or value > pair_values[pair]:
+                    pair_values[pair] = value
 
-        value = float(value)
-
-        # Filter by TTC threshold
-        if ttc_threshold is not None and value > ttc_threshold:
-            continue
-
-        # Filter by conflict type (keep only type = "2")
-        if v_type != "2":
-            continue
-
-        # Ensure spatial information exists
-        if x is None or y is None:
-            continue
-
-        x = float(x)
-        y = float(y)
-
-        # Filter by x coordinate range
-        if not (0 < x < 258):
-            continue
-
-        # Filter by y coordinate (approximately 0 with tolerance)
-        if not (-y_tolerance <= y <= y_tolerance):
-            continue
-
-        # Store valid TTC values
-        ttc_values.append(value)
-
-    # Compute metrics
-    conflict_count = len(ttc_values)
-    avg_min_ttc = float(np.mean(ttc_values)) if ttc_values else 0.0
-
-    # Compute conflict rate if total vehicles is provided
-    if total_vehicles is not None and total_vehicles > 0:
-        conflict_rate = conflict_count / total_vehicles
+    if measure == "TTC":
+        risky_values = [v for v in pair_values.values() if v < ttc_threshold]
     else:
-        conflict_rate = 0.0
+        risky_values = [v for v in pair_values.values() if v > ttc_threshold]
 
-    return avg_min_ttc, conflict_count, conflict_rate
+    conflict_count = len(risky_values)
+    avg_value = float(np.mean(risky_values)) if risky_values else 0.0
 
-def batch_process_all(csv_path, traj_dir, output_path, prefix="trj_", model="mpgc"):
-    df = pd.read_csv(csv_path)
-    # Add new columns for TTC exposure ratio and speed std
-    df["ttc_ratio"] = 0.0
-    df["avg_speed_std"] = 0.0
+    conflict_rate = (
+        conflict_count / total_vehicles
+        if total_vehicles is not None and total_vehicles > 0
+        else 0.0
+    )
 
-    for idx, row in tqdm(df.iterrows(), total=len(df), desc="Batch processing..."):
-        if model == 'mpgc':
-            xml_name = (
-                f"{prefix}{int(row['r_fr'])}_"
-                f"{row['av_p']:.2g}_"
-                f"{int(row['seed'])}_"
-                f"{row['p_autoFollow']:.2g}_"
-                f"{row['platoon_p']:.2g}_"
-                f"{row['loss_rate']:.2g}.xml"
-            )
-            xml_path = os.path.join(traj_dir, xml_name)
-        else: # FIFO or RM
-            xml_name = (
-                f"trj_{int(row['r_fr'])}_"
-                f"{row['av_p']:.2g}_"
-                f"{int(row['seed'])}.xml"
-            ) # fifo and rm
-            # ---FIFO---
-            # xml_path = os.path.join("data/fifo/traj_fifo/traj_fifo_all", xml_name)  # adjust folder path if needed
-            # ---RM---
-            # xml_path = os.path.join("data/rm/traj_rm", xml_name)  # adjust folder path if needed
-        if os.path.exists(xml_path):
-            try:
-                ttc, std = calc_ttc_and_speed_std(xml_path)
-                df.at[idx, "ttc_ratio"] = ttc
-                df.at[idx, "avg_speed_std"] = std
-            except Exception as e:
-                print(f"[ERROR] {xml_name}: {e}")
-        else:
-            print(f"[MISSING] {xml_name}")
-    df.to_csv(output_path, index=False)
-    print(f"Results saved to {output_path}")
+    return avg_value, conflict_count, conflict_rate
+
 
 if __name__ == "__main__":
-    # mode = 'batch'
-    # if mode == 'batch':
-    #     # batch
-    #     csv_path = "/data/mpgc/all_results_mpgc_250825_2_exp1.csv"
-    #     traj_dir = "../data/mpgc/1ideal"
-    #     # output_path = "data/mpgc/df_exp1_add_0825_1.csv"
-    #     output_path = "../data/mpgc/df_exp1_add_0825_2.csv"
-    #     batch_process_all(csv_path, traj_dir, output_path)
-    # elif mode == 'single':
-    #     xml_path = "../data/mpgc/trj_900_0.1_1_1_1_0.xml"
-    #     ttc_ratio, avg_speed_std = calc_ttc_and_speed_std(xml_path)
-    #     print(f'ttc_ratio:{ttc_ratio}, avg_speed_std:{avg_speed_std}')
-    ssm_file = '/home/zzha/PycharmProjects/RampMerging_2026/data/multi_lane/algo/ssm_1300_0.2_5_0.15.xml'
-    avg_min_ttc, conflict_count, conflict_rate = calc_ttc_conflict_metrics(ssm_file, total_vehicles=1235)
+    ssm_file = (
+        "/home/zzha/PycharmProjects/RampMerging_2026/"
+        "data/multi_lane/algo/ssm_rm_1400_0_0_20260807_194334.xml"
+    )
+    avg_min_ttc, conflict_count, conflict_rate = calc_ttc_conflict_metrics(ssm_file, total_vehicles=1235, ttc_threshold=3)
     print(f"Avg min TTC: {avg_min_ttc:.2f}, Conflict Count: {conflict_count}, Conflict Rate: {conflict_rate:.4f}")

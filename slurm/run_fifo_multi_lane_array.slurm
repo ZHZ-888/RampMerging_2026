@@ -73,5 +73,5 @@ python run.py \
   --r_fr "$RAMP" \
   --m_fr "$MAINLINE" \
   --seed "$SEED" \
-  --st 1200 \
+  --st 1500 \
   --out_csv "$OUT_CSV"

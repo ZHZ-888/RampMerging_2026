@@ -14,7 +14,7 @@ from functions import data_recording as dr
 from functions import hpc_utils
 
 def fifo_main(av_p, r_fr, m_fr, seed,
-              gui=False, plot=False, display=False, st=1200):
+              gui=False, plot=False, display=False, st=1500):
     """
     Main simulation logic
     """
@@ -57,6 +57,8 @@ def fifo_main(av_p, r_fr, m_fr, seed,
                 "--device.ssm.file", str(ssm_path),
                 "--device.ssm.measures", "TTC",
                 "--device.ssm.thresholds", "3",
+                "--device.ssm.trajectories", "true",
+                "--device.ssm.write-lane-positions", "true",
                 "--no-warnings"]  # , '-S' start auto, and quit auto
     sumo_options = ["--step-length", str(sim_step)]
 
@@ -122,7 +124,9 @@ def loop(traci, st, vgvg, data_recorder,
         # 1. speed_record
         speed_log.append(step_speed)
         # 2. throughput
-        tp = data_recorder.record_throughput(st, ls_veh_id, 'center')  # throughput
+        tp = data_recorder.record_throughput(
+            st, ls_veh_id, 'center',
+            warmup_time=hpc_utils.DEFAULT_WARMUP_TIME)  # throughput
 
         step += 1
 
@@ -189,12 +193,12 @@ if __name__ == '__main__':
     print(">>> Running Local FIFO Test (Direct Function Call)...")
     prc.PRINT_ENABLED = False
     start = time.time()
-    st = 1200
+    st = 1500
     speed_log, tp, output_file_path = fifo_main(
         av_p = 0,
-        r_fr = 800, # 1300
+        r_fr = 1400, # 1300
         m_fr = 1500,
-        seed = 9,
+        seed = 3,
         gui = False,
         plot = False,
         display = False,

@@ -15,7 +15,7 @@ from functions import merging_control_jam as mcj
 
 class MergingController:
     def __init__(self, data_recorder, traci, av_p, platoon_formation=False, ml=False, loss_rate=0,
-                 mpc_interval=60, delta_t=12):  # ml: multi-lane
+                 mpc_interval=60, delta_t=12, warmup_time=0):  # ml: multi-lane
         self.traci = traci
         self.data_recorder = data_recorder
         self.merge_regular = mcr.MergingControlRegular(traci, self.data_recorder, ml)
@@ -25,6 +25,7 @@ class MergingController:
         self.mode_switch = mcj.ShiftMode(traci, self.data_recorder, av_p)
         self.mpc_interval = mpc_interval
         self.delta_t = delta_t
+        self.warmup_time = warmup_time
         self.ls_r_dep_times = []  # list of ramp veh depature time; [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 58, 59, 60]
         self.pf = platoon_formation
         self.speed_log = []  # [step, avg_speed, True/False], True/False Jam
@@ -77,7 +78,8 @@ class MergingController:
         dic_platoon_info = self.merge_regular.get_platoon_info2()
 
         # get throughput on 'center'
-        tp = self.data_recorder.record_throughput(st, ls_veh_id, 'center')  # throughput
+        tp = self.data_recorder.record_throughput(
+            st, ls_veh_id, 'center', warmup_time=self.warmup_time)  # throughput
 
         # Update mainline platoon ET
         dic_mplatoon_et, new_leader_flag = self.merge_regular.update_platoon_et(
@@ -98,13 +100,13 @@ class MergingController:
         #     ls_wsA_asc,
         #     ls_r_leader_up)
 
-        regular_mode, jam_mode = self.mode_switch.determine_mode_low_sensor_reliance(
-            ls_m_leader_up_asc,
-            ls_r_leader_wsA_asc,
-            ls_wsB_av_asc)
+        # regular_mode, jam_mode = self.mode_switch.determine_mode_low_sensor_reliance(
+        #     ls_m_leader_up_asc,
+        #     ls_r_leader_wsA_asc,
+        #     ls_wsB_av_asc)
 
-        # jam_mode = True
-        # regular_mode = False
+        jam_mode = True
+        regular_mode = False
         # self.merge_regular.set_veh_color()
 
         # === 4. Apply corresponding control logic ===

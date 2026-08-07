@@ -21,7 +21,7 @@ from functions import hpc_utils
 
 
 def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0,
-              gui=False, plot=False, display=False, lc=True, st=1200,
+              gui=False, plot=False, display=False, lc=True, st=1500,
               tsg_mode='predict', max_team_size=12):
     set_global_seed(seed, enable=True)  # set global random seed (especially for RL training)
     # SUMO SETTING
@@ -67,6 +67,8 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
                 "--device.ssm.file", str(ssm_path),
                 "--device.ssm.measures", "TTC",
                 "--device.ssm.thresholds", "3", # record 3s; output (default) 1.5s, see calc_ttc_sd_exposure.py
+                "--device.ssm.trajectories", "true",
+                "--device.ssm.write-lane-positions", "true",
                 "--no-warnings"]  #
     sumo_options = ["--step-length", str(sim_step)]
 
@@ -98,7 +100,8 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
                                                       max_team_size=max_team_size) # fix/off/predict/train/audit
         merging_controller = mc.MergingController(data_recorder, traci, av_p,
                                                   platoon_formation=True, ml=True,
-                                                  loss_rate=loss_rate)
+                                                  loss_rate=loss_rate,
+                                                  warmup_time=hpc_utils.DEFAULT_WARMUP_TIME)
 
         (dic_follower_state, his_dic_platoon_size,
          dic_id_features, tp, speed_log, queue_log, ts_first_jam) = \
@@ -301,14 +304,14 @@ if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
     max_team_size = 12
-    st = 1200 # 300
+    st = 1500 # 300
     (dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam) = mpgc_main(
         av_p = 0.1, # 0.1
-        r_fr = 200, # 1300
+        r_fr = 1400, # 1300
         m_fr = 1500, # 1500
-        seed = 1, # 9 analysis
+        seed = 3, # 9 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15

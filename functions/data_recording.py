@@ -429,7 +429,7 @@ class DataRecording:
         df = pd.DataFrame(ls, columns = ls_column)
         return df
 
-    def record_throughput(self, st, vehicle_ids, edge_id):
+    def record_throughput(self, st, vehicle_ids, edge_id, warmup_time=0):
         '''
         record throughput
         :param  st: simulation time
@@ -437,11 +437,15 @@ class DataRecording:
                 edge_id:
         :return:
         '''
+        c_ts = self.traci.simulation.getTime()
         for vid in vehicle_ids:
-            if self.traci.vehicle.getRoadID(vid) == edge_id and vid not in self.counted_vehicles:
+            if (c_ts >= warmup_time
+                    and self.traci.vehicle.getRoadID(vid) == edge_id
+                    and vid not in self.counted_vehicles):
                 self.throughput_count += 1
                 self.counted_vehicles.add(vid)
-        return self.throughput_count*3600/st
+        effective_st = max(st - warmup_time, self.sim_step)
+        return self.throughput_count * 3600 / effective_st
 
     def get_average_speed(self, step, vehicle_ids, jam_mode=None):
         """
