@@ -62,6 +62,9 @@ s_idx=$(( TASK_ID % NS ))
 RAMP=${RAMPS[$r_idx]}
 SEED=${SEEDS[$s_idx]}
 
+# Fix Python string/set hash order for reproducible runs.
+export PYTHONHASHSEED="$SEED"
+
 echo "TASK_ID=$TASK_ID | ramp=$RAMP | mainline=$MAINLINE | seed=$SEED"
 
 # ================================

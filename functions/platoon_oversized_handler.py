@@ -64,8 +64,15 @@ class PlatoonOversizedHandler:
                dic_oversized_platoon_states: all current oversized platoon
         :return: dic_nonOversized = {leader: [leader, follower1, follower2, ...], ...}
         '''
-        oversized_leader = list(dic_oversized_platoon_states.keys())
-        all_leader = list(dic_platoon_members.keys())
-        non_oversized_leader = list(set(all_leader) - set(oversized_leader))
+        # oversized_leader = list(dic_oversized_platoon_states.keys())
+        # all_leader = list(dic_platoon_members.keys())
+        # non_oversized_leader = list(set(all_leader) - set(oversized_leader))
+        oversized_leader = set(dic_oversized_platoon_states)
+        all_leader = list(dic_platoon_members)
+        non_oversized_leader = [
+            leader
+            for leader in all_leader
+            if leader not in oversized_leader
+        ]
         dic_nonOversized = {k: dic_platoon_members[k] for k in non_oversized_leader}
         return dic_nonOversized

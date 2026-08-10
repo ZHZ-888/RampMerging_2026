@@ -168,6 +168,8 @@ def main(args=None, root=None):
         hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'],
                                    runtime, max_time=parsed_args.st))
     delay_res = hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
+    ramp_entry_count, mrm_insertion_count = hpc_utils.get_mrm_insertion_counts(
+        output_file_path['xml_path'], hpc_utils.DEFAULT_WARMUP_TIME, parsed_args.st)
     # 3. Save results
     if parsed_args.out_csv:
         row = {
@@ -185,6 +187,8 @@ def main(args=None, root=None):
             'ramp_time_loss': delay_res["ramp_time_loss"],
             'completed_mainline': delay_res["completed_mainline"],
             'completed_ramp': delay_res["completed_ramp"],
+            "ramp_entry_count": ramp_entry_count,
+            "mrm_insertion_count": mrm_insertion_count,
             "runtime": runtime
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
@@ -198,7 +202,7 @@ if __name__ == '__main__':
         av_p = 0,
         r_fr = 1400, # 1300
         m_fr = 1500,
-        seed = 3,
+        seed = 5,
         gui = False,
         plot = False,
         display = False,
@@ -208,5 +212,7 @@ if __name__ == '__main__':
     runtime = end - start
     hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st)
     hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
+    hpc_utils.get_mrm_insertion_counts(output_file_path['xml_path'], hpc_utils.DEFAULT_WARMUP_TIME, st)
+
 
 

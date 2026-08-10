@@ -15,7 +15,7 @@ from functions import merging_control_jam as mcj
 
 class MergingController:
     def __init__(self, data_recorder, traci, av_p, platoon_formation=False, ml=False, loss_rate=0,
-                 mpc_interval=60, delta_t=12, warmup_time=0):  # ml: multi-lane
+                 mpc_interval=60, delta_t=15, warmup_time=0):  # ml: multi-lane
         self.traci = traci
         self.data_recorder = data_recorder
         self.merge_regular = mcr.MergingControlRegular(traci, self.data_recorder, ml)
@@ -105,6 +105,7 @@ class MergingController:
             ls_r_leader_wsA_asc,
             ls_wsB_av_asc)
 
+
         # jam_mode = True
         # regular_mode = False
         # self.merge_regular.set_veh_color()
@@ -159,12 +160,23 @@ class MergingController:
         # for cooldown function: reset jam_mode parameters
         if not self.merge_jam.r_leader_stop:
             return
+
         vid = self.merge_jam.r_leader_stop
         if vid in self.traci.vehicle.getIDList():
             try:
-                self.traci.vehicle.resume(vid)
-            except:
-                self.traci.vehicle.replaceStop(vid, 0, "")
+                if self.traci.vehicle.getStopState(vid) == 0:
+                    # Pending stop: resume() is invalid, remove the stop.
+                    self.traci.vehicle.replaceStop(vid, 0, "")
+                    self.traci.vehicle.moveTo(vid, "ws_0", 5.0) # bugs bugs go die!!! fuck
+                    self.traci.vehicle.setSpeed(vid, -1)
+                else:
+                    # reached stop: resume the stopped vehicle.
+                    self.traci.vehicle.resume(vid)
+                    self.traci.vehicle.setSpeed(vid, -1)
+            except Exception as exc:
+                print(f"Failed to release ramp leader {vid}: {exc}")
+                return
+
         self.merge_jam.r_leader_stop = None
         self.merge_jam.stop_state = False
         self.merge_jam.r_leader_stop = None

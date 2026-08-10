@@ -97,7 +97,8 @@ def rm_main(av_p, r_fr, m_fr, seed,
     return (speed_log, tp, output_file_path)
 
 
-def loop(traci, st, veh_gen, data_recorder, rm_algo,
+def loop(traci, st, veh_gen,
+         data_recorder, rm_algo,
          m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None):
     # START SIMULATION
     step = 0
@@ -111,8 +112,6 @@ def loop(traci, st, veh_gen, data_recorder, rm_algo,
     # scripts loop
     while step < horizon_steps:
         # checkpoint
-        if step > 1126 * 10:
-            pass
         traci.simulationStep()  # start simulation
         c_ts = traci.simulation.getTime()  # current_timestep
 
@@ -197,6 +196,8 @@ def main(args=None, root=None):
         hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'],
                                    runtime, max_time=parsed_args.st))
     delay_res = hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
+    ramp_entry_count, mrm_insertion_count = hpc_utils.get_mrm_insertion_counts(
+        output_file_path['xml_path'], hpc_utils.DEFAULT_WARMUP_TIME, parsed_args.st)
 
     # 3. Save results
     if parsed_args.out_csv:
@@ -215,21 +216,23 @@ def main(args=None, root=None):
             'ramp_time_loss': delay_res["ramp_time_loss"],
             'completed_mainline': delay_res["completed_mainline"],
             'completed_ramp': delay_res["completed_ramp"],
+            "ramp_entry_count": ramp_entry_count,
+            "mrm_insertion_count": mrm_insertion_count,
             "runtime": runtime
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
 
 if __name__ == '__main__':
     print(">>> Running Local RM Test (Direct Function Call)...")
-    prc.PRINT_ENABLED = False
+    prc.PRINT_ENABLED = True
     start = time.time()
     st = 1500
     speed_log, tp, output_file_path = rm_main(
         av_p = 0,
         r_fr = 1400,
         m_fr = 1500,
-        seed = 3,
-        gui = False,
+        seed = 5,
+        gui = True,
         plot = False,
         display = False,
         st = st
@@ -238,3 +241,4 @@ if __name__ == '__main__':
     runtime = end - start
     hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st)
     hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
+    hpc_utils.get_mrm_insertion_counts(output_file_path['xml_path'], hpc_utils.DEFAULT_WARMUP_TIME, st)

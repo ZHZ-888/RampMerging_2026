@@ -1,62 +1,83 @@
-def get_action_params(self, t, dis, v0):
-    '''
+def _get_m_leader_action(self, step, first_r_leader,
+                         rp_pass_dur, m_leader, max_interval,
+                         mpc_interval):
+    """
+    _get_mavh_action => _get_m_leader_action
+    Decide whether a MAVH (mainline leader) should take action to match the desired merging time.
 
-    Parameters
-    ----------
-    t : TYPE
-        time require.
-    dis : TYPE
-        the remaining distance to weaving section of this leader.
-    v0 : TYPE
-        current speed.
+    Params:
+        step: current simulation step
+        first_r_leader: first ramp leader ID
+        pv_m_leader: preceding vehicle of m_leader (short as pv)
+        rp_pass_dur: ramp platoon passing duration
+        m_leader: candidate mainline vehicle ID
+        max_interval: max time gap between ramp platoon and MAVH
+        dic_mplatoon_et: estimated arrival time dict for platoon
+        delta_t: allowable timing error
+        mpc_interval: frequency of evaluation
+        ts: timestamp
+        dur: duration (time period)
+    Returns:
+        self.dic_mavh_actionP: dict of MAVH (m_leader) and its action parameters
+        => self.dic_m_leader_action_params = {m_leader: [, c_ts]}
+    """
+    c_ts = round(step / 10 + 0.1, 1)
+    allowable_error = self.delta_t  # 0, 2, 4, 6, 8, 10
+    last_stop_ts = list(self.stop_times.items())[-1][-1] if self.stop_times else None
+    if self.first_ramp_stop_ts is not None:
+        # in cooldown period, not action
+        if c_ts - self.first_ramp_stop_ts < self.cooldown_dur:
+            return self.dic_m_leader_action_params
 
-    Returns
-    -------
-    ls_acc_profile : list
-        the acc/dec strategy.
-        (t1, a1, t3, a3, v_arrival) or (T, a) v_arrival => velocity of reaching moment
-    '''
-    
+    if not (step % mpc_interval == 0 or (
+            last_stop_ts is not None and c_ts == last_stop_ts + 0.1)):  # *10 because sim_step=0.1
+        # move forward only if in mpc_interval or just after stop
+        return self.dic_m_leader_action_params
 
-    t_v0_vmax = (self.max_speed - v0) / self.amax  # duration to accelerate to peak velocity
-    dis_v0_vmax = v0 * t_v0_vmax + 0.5 * self.amax * t_v0_vmax ** 2  # distance for speed increase to max_v
+    if not m_leader:
+        return self.dic_m_leader_action_params
 
-    t_left = t - t_v0_vmax
-    dis_left = t_left * self.max_speed
-    dis_sum = dis_v0_vmax + dis_left  # farthest driving distance in period t
+    pv_m_leader_info = self.traci.vehicle.getLeader(m_leader)
+    pv_m_leader, dis_m_leader_to_pv = pv_m_leader_info if pv_m_leader_info else (None, None)
+    if not pv_m_leader:
+        return self.dic_m_leader_action_params
 
-    if dis_sum >= dis:  # TODO: this part should be replaced
-        prc.print_message(
-            f"CASE 1: this leader will arrive MS within {t:.2f} s "
-            f"(e.g., r_platoon will encounter with m_platoon),\n"
-            f"max_travel_dis_in_t {dis_sum:.2f} m >= current_dis_to_WS {dis:.2f} m"
-        )
-        if self.optimizer:
-            # new add min speed
-            optm = GetBVCurve2(v0, t, dis=dis, min_speed=5)
-            # v_arrival: velocity of reaching moment
-            res, v_arrival = optm.optimize()  # res.x = (t1, a1, t3, a3)
-            # res.x[3] < 0.01 updated 110824, to avoid stop at the end of ramp caused by conflict
-            if v_arrival < 1 or res.x[3] < 0.01:  # to avoid sudden stop; 241003update, avoid stop can start
-                prc.print_message("**Huge difference, NO WAY to avoid the conflict**")
-                return [None, self.amax]
-            ls_acc_profile = list(np.append(res.x, v_arrival))  # ls_acc_profile = (t1, a1, t3, a3, v_arrival)
-            return ls_acc_profile
-        else:
-            fomula = '2*v0*t+2*a*t*t_v0_vmax-a*t_v0_vmax**2-2*self.dis'
-            self.ls_v0.append(v0)
-            self.ls_teR.append(t)
-            optimal_a, optimal_vt, optimal_t1 = self.calculate_optimal_acceleration(v0, t, fomula)
-            a = optimal_a
-            vt = optimal_vt
-            T = optimal_t1
-            ls_acc_profile = [T, a]
-            return ls_acc_profile
+    pv_m_leader_lane = self.data_recorder.dic_lane[pv_m_leader]
+    if not self.stop_state or pv_m_leader_lane != 'inflow_highway_0':
+        return self.dic_m_leader_action_params
+
+    pv_tail_reach_ts = self._get_prev_platoon_tail_at_ts(c_ts, m_leader)
+    pv_tail_reach_dur = max(0, pv_tail_reach_ts - c_ts)
+    # dev_rleader_pmtail: time deviation between r_leader and previous m_tail
+    dev_rleader_pmtail = max(0, self.r_leader_acc_dur - pv_tail_reach_dur)  # self.r_leader_acc_dur = 9,3 (ml) or 12
+    des_interval = dev_rleader_pmtail + rp_pass_dur + self.buffer * 2
+    interval_shortage = des_interval - max_interval
+    if interval_shortage <= 0: # no need to take action
+        self.dic_m_leader_action_params = {m_leader: []}
+        return self.dic_m_leader_action_params
+
+    # interval_shortage > 0, m_leader needs to take action
+    if self.stop_times[first_r_leader] == self.first_ramp_stop_ts:
+        r_leader_waiting_dur = c_ts - self.stop_times[first_r_leader] - self.cooldown_dur
     else:
-        prc.print_message(
-            f"CASE 2: this leader can't arrive MS in {t:.2f} s (eg: no conflict), \n"
-            f"max_travel_dis_in_t {dis_sum:.2f} m < current_dis_to_WS {dis:.2f} m"
-        )
-        ls_acc_profile = [None, self.amax]
-        prc.print_message(f'action: apply_acc {self.amax}')
-        return ls_acc_profile
+        r_leader_waiting_dur = c_ts - self.stop_times[first_r_leader]
+
+    # Case 1: If r_leader has been waiting too long, allow looser error margin to avoid long waiting
+    if r_leader_waiting_dur > 30 and interval_shortage <= allowable_error + 10:
+        # Looser threshold due to long waiting time
+        des_m_leader_reach_dur = des_interval + pv_tail_reach_dur
+    # Case 2: Otherwise, allow only if within strict allowable error
+    elif interval_shortage <= allowable_error:
+        # Strict error control
+        des_m_leader_reach_dur = des_interval + pv_tail_reach_dur
+    else:
+        return self.dic_m_leader_action_params
+
+    dic_m_leader_info = self.data_recorder.get_vid_states(m_leader)
+    m_dis = dic_m_leader_info['dis']  # m_leader distance to ws
+    m_v0 = dic_m_leader_info['v']
+    action_params = list(self.merge_regular.get_action_params(des_m_leader_reach_dur, m_dis, m_v0))
+    action_params.append(c_ts)  # (t1, a1, t3, a3, v_reach, c_ts)
+    self.m_leader_action_dic[m_leader] = action_params
+    self.dic_m_leader_action_params = {m_leader: action_params}
+    return self.dic_m_leader_action_params

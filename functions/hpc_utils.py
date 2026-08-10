@@ -20,6 +20,9 @@ import numpy as np
 DEFAULT_WARMUP_TIME = 180
 
 
+
+
+
 def standard_arg_parser():
     """Returns a parser with the standard arguments for your experiments."""
     parser = argparse.ArgumentParser()
@@ -137,6 +140,61 @@ def get_delay_indicator(tripinfo_path, warmup_time=DEFAULT_WARMUP_TIME):
     print(result)
     return result
 
+
+def get_mrm_insertion_counts(fcd_path, warmup_time=DEFAULT_WARMUP_TIME, st=1500):
+    """Count ramp entries into ws_1 and entries forming an M-R-M sequence."""
+    ramp_vehicles_entered_ws_1 = set()
+    ramp_entry_count = 0
+    mrm_insertion_count = 0
+
+    for _, timestep in ET.iterparse(fcd_path, events=("end",)):
+        if timestep.tag != "timestep":
+            continue
+
+        sim_time = float(timestep.attrib["time"])
+        if sim_time > st:
+            break
+
+        vehicles = {
+            vehicle.attrib["id"]: (
+                vehicle.attrib["lane"],
+                float(vehicle.attrib["pos"]),
+            )
+            for vehicle in timestep
+        }
+        new_ramp_entries = [
+            vehicle_id
+            for vehicle_id, (lane_id, _) in vehicles.items()
+            if (vehicle_id.startswith("r")
+                and lane_id == "ws_1"
+                and vehicle_id not in ramp_vehicles_entered_ws_1)
+        ]
+        ramp_vehicles_entered_ws_1.update(new_ramp_entries)
+
+        if sim_time >= warmup_time:
+            ws_1_vehicles = sorted(
+                (state[1], vehicle_id)
+                for vehicle_id, state in vehicles.items()
+                if state[0] == "ws_1"
+            )
+            ws_1_indices = {
+                vehicle_id: index
+                for index, (_, vehicle_id) in enumerate(ws_1_vehicles)
+            }
+
+            for vehicle_id in new_ramp_entries:
+                ramp_entry_count += 1
+
+                index = ws_1_indices[vehicle_id]
+                if 0 < index < len(ws_1_vehicles) - 1:
+                    rear_id = ws_1_vehicles[index - 1][1]
+                    front_id = ws_1_vehicles[index + 1][1]
+                    if rear_id.startswith("m") and front_id.startswith("m"):
+                        mrm_insertion_count += 1
+
+        timestep.clear()
+    print(f"Ramp entries: {ramp_entry_count}, M-R-M insertions: {mrm_insertion_count}")
+    return ramp_entry_count, mrm_insertion_count
 
 def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=12):
     """
@@ -283,4 +341,14 @@ def write_dataframe_csv(path: str, df):
     p.parent.mkdir(parents=True, exist_ok=True)
 
     df.to_csv(p, index=False)
+
+if __name__ == "__main__":
+    # fcd_path = ("/home/zzha/PycharmProjects/RampMerging_2026/data/multi_lane/algo/"
+    #             "trj_1400_0.1_4_0_mts12_local.xml")
+    # fcd_path = ("/home/zzha/PycharmProjects/RampMerging_2026/data/multi_lane/algo/"
+    #             "trj_rm_1400_0_3_20260808_142224.xml")
+    fcd_path = ("/home/zzha/PycharmProjects/RampMerging_2026/data/multi_lane/algo/"
+                "trj_fifo_1400_0_3_20260807_210226.xml")
+    ramp_entry_count, mrm_insertion_count = get_mrm_insertion_counts(fcd_path=fcd_path, st=1500)
+    print(ramp_entry_count, mrm_insertion_count)
 

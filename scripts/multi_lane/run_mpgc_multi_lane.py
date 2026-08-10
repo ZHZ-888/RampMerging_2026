@@ -35,7 +35,12 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
     # Simulation step length
     sim_step = 0.1
     # Determine the SUMO binary based on whether GUI is needed
-    sumo_bin = 'sumo-gui' if gui else 'sumo'
+    # sumo_bin = 'sumo-gui' if gui else 'sumo'
+
+    sumo_home = "/home/zzha/opt/sumo-1.19.0-src"
+    os.environ["SUMO_HOME"] = sumo_home
+    sumo_bin = os.path.join(sumo_home, "bin", "sumo-gui" if gui else "sumo",)
+
     # Construct the SUMO command and options
     '''
     Look for a system setting named TRAJ_DIR. If it exists, use it. If not, use this default folder.
@@ -76,10 +81,15 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
     if gui:
         import traci
         traci.start(sumo_cmd + sumo_options)
+
+        print("SUMO engine:", traci.getVersion())
+        print("SUMO binary:", sumo_bin)
+
         available_views = traci.gui.getIDList()
         print("Available Views:", available_views)
     else:
         import libsumo as traci
+        # import traci
         traci.start(sumo_cmd + sumo_options)
     try:
         # VEHICLE GENERATOR
@@ -143,8 +153,10 @@ def loop(traci, st, data_recorder,
     # scripts loop
     while step < horizon_steps:
         # checkpoint
-        if step > 400 * 10:
+        if step > 600 * 10:
              pass
+        if step > 1600 * 10:
+            pass
         traci.simulationStep()  # start simulation
 
         c_ts = traci.simulation.getTime()  # current_timestep
@@ -228,6 +240,8 @@ def main(args=None, root=None):
         hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'],
                                    runtime, max_time=parsed_args.st))
     delay_res = hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
+    ramp_entry_count, mrm_insertion_count = hpc_utils.get_mrm_insertion_counts(
+        output_file_path['xml_path'], hpc_utils.DEFAULT_WARMUP_TIME, parsed_args.st)
 
     # 3. Save results
     if parsed_args.out_csv:
@@ -261,6 +275,8 @@ def main(args=None, root=None):
             'ramp_time_loss': delay_res["ramp_time_loss"],
             'completed_mainline': delay_res["completed_mainline"],
             'completed_ramp': delay_res["completed_ramp"],
+            "ramp_entry_count": ramp_entry_count,
+            "mrm_insertion_count": mrm_insertion_count,
             "ts_first_jam": ts_first_jam,
             "runtime": runtime
         }
@@ -303,14 +319,14 @@ if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
     max_team_size = 12
-    st = 1500 # 300
+    st = 1500 # 1500
     (dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam) = mpgc_main(
         av_p = 0.1, # 0.1
         r_fr = 1400, # 1300
         m_fr = 1500, # 1500
-        seed = 1, # 9 analysis
+        seed = 5, # 2 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
@@ -332,4 +348,5 @@ if __name__ == '__main__':
     tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
         hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st)) # 1 => 1.5s
     hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
+    hpc_utils.get_mrm_insertion_counts(output_file_path['xml_path'], hpc_utils.DEFAULT_WARMUP_TIME, st)
     print(f'ts_first_jam: {ts_first_jam}')

@@ -64,6 +64,9 @@ AV_P=${AV_P_VALS[$av_idx]}
 RAMP=${RAMPS[$r_idx]}
 SEED=${SEEDS[$s_idx]}
 
+# Fix Python string/set hash order for reproducible runs.
+export PYTHONHASHSEED="$SEED"
+
 echo "TASK_ID=$TASK_ID | AV_P=$AV_P | RAMP=$RAMP | MAINLINE=$MAINLINE | SEED=$SEED | (Indices: av=$av_idx, ramp=$r_idx, seed=$s_idx)"
 
 # ================================

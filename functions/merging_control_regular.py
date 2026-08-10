@@ -91,6 +91,8 @@ class MergingControlRegular:
             for leader in ls_leader_up:
                 if leader == 'mb_av3470':
                     pass
+                if leader in ['m_av4670', 'mb_av4970', 'mv_av4936', 'm_av3944']:
+                    pass
                 platoon_type = self.data_recorder.dic_leader_ptype.get(leader, "A")
                 if platoon_type is None:
                     continue  # pass
@@ -135,7 +137,8 @@ class MergingControlRegular:
         '''
         c_ts = round(step / 10 + 0.1, 1)
         # Sort by predicted leader arrival time
-        items = sorted(dic_et.items(), key=lambda x: x[1][1])
+        # items = sorted(dic_et.items(), key=lambda x: x[1][1])
+        items = dic_et.items()
 
         prev_tail = None  # Tail arrival time of the previous valid platoon
         for key, val in items:
@@ -208,18 +211,18 @@ class MergingControlRegular:
                 self.dic_platoon_info[leader][0] = [platoon_type, None]
                 continue
             tail_id = self._get_tail_id(dic_vid_groups, platoon_type, leader)
-            if tail_id in dic_vid_groups['ls_vehid']:
-                # update Tail ID
-                self.dic_platoon_info[leader][0] = [platoon_type, tail_id]
-                if tail_id not in self.data_recorder.ls_tail_ids:
-                    self.data_recorder.ls_tail_ids.append(tail_id) # ls_tail_ids (purpose?)
-                dic_head_states = self.data_recorder.get_vid_states(leader)
-                dic_tail_states = self.data_recorder.get_vid_states(tail_id)
-                pos_head = dic_head_states['pos']
-                pos_tail = dic_tail_states['pos']
-                platoon_length = pos_head-pos_tail
+            # if tail_id in dic_vid_groups['ls_vehid']:
+            #     # update Tail ID
+            #     self.dic_platoon_info[leader][0] = [platoon_type, tail_id]
+            #     if tail_id not in self.data_recorder.ls_tail_ids:
+            #         self.data_recorder.ls_tail_ids.append(tail_id) # ls_tail_ids (purpose?)
+                # dic_head_states = self.data_recorder.get_vid_states(leader)
+                # dic_tail_states = self.data_recorder.get_vid_states(tail_id)
+                # pos_head = dic_head_states['pos']
+                # pos_tail = dic_tail_states['pos']
+                # platoon_length = pos_head-pos_tail
                 # record length
-                self.dic_platoon_info[leader][1].append(platoon_length)
+                # self.dic_platoon_info[leader][1].append(platoon_length)
         self.data_recorder.dic_platoon_info = self.dic_platoon_info
         return self.dic_platoon_info
 
@@ -302,7 +305,7 @@ class MergingControlRegular:
         dis_left = t_left * self.max_speed
         dis_sum = dis_v0_vmax + dis_left  # farthest driving distance in period t
 
-        if dis_sum >= dis:  # TODO: this part should be replaced
+        if dis_sum >= dis:  # TODO: this part needs improvement
             prc.print_message(
                 f"CASE 1: this leader will arrive MS within {t:.2f} s "
                 f"(e.g., r_platoon will encounter with m_platoon),\n"
@@ -478,6 +481,8 @@ class MergingControlRegular:
         dic_leader_up_action = {leader: v for leader, v in dic_leader_action.items() if leader in ls_mr_leader_up}
 
         for leader, ls_action in dic_leader_up_action.items():
+            if leader == 'm_av5112':
+                pass
             if self.dic_leader_action_emerged.get(leader) == ls_action:
                 # this leader and its action params already emerged
                 ls_action = self.dic_leader_action_updated.get(leader)
@@ -501,12 +506,12 @@ class MergingControlRegular:
                     dec_st = ls_action[-1] # dec start time
                     if c_ts % 1 == 0:
                         prc.print_message(f"{leader} in dec_phase!\n a1:{a1}, start_time:{dec_st}, current_time:{c_ts}")
-                    self._apply_acceleration(leader, a1, smooth=True)
+                    self._apply_acceleration(leader, a1)
                 elif elapsed < t1 + t3:
                     acc_st = action_start + t1
                     if c_ts % 1 == 0:
                         prc.print_message(f"{leader} in acc_phase!\n a3:{a3}, start_time:{acc_st}, current_time:{c_ts}") #\n => line break
-                    self._apply_acceleration(leader, a3, smooth=True)
+                    self._apply_acceleration(leader, a3)
                 else:
                     if c_ts % 1 == 0:
                         prc.print_message(f"{leader} action finished!\n a3:{a3}, start_time:{action_start}, current_time:{c_ts}")
@@ -519,7 +524,7 @@ class MergingControlRegular:
                 acc2 = 2.6
                 if c_ts % 1 == 0:
                     prc.print_message(f"{leader} full speed up!\n acc:{acc2}, current_time:{c_ts}")
-                self._apply_acceleration(leader, acc2, smooth=True)
+                self._apply_acceleration(leader, acc2)
 
     def flashing_lane_changing(self, step, dic_insertedAV, ls_vid):
         '''
@@ -589,16 +594,26 @@ class MergingControlRegular:
         tail_id = ls_veh_net[idx_tail] if idx_tail >= 0 else None
         return tail_id
 
-    def _apply_acceleration(self, vid, acc, smooth=False):
+    def _apply_acceleration_ori(self, vid, acc):
         if acc is not None:
             this_vel = self.traci.vehicle.getSpeed(vid)
             next_vel = max([this_vel + acc * self.sim_step, 0])
-            if smooth:
-                # self.traci.vehicle.setSpeed(vid, next_vel)
-                self.traci.vehicle.slowDown(vid, next_vel, self.sim_step)  # 1e-3: 0.001
-                # self.traci.vehicle.slowDown(vid, next_vel, 1e-3)
-            else:
-                self.traci.vehicle.setSpeed(vid, next_vel)
+            # self.traci.vehicle.slowDown(vid, next_vel, self.sim_step)  # 1e-3: 0.001
+            self.traci.vehicle.setSpeed(vid, next_vel)
+
+    def _apply_acceleration(self, vid, acc):
+        '''
+        You may ask me why I double acc?
+        Reason is:
+        SUMO 1.19.0 applies only half of the requested acceleration when
+        duration equals one simulation step due to its speed-timeline interpolation. (If you don't believe, try yourself)
+        Multiply by 2 to compensate. Remove this compensation for SUMO >= 1.23.1
+
+        This is a bug hide deeply inside, find this really caused me a lot of time!!!
+        '''
+        if acc is None:
+            return
+        self.traci.vehicle.setAcceleration(vid, acc*2, self.sim_step)
 
     def _flashing_base(self, step, lane_id, vid):  # ls_id: veh under control
         '''
