@@ -16,8 +16,8 @@ class Func:
         self.cycle_time = 20          # s
         self.yellow_time = 0          # s
         self.sat_flow = 1900.0        # veh/h-of-green on ramp
-        self.min_green = 1.5          # s
-        self.min_red   = 2.0          # s
+        self.min_green = 1.8          # s
+        self.min_red   = 4          # s
 
         # if TLS controls multiple links, which index is the ramp movement (0-based)
         self.ramp_conn_index = 0

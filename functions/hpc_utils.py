@@ -17,10 +17,7 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 
-DEFAULT_WARMUP_TIME = 0
-
-
-
+DEFAULT_WARMUP_TIME = 180
 
 
 def standard_arg_parser():

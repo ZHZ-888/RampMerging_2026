@@ -889,6 +889,7 @@ class MergingControlJam:
             self.m_leader_acting = True
         return action_m_leader
 
+
     def _push_if_not_redundant(self, step, value, update_queue, last_value_attr: str):
         """
         Push a value into the specified delay update_queue if it's not redundant.

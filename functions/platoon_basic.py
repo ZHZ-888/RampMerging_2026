@@ -23,7 +23,7 @@ class PlatoonBasic:
 
         self.dic_pass_time = self.pass_recorder.dic_pass_time
         self.max_speed = self.data_recorder.max_speed # 27.78 m/s => 100km/h
-        self.speed_level3 = 25
+        self.speed_level3 = 25 # 
         self.speed_level2 = 22.22  # 19.44 m/s (70km/h);
         self.speed_level1 = 16.67  # 16.67 m/s (60km/h)
         self.max_team_size = max_team_size
