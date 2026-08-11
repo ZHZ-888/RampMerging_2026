@@ -4,37 +4,32 @@ class Func:
         self.traci = traci
         # --- minimal knobs with safe defaults ---
         self.K = 70.0                 # >0 for ALINEA
-        self.use_occupancy = True     # True: use occupancy for "density" input (0~1); False: veh/km
+        self.use_occupancy = True     # True: use occupancy on a 0-1 scale; False: veh/km
         self.target_occupancy = 0.20  # only used when use_occupancy=True
-        self.target_density = 28.0    # veh/km if use_occupancy=False
 
         # release-rate bounds (veh/h)
         self.r_min = 0.0
-        self.r_max = 1800.0
-        self._r_prev = 900.0          # start from a mid value
+        self.r_max = 800.0
+        self._r_prev = 800.0
 
         # signal timing
         self.cycle_time = 20          # s
         self.yellow_time = 0          # s
         self.sat_flow = 1900.0        # veh/h-of-green on ramp
-        self.min_green = 1.0          # s
+        self.min_green = 1.5          # s
         self.min_red   = 2.0          # s
 
         # if TLS controls multiple links, which index is the ramp movement (0-based)
         self.ramp_conn_index = 0
 
     # ---------- ALINEA control ----------
-    def alinea_control(self, current_density, target_density, gain, previous_release_rate):
+    def alinea_control(self, current_occupancy):
         """
         ALINEA control law: r_k = r_{k-1} + K * (target - current)
         NOTE: use K>0. This function keeps your original signature.
         """
         # choose error source
-        if self.use_occupancy:   # treat current_density as occupancy 0~1
-            error = self.target_occupancy - float(current_density)
-        else:                     # treat current_density as veh/km
-            error = self.target_density - float(current_density)
-
+        error = self.target_occupancy - float(current_occupancy)
         r = self._r_prev + self.K * error
         r = max(self.r_min, min(self.r_max, r))
         self._r_prev = r
@@ -54,7 +49,7 @@ class Func:
         """
         if self.use_occupancy:
             try:
-                return self.traci.lane.getLastStepOccupancy(lane_id)  # 0~1
+                return self.traci.lane.getLastStepOccupancy(lane_id) / 100.0
             except Exception:
                 # very crude fallback from veh/km -> occupancy
                 veh = self.traci.lane.getLastStepVehicleNumber(lane_id)
@@ -75,20 +70,11 @@ class Func:
         The green time is fixed to allow exactly one vehicle to pass,
         based on saturation flow and a start-up lost time.
         """
-        import math
-
-        C_min = 5  # minimum total cycle time (s) to avoid unstable very short cycles
-        Y = int(self.yellow_time)  # yellow time (s)
+        Y = float(self.yellow_time)  # yellow time (s)
 
         # 1) Target: one vehicle per green phase
-        vehicles_per_green = 1
-        # Effective green time for one vehicle:
-        #   ideal discharge time = 3600 / sat_flow (s/veh)
-        #   + start-up lost time (~0.5–0.8 s, empirical)
-        start_loss = 0.7
-        g_one = vehicles_per_green * (3600.0 / max(1e-6, self.sat_flow)) + start_loss
-        # Ensure minimum green
-        g = max(self.min_green, g_one)
+        # Fixed green time for approximately one vehicle per cycle
+        g = self.min_green
 
         # 2) From release_rate (veh/h) -> target average headway (s/veh)
         r = max(1e-6, float(release_rate))
@@ -99,16 +85,8 @@ class Func:
         R_raw = headway - g - Y
         R = max(self.min_red, R_raw)
 
-        # 4) Round to integers and ensure total time = green + yellow + red
-        G = int(round(g))
-        R = int(round(R))
-        total = G + Y + R
-        if total < C_min:
-            # If total cycle is too short, increase red to meet minimum
-            R = C_min - (G + Y)
-        # Enforce non-negative and minimum times
-        G = max(int(math.ceil(self.min_green)), G)
-        R = max(int(math.ceil(self.min_red)), R)
+        # 4) Keep decimal phase durations to preserve the target headway
+        G = g
 
         # 5) Build TLS state strings:
         #    - All-red except the ramp connection index is set to G/y/r

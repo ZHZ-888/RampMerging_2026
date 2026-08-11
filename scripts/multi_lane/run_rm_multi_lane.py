@@ -104,10 +104,8 @@ def loop(traci, st, veh_gen,
     step = 0
     horizon_steps = st * 10
     speed_log = []
-    # rm related parameters
-    target_density = 25  # veh_num/km
-    gain = 20
-    p_release_rate = 200  # veh_num/h
+    occupancy_sum = 0
+    occupancy_samples = 0
 
     # scripts loop
     while step < horizon_steps:
@@ -135,18 +133,21 @@ def loop(traci, st, veh_gen,
             st, ls_veh_id, 'center',
             warmup_time=hpc_utils.DEFAULT_WARMUP_TIME)  # throughput
 
+        occupancy_sum += rm_algo.get_current_density("center_0")
+        occupancy_samples += 1
+
         if c_ts % 90 == 0:
-            des_center = rm_algo.get_current_density("center_0") # center_0; current center flow
+            des_center = occupancy_sum / occupancy_samples
             des_ramp = rm_algo.get_current_density("inflow_merge_0")
 
-            c_release_rate = rm_algo.alinea_control(des_center, target_density, gain, p_release_rate)
+            c_release_rate = rm_algo.alinea_control(des_center)
             prc.print_message(f'c_release_rate: {c_release_rate}')
 
             # set the green time of the signal
             g_time, r_time = rm_algo.set_ramp_metering_signal('center', c_release_rate)
+            occupancy_sum = 0
+            occupancy_samples = 0
 
-            # update last release_rate
-            p_release_rate = c_release_rate  # p-previous, c-current
         try:
             prc.print_message(f'g_time: {g_time}, r_time:{r_time}')
             prc.print_message(f'center:{des_center},main:{des_ramp}')
@@ -224,15 +225,15 @@ def main(args=None, root=None):
 
 if __name__ == '__main__':
     print(">>> Running Local RM Test (Direct Function Call)...")
-    prc.PRINT_ENABLED = True
+    prc.PRINT_ENABLED = False
     start = time.time()
     st = 1500
     speed_log, tp, output_file_path = rm_main(
         av_p = 0,
         r_fr = 1400,
         m_fr = 1500,
-        seed = 5,
-        gui = True,
+        seed = 10,
+        gui = False,
         plot = False,
         display = False,
         st = st

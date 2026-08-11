@@ -63,6 +63,7 @@ class DataRecording:
         self.leader_record_counter = defaultdict(int)
         self.dic_tail_arrived_ws = {} # {leader_id: [tail_id, arrival_time]}
         self.dic_platoon_info = {} # {vid:[type, tail_id, length1, length2...]}
+        self.ms_exit_speed = None # the last pass vehicle speed that detected by 'ms_exit' detector
 
     def record_vehinfo(self): # for single_lane scenario
         '''
@@ -429,7 +430,7 @@ class DataRecording:
         df = pd.DataFrame(ls, columns = ls_column)
         return df
 
-    def record_throughput(self, st, vehicle_ids, edge_id, warmup_time=0):
+    def record_throughput_ori(self, st, vehicle_ids, edge_id, warmup_time=0):
         '''
         record throughput
         :param  st: simulation time
@@ -444,6 +445,26 @@ class DataRecording:
                     and vid not in self.counted_vehicles):
                 self.throughput_count += 1
                 self.counted_vehicles.add(vid)
+        effective_st = max(st - warmup_time, self.sim_step)
+        return self.throughput_count * 3600 / effective_st
+
+    def record_throughput(self, st, vehicle_ids, edge_id, warmup_time=0):
+        '''
+        record throughput
+        :param  st: simulation time
+                vehicle_ids:
+                edge_id:
+        :return:
+        '''
+        c_ts = self.traci.simulation.getTime()
+
+        for vid in vehicle_ids:
+            if (self.traci.vehicle.getRoadID(vid) == edge_id
+                    and vid not in self.counted_vehicles):
+                self.counted_vehicles.add(vid)
+
+                if c_ts >= warmup_time:
+                    self.throughput_count += 1
         effective_st = max(st - warmup_time, self.sim_step)
         return self.throughput_count * 3600 / effective_st
 

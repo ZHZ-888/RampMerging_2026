@@ -202,7 +202,7 @@ if __name__ == '__main__':
         av_p = 0,
         r_fr = 1400, # 1300
         m_fr = 1500,
-        seed = 5,
+        seed = 10,
         gui = False,
         plot = False,
         display = False,

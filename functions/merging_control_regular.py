@@ -54,6 +54,7 @@ class MergingControlRegular:
         self.dic_leader_action_updated = {} # update action start time
 
         self.speed_control_released = set()
+        self.new_leader_flag = False
 
         self.ml = ml
         # random forest arrival time prediction model
@@ -83,6 +84,7 @@ class MergingControlRegular:
         curr_set = set(ls_leader_up)
         new_leaders = curr_set - prev_set
         new_leader_flag = len(new_leaders) > 0
+        self.new_leader_flag = new_leader_flag
         if new_leader_flag:
             pass
 

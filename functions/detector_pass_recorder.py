@@ -15,6 +15,7 @@ class DetectorPassRecorder:
         # Format: {veh_id: pass_time}
         # The insertion order represents the passing order.
         self.dic_pass_time = {'pfz_entry': {}, 'mcz_entry': {}}
+        self.ms_exit_speed = None
 
         # Newly detected vehicles in the current simulation step.
         self.new_pass_vid = {
@@ -36,6 +37,10 @@ class DetectorPassRecorder:
         """
 
         c_ts = round(step / 10 + 0.1, 1)
+
+        ms_exit_speed = self.traci.inductionloop.getLastStepMeanSpeed('ms_exit')
+        if ms_exit_speed >= 0:
+            self.ms_exit_speed = ms_exit_speed
 
         # Reset newly passed vehicle at each step.
         self.new_pass_vid = {

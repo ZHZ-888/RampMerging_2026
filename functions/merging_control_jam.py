@@ -51,7 +51,7 @@ class MergingControlJam:
         self.jam_mode_start_ts = None
         self.first_ramp_stop_ts = None
         self.delta_t = None
-        self.cooldown_dur = 60
+        self.cooldown_dur = 30
         self.last_m_leader = None
 
         self.buffer = 1.5 # platoon-to-platoon time buffer, 1.5 s
@@ -533,7 +533,7 @@ class MergingControlJam:
 
             # 3.3 between platoons
             for i, head_id in enumerate(ls_m_leader_up_asc):
-                if head_id == 'm_av4936':
+                if head_id == 'm_av3171':
                     pass
                 if head_id not in self.dic_mplatoon_et:
                     headway_differences[head_id] = 0
@@ -699,12 +699,19 @@ class MergingControlJam:
             if c_ts - self.first_ramp_stop_ts < self.cooldown_dur:
                 return self.dic_m_leader_action_params
 
-        if not (step % mpc_interval == 0 or (
-                last_stop_ts is not None and c_ts == last_stop_ts + 0.1)):  # *10 because sim_step=0.1
+        if not (step % mpc_interval == 0 or
+                (last_stop_ts is not None and c_ts == last_stop_ts + 0.1) or
+                self.merge_regular.new_leader_flag):
+            # *10 because sim_step=0.1
             # move forward only if in mpc_interval or just after stop
+            # or just new m_leader emerged in MCZ-M
             return self.dic_m_leader_action_params
 
         if not m_leader:
+            return self.dic_m_leader_action_params
+
+        if self.data_recorder.ms_exit_speed < 19.44:
+            # if latest veihcle's speed exit MS is too low, no action
             return self.dic_m_leader_action_params
 
         pv_m_leader_info = self.traci.vehicle.getLeader(m_leader)
@@ -1010,7 +1017,7 @@ class ShiftMode:
 
         self.ws1_slow_ts = None
         self.r_leader_past_half_acc_ts = None
-        self.mode_trigger_window = 3.0
+        self.mode_trigger_window = 5.0
 
     def determine_mode4(self, ls_m_veh_up_asc, ls_r_veh_up, ls_r_leader_up):
         '''
@@ -1146,7 +1153,7 @@ class ShiftMode:
         return self.regular_mode, self.jam_mode
 
 
-    def determine_mode_low_sensor_reliance(self, ls_m_leader_up_asc, ls_r_leader_wsA_asc,
+    def determine_mode_low_sensor_reliance(self, ls_r_leader_wsA_asc,
                                            ls_wsB_av_asc):
         '''
         Determine regular/jam mode with low-sensor inputs.

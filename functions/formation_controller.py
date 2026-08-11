@@ -216,6 +216,8 @@ class FormationController:
         # ******** UPDATE PLATOON MEMBERS BY LOOP DETECTOR RECORD INFO ********
         _ = self.pass_recorder.update(step)
         _ = self.pass_recorder.count_platoon_size(ls_leader_AV, 'mcz_entry')
+        # update the last passed vehicles' speed at the exit of Merging Section
+        self.data_recorder.ms_exit_speed = self.pass_recorder.ms_exit_speed
 
         # ******** RECORD INFO ********
         dic_member_to_leader = self.p_basic.update_member_to_leader(dic_platoon_members)
