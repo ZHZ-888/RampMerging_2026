@@ -94,14 +94,14 @@ class MergingController:
         #     ls_r_leader_up
         # )
 
-        # regular_mode, jam_mode = self.mode_switch.determine_mode_flexible_merge_point(
-        #     ls_wsB_asc,
-        #     ls_wsA_asc,
-        #     ls_r_leader_up)
+        regular_mode, jam_mode = self.mode_switch.determine_mode_flexible_merge_point(
+            ls_wsB_asc,
+            ls_wsA_asc,
+            ls_r_leader_up)
 
-        regular_mode, jam_mode = self.mode_switch.determine_mode_low_sensor_reliance(
-            ls_r_leader_wsA_asc,
-            ls_wsB_av_asc)
+        # regular_mode, jam_mode = self.mode_switch.determine_mode_low_sensor_reliance(
+        #     ls_r_leader_wsA_asc,
+        #     ls_wsB_av_asc)
 
         # jam_mode = True
         # regular_mode = False
