@@ -18,6 +18,7 @@ from functions import merging_controller as mc
 from functions import data_recording as dr
 # Shared tools for arguments, KPIs, and CSV logging.// CLI and HPC
 from functions import hpc_utils
+from functions import accident_simulation
 
 
 def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0.1,
@@ -114,7 +115,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
                                                   warmup_time=hpc_utils.DEFAULT_WARMUP_TIME)
 
         (dic_follower_state, his_dic_platoon_size,
-         dic_id_features, tp, speed_log, queue_log, ts_first_jam) = \
+         dic_id_features, tp, speed_log, queue_log, ts_first_jam, ts_first_back_to_regular) = \
             loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller,
                  lc, r_autoFollow_p, m0_dpt_type, m1_dpt_type, r_dpt_type)
 
@@ -142,7 +143,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
         traci.close()
     return (dic_follower_state, his_dic_platoon_size, dic_id_features,
             tp, speed_log, queue_log, output_file_path,
-            se_result, ce_result, ts_first_jam)
+            se_result, ce_result, ts_first_jam, ts_first_back_to_regular)
 
 def loop(traci, st, data_recorder,
          veh_gen, formation_controller, merging_controller, lc,
@@ -175,16 +176,15 @@ def loop(traci, st, data_recorder,
         (dic_follower_state, his_dic_platoon_size,
          dic_id_features) = formation_controller.step(st, step, lc)
 
-        tp, queue_log, ts_first_jam = merging_controller.step(st, step, r_dpt_type)
+        tp, queue_log, ts_first_jam, ts_first_back_to_regular = merging_controller.step(st, step, r_dpt_type)
+
+        accident_simulation.sudden_accident(traci, step, data_recorder)
 
         data_recorder.record_tail_arrival(step)
         step += 1
 
     # Flush-out stage: stop generating vehicles, but keep merging control active
     # so stopped ramp vehicles can be released and complete their trips.
-    horizon_tp = tp
-    horizon_queue_log = queue_log
-    horizon_ts_first_jam = ts_first_jam
     while traci.simulation.getMinExpectedNumber() > 0:
         traci.simulationStep()
         data_recorder.record_multi_lane_info()
@@ -194,12 +194,9 @@ def loop(traci, st, data_recorder,
 
     del merging_controller.speed_log[st*10+1:]
     speed_log = merging_controller.speed_log
-    tp = horizon_tp
-    queue_log = horizon_queue_log
-    ts_first_jam = horizon_ts_first_jam
 
     return (dic_follower_state, his_dic_platoon_size, dic_id_features,
-            tp, speed_log, queue_log, ts_first_jam)
+            tp, speed_log, queue_log, ts_first_jam, ts_first_back_to_regular)
 
 def main(args=None, root=None):
     """
@@ -218,7 +215,7 @@ def main(args=None, root=None):
     start = time.time()
     (dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, output_file_path,
-     se_result, ce_result, ts_first_jam) = mpgc_main(
+     se_result, ce_result, ts_first_jam, ts_first_back_to_regular) = mpgc_main(
         av_p=parsed_args.av_p, # default 0.1
         r_fr=parsed_args.r_fr, # default 800
         m_fr=parsed_args.m_fr, # default 1500; parsed_args.m_fr
@@ -278,6 +275,7 @@ def main(args=None, root=None):
             "ramp_entry_count": ramp_entry_count,
             "mrm_insertion_count": mrm_insertion_count,
             "ts_first_jam": ts_first_jam,
+            "ts_first_back_to_regular": ts_first_back_to_regular,
             "runtime": runtime
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
@@ -322,11 +320,11 @@ if __name__ == '__main__':
     st = 1500 # 1500
     (dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, output_file_path,
-     se_result, ce_result, ts_first_jam) = mpgc_main(
+     se_result, ce_result, ts_first_jam, ts_first_back_to_regular) = mpgc_main(
         av_p = 0.1, # 0.1
-        r_fr = 1400, # 1300
+        r_fr = 600, # 1300
         m_fr = 1500, # 1500
-        seed = 5, # 2 analysis
+        seed = 2, # 2 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
@@ -349,4 +347,4 @@ if __name__ == '__main__':
         hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st)) # 1 => 1.5s
     hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
     hpc_utils.get_mrm_insertion_counts(output_file_path['xml_path'], hpc_utils.DEFAULT_WARMUP_TIME, st)
-    print(f'ts_first_jam: {ts_first_jam}')
+    print(f'ts_first_jam: {ts_first_jam}, ts_first_back_to_regular: {ts_first_back_to_regular}')

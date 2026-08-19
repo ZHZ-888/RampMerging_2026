@@ -31,6 +31,7 @@ class MergingController:
         self.speed_log = []  # [step, avg_speed, True/False], True/False Jam
 
         self.ts_first_jam = None
+        self.ts_first_back_to_regular = None
 
     def step(self, st, step, r_dpt_type):
         '''
@@ -43,8 +44,6 @@ class MergingController:
 
         :return:
         '''
-        if step == 360:
-            pass
         c_ts = round(step/10 + 0.1, 1)
 
         if not self.ls_r_dep_times:
@@ -127,6 +126,9 @@ class MergingController:
             )  # queue_length
 
         elif regular_mode:
+            if self.ts_first_jam and self.ts_first_back_to_regular is None:
+                self.ts_first_back_to_regular = c_ts
+
             # reset jam_mode params
             self.reset_jam_mode()
 
@@ -151,7 +153,7 @@ class MergingController:
         self.speed_log.append(step_speed)  # collect into one list
 
         # If neither regular nor jam_mode, jam_mode is False by default.
-        return tp, queue_log, self.ts_first_jam
+        return tp, queue_log, self.ts_first_jam, self.ts_first_back_to_regular
 
 
     def reset_jam_mode(self):

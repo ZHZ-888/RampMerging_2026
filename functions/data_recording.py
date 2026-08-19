@@ -365,6 +365,7 @@ class DataRecording:
         self.dic_vid_groups['ls_wsBC_hv_asc'] = ls_wsBC_hv_asc
 
         # veh on center
+        self.dic_vid_groups['ls_centerA_asc'] = ls_centerA_asc
         self.dic_vid_groups['ls_centerA_av_asc'] = ls_centerA_av_asc
         self.dic_vid_groups['ls_centerA_hv_asc'] = ls_centerA_hv_asc
         self.dic_vid_groups['ls_centerB_av_asc'] = ls_centerB_av_asc

@@ -227,7 +227,7 @@ if __name__ == '__main__':
     print(">>> Running Local RM Test (Direct Function Call)...")
     prc.PRINT_ENABLED = False
     start = time.time()
-    st = 1500
+    st = 300
     speed_log, tp, output_file_path = rm_main(
         av_p = 0,
         r_fr = 1400,
