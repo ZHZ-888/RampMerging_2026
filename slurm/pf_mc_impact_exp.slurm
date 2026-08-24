@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=pf_ablation
+#SBATCH --job-name=pf_mc_impact_exp
 #SBATCH --time=00:20:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
-#SBATCH --output=output-logs/pf_ablation_%A_%a.out
-#SBATCH --error=error-logs/pf_ablation_%A_%a.err
+#SBATCH --output=output-logs/pf_mc_impact_exp_%A_%a.out
+#SBATCH --error=error-logs/pf_mc_impact_exp_%A_%a.err
 
 # Submit with:
-# sbatch --array=0-119 slurm/pf_ablation.slurm
+# sbatch --array=0-19 slurm/pf_mc_impact_exp.slurm
 
 set -euo pipefail
 
@@ -32,7 +32,7 @@ mkdir -p error-logs
 # ================================
 # Trajectory output directory
 # ================================
-export TRAJ_DIR="/nesi/nobackup/uoa04480/traj/pf_ablation/${SLURM_ARRAY_JOB_ID}"
+export TRAJ_DIR="/nesi/nobackup/uoa04480/traj/pf_mc_impact_exp/${SLURM_ARRAY_JOB_ID}"
 mkdir -p "$TRAJ_DIR"
 
 echo "TRAJ_DIR=$TRAJ_DIR"
@@ -40,8 +40,9 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # ================================
 # Fixed experiment settings
 # ================================
-R_FR=0
+R_FR=800
 M_FR=1500
+AV_P=0.1
 ST=1500
 MAX_TEAM_SIZE=12
 TSG_MODE=predict
@@ -49,36 +50,31 @@ TSG_MODE=predict
 # ================================
 # Parameter sweep
 # ================================
-FC_MODES=(dla_only dla_lhr dla_lhr_ce full)
-AV_P_VALS=(0.1 0.2 0.3)
+FC_MODES=(dla_only full)
 SEEDS=(0 1 2 3 4 5 6 7 8 9)
 
 NM=${#FC_MODES[@]}
-NAV=${#AV_P_VALS[@]}
 NS=${#SEEDS[@]}
-NT=$((NM * NAV * NS))
+NT=$((NM * NS))
 
 # ================================
 # Check task id
 # ================================
 if [ -z "${SLURM_ARRAY_TASK_ID:-}" ]; then
     echo "Error: SLURM_ARRAY_TASK_ID is not set."
-    echo "Submit with: sbatch --array=0-$((NT-1)) slurm/pf_ablation.slurm"
+    echo "Submit with: sbatch --array=0-$((NT-1)) slurm/pf_mc_impact_exp.slurm"
     exit 1
 fi
 
 TASK_ID=${SLURM_ARRAY_TASK_ID}
 
 # ================================
-# Map task id -> (fc_mode, av_p, seed)
+# Map task id -> (fc_mode, seed)
 # ================================
-mode_idx=$(( TASK_ID / (NAV * NS) ))
-rem=$(( TASK_ID % (NAV * NS) ))
-av_idx=$(( rem / NS ))
-s_idx=$(( rem % NS ))
+mode_idx=$(( TASK_ID / NS ))
+s_idx=$(( TASK_ID % NS ))
 
 FC_MODE=${FC_MODES[$mode_idx]}
-AV_P=${AV_P_VALS[$av_idx]}
 SEED=${SEEDS[$s_idx]}
 
 export PYTHONHASHSEED="$SEED"
@@ -98,9 +94,10 @@ echo "=================================="
 # ================================
 # Output CSV
 # ================================
-mkdir -p data/raw/pf_ablation
+mkdir -p data/raw/pf_mc_impact_exp
 
-OUT_CSV="data/raw/pf_ablation/pf_ablation_${FC_MODE}_av${AV_P}_seed${SEED}.csv"
+OUT_CSV="data/raw/pf_mc_impact_exp/pf_mc_${FC_MODE}_av${AV_P}_m${M_FR}_r${R_FR}_seed${SEED}.csv"
+
 # ================================
 # Run simulation
 # ================================
@@ -114,7 +111,7 @@ python run.py \
     --max_team_size "$MAX_TEAM_SIZE" \
     --tsg_mode "$TSG_MODE" \
     --fc_mode "$FC_MODE" \
-    --no-lc \
+    --lc \
     --out_csv "$OUT_CSV"
 
 echo "Finished TASK_ID=$TASK_ID"
