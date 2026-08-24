@@ -293,36 +293,6 @@ def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=12):
     }
     return result
 
-# def get_fc_indicator(dic_follower_state, his_dic_platoon_size, max_size=12):
-#     '''
-#     get formation control indicators
-#     Parameters
-#     ----------
-#     dic_follower_state: {'mhv48': ['following_mode', 'mav38'], 'mhv65': ['following_mode', 'mav38']}
-#     his_dic_platoon_size: {'mav38': 11, 'mav278': 11, 'mav754': 11}; history of dic_platoon_size
-#     max_size: int, optional
-#         Maximum allowed platoon size used to define a standard platoon.
-#
-#     Outputs:
-#         CRF: constrained-following ratio
-#         SPR: standard-platoon ratio
-#     '''
-#
-#     num_follower = len(dic_follower_state)
-#     num_platoon_follower = len([k for k, v in dic_follower_state.items() if v[0] == 'following_mode'])
-#     print("\n           ---formation control performance indicators---")
-#     print(f"CFR: {num_platoon_follower} platoon_followers, {num_follower} followers, "
-#           f"ratio: {num_platoon_follower / num_follower * 100:.2f}%")
-#     ca_indicator = round(num_platoon_follower / num_follower, 3)
-#
-#     num_platoon = len(his_dic_platoon_size)
-#     num_normal_size_platoon = len([k for k, v in his_dic_platoon_size.items() if v <= max_size])
-#     print(f"SPR: {num_normal_size_platoon} standard_platoon, {num_platoon} platoon, "
-#           f"ratio: {num_normal_size_platoon / num_platoon * 100:.2f}%, ")
-#     sa_indicator = round(num_normal_size_platoon / num_platoon, 3)
-#
-#     return ca_indicator, sa_indicator
-
 def write_one_row_csv(path: str, row: dict):
     """Writes a single row to a CSV file safely."""
     # Safety check: do nothing if no path is provided

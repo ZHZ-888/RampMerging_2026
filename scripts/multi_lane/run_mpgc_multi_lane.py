@@ -50,15 +50,15 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
     traj_dir = Path(os.environ.get("TRAJ_DIR", ROOT / "data" / "multi_lane" / "algo"))
     task_id = os.environ.get("SLURM_ARRAY_TASK_ID", "local")
     size_tag = f"mts{max_team_size}"
-    file_name = f"trj_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{task_id}.xml"
+    file_name = f"trj_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{fc_mode}_{task_id}.xml"
     xml_path = os.path.join(traj_dir, file_name)
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    lc_file_name = f"lc_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{task_id}.xml"
+    lc_file_name = f"lc_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{fc_mode}_{task_id}.xml"
     lc_path = os.path.join(traj_dir, lc_file_name)
-    ssm_file_name = f"ssm_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{task_id}.xml"
+    ssm_file_name = f"ssm_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{fc_mode}_{task_id}.xml"
     ssm_path = traj_dir / ssm_file_name
     # delay indicators
-    trip_file_name = f'tripinfo_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{task_id}.xml'
+    trip_file_name = f'tripinfo_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{fc_mode}_{task_id}.xml'
     tripinfo_path = os.path.join(traj_dir, trip_file_name)
 
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
@@ -158,8 +158,6 @@ def loop(traci, st, data_recorder,
         # checkpoint
         if step > 600 * 10:
              pass
-        if step > 1600 * 10:
-            pass
         traci.simulationStep()  # start simulation
 
         c_ts = traci.simulation.getTime()  # current_timestep
@@ -330,15 +328,15 @@ if __name__ == '__main__':
         av_p = 0.1, # 0.1
         r_fr = 800, # 1300
         m_fr = 1500, # 1500
-        seed = 5, # 2 analysis
+        seed = 9, # 2 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
-        gui = True,
+        gui = False,
         plot = False,
         display = False,
         lc = True, # if allow HV lane-changing; True
-        fc_mode = 'dla_only', # full/dla_only/dla_lhr/dla_lhr_ce
+        fc_mode = 'full', # full/dla_only/dla_lhr/dla_lhr_ce
         st = st, # 1200
         tsg_mode = 'predict', # off/fix/predict/train/audit
         max_team_size = max_team_size

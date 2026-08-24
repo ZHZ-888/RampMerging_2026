@@ -20,6 +20,7 @@ module load Python/3.11.3-gimkl-2022a
 source /nesi/project/uoa04480/myenv/bin/activate
 
 # Deterministic behaviour
+export PYTHONHASHSEED=1
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 
@@ -40,7 +41,7 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # ================================
 # Fixed experiment settings
 # ================================
-R_FR=1000
+R_FR=800
 M_FR=1500
 AV_P=0.1
 ST=1500
@@ -76,8 +77,6 @@ s_idx=$(( TASK_ID % NS ))
 
 FC_MODE=${FC_MODES[$mode_idx]}
 SEED=${SEEDS[$s_idx]}
-
-export PYTHONHASHSEED="$SEED"
 
 echo "=================================="
 echo "TASK_ID : $TASK_ID"
