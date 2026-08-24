@@ -237,8 +237,6 @@ def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=12):
 
         # Count oversized platoons
         if platoon_size > max_size:
-            if leader_id in ['mb_av9304', 'm_av11610']:
-                pass
             over_pltn += 1
             ls_oversized_leader.append(leader_id)
             continue
@@ -251,8 +249,6 @@ def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=12):
         # A non-oversized platoon is considered sparse
         # if any follower is not in following_mode.
         if any(state != "following_mode" for state in follower_states):
-            if leader_id in ['mb_av5939', 'mb_av7435']:
-                pass
             ls_sparse_leader.append(leader_id)
             sparse_pltn += 1
         else:
@@ -266,13 +262,7 @@ def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=12):
 
     sum_platoon_count = over_pltn + non_over_pltn
 
-    result = {
-        "over_pltn": over_pltn,
-        "non_over_pltn": non_over_pltn,
-        "std_pltn": std_pltn,
-        "sparse_pltn": sparse_pltn,
-        "avg_pltn_size": avg_pltn_size,
-    }
+
     print("\nNon standard platoon leaders:")
     print(f"Oversized leaders: {ls_oversized_leader}")
     print(f"Sparse leaders: {ls_sparse_leader}")
@@ -280,38 +270,58 @@ def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=12):
     print("\nFormation Control Statistics:")
     print(f'Sum (Over, NonOver): {sum_platoon_count} ({over_pltn}, {non_over_pltn})')
     print(f'NonOver (Sparse, Standard): {non_over_pltn} ({sparse_pltn}, {std_pltn})')
-    print(f"Avg Platoon Size  : {result['avg_pltn_size']:.2f}")
-    return result
-
-def get_fc_indicator(dic_follower_state, his_dic_platoon_size, max_size=12):
-    '''
-    get formation control indicators
-    Parameters
-    ----------
-    dic_follower_state: {'mhv48': ['following_mode', 'mav38'], 'mhv65': ['following_mode', 'mav38']}
-    his_dic_platoon_size: {'mav38': 11, 'mav278': 11, 'mav754': 11}; history of dic_platoon_size
-    max_size: int, optional
-        Maximum allowed platoon size used to define a standard platoon.
-    '''
-    # PLATOON FORMATION results
-    # indicator 1: num.platoon_followers/num.followers %
-
-    # print(dic_follower_state)
-    # print(his_dic_platoon_size)
+    print(f"Avg Platoon Size  : {avg_pltn_size:.2f}")
 
     num_follower = len(dic_follower_state)
     num_platoon_follower = len([k for k, v in dic_follower_state.items() if v[0] == 'following_mode'])
+    cfr = round(num_platoon_follower / num_follower, 3)
+    spr = round(std_pltn / sum_platoon_count, 3)
     print("\n           ---formation control performance indicators---")
-    print(f"index1: {num_platoon_follower} platoon_followers, {num_follower} followers, "
-          f"ratio: {num_platoon_follower / num_follower * 100:.2f}%")
-    ca_indicator = round(num_platoon_follower / num_follower, 3)
-    # indicator 2: num.normal_size_platoon/num.platoon
-    num_platoon = len(his_dic_platoon_size)
-    num_normal_size_platoon = len([k for k, v in his_dic_platoon_size.items() if v <= max_size])
-    print(f"index2: {num_normal_size_platoon} standard_platoon, {num_platoon} platoon, "
-          f"ratio: {num_normal_size_platoon / num_platoon * 100:.2f}%, ")
-    sa_indicator = round(num_normal_size_platoon / num_platoon, 3)
-    return ca_indicator, sa_indicator
+    print(f"CFR: {num_platoon_follower} platoon_followers, {num_follower} followers, "
+          f"ratio: {cfr * 100:.2f}%")
+    print(f"SPR: {std_pltn} standard_platoon, {sum_platoon_count} platoon, "
+          f"ratio: {spr * 100:.2f}%, ")
+
+    result = {
+        "over_pltn": over_pltn,
+        "non_over_pltn": non_over_pltn,
+        "std_pltn": std_pltn,
+        "sparse_pltn": sparse_pltn,
+        "avg_pltn_size": avg_pltn_size,
+        "cfr": cfr,
+        "spr": spr
+    }
+    return result
+
+# def get_fc_indicator(dic_follower_state, his_dic_platoon_size, max_size=12):
+#     '''
+#     get formation control indicators
+#     Parameters
+#     ----------
+#     dic_follower_state: {'mhv48': ['following_mode', 'mav38'], 'mhv65': ['following_mode', 'mav38']}
+#     his_dic_platoon_size: {'mav38': 11, 'mav278': 11, 'mav754': 11}; history of dic_platoon_size
+#     max_size: int, optional
+#         Maximum allowed platoon size used to define a standard platoon.
+#
+#     Outputs:
+#         CRF: constrained-following ratio
+#         SPR: standard-platoon ratio
+#     '''
+#
+#     num_follower = len(dic_follower_state)
+#     num_platoon_follower = len([k for k, v in dic_follower_state.items() if v[0] == 'following_mode'])
+#     print("\n           ---formation control performance indicators---")
+#     print(f"CFR: {num_platoon_follower} platoon_followers, {num_follower} followers, "
+#           f"ratio: {num_platoon_follower / num_follower * 100:.2f}%")
+#     ca_indicator = round(num_platoon_follower / num_follower, 3)
+#
+#     num_platoon = len(his_dic_platoon_size)
+#     num_normal_size_platoon = len([k for k, v in his_dic_platoon_size.items() if v <= max_size])
+#     print(f"SPR: {num_normal_size_platoon} standard_platoon, {num_platoon} platoon, "
+#           f"ratio: {num_normal_size_platoon / num_platoon * 100:.2f}%, ")
+#     sa_indicator = round(num_normal_size_platoon / num_platoon, 3)
+#
+#     return ca_indicator, sa_indicator
 
 def write_one_row_csv(path: str, row: dict):
     """Writes a single row to a CSV file safely."""

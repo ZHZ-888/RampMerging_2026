@@ -32,15 +32,16 @@ from collections import Counter
 import numpy as np
 from collections import defaultdict
 
-def _generate_type_num4(av_percentage, flow_rate, simulation_time, platoon_percentage, seed=None, tries=7):
+def _generate_type_num4(av_p, fr, st,
+                        platoon_percentage, seed=None, tries=7):
     '''
     Generate platoon types based on Poisson distribution.
     Each platoon is led by an AV, with up to 11 followers.
     Followers prefer HVs, but AVs can be used if HVs run out.
 
-    :param av_percentage: proportion of AVs in all vehicles (0-1)
-    :param flow_rate: vehicles per hour
-    :param simulation_time: seconds
+    :param av_p: proportion of AVs in all vehicles (0-1)
+    :param fr: vehicles per hour
+    :param st: seconds
     :param platoon_percentage: proportion of vehicles in platoons
     :param seed: random seed
     :param tries: number of attempts to optimize AV/HV allocation
@@ -48,15 +49,15 @@ def _generate_type_num4(av_percentage, flow_rate, simulation_time, platoon_perce
                   More AVs → smaller lambda (shorter platoons); fewer AVs → larger lambda
     :return: dic_type_count =  {'1 lead 0': (count, av_follower_num), '1 lead 1': (count, av_follower_num), ...}
     '''
-    total_veh_num = int((flow_rate * simulation_time) / 3600)
-    # number of free HV
-    free_hv_num = int(total_veh_num * (1-platoon_percentage))
-    platoon_veh_num = int(total_veh_num * platoon_percentage)
-    av_num = int(total_veh_num * av_percentage)
-    hv_num = int(platoon_veh_num - av_num)
+    expect_veh_num = int((fr * st) / 3600)
+    # free_hv, platoon_hv
+    expect_free_hv_num = int(expect_veh_num * (1-platoon_percentage))
+    expect_platoon_veh_num = int(expect_veh_num * platoon_percentage)
+    expect_av_num = int(expect_veh_num * av_p)
+    expect_hv_num = int(expect_platoon_veh_num - expect_av_num)
 
     alpha = 1.0
-    lambda_val = alpha * (1 - av_percentage) / av_percentage #
+    lambda_val = alpha * (1 - av_p) / av_p #
     max_follower = 11
 
     best_result = None
@@ -70,14 +71,14 @@ def _generate_type_num4(av_percentage, flow_rate, simulation_time, platoon_perce
         used_hv = 0
 
         while True:
-            if used_av >= av_num:
+            if used_av >= expect_av_num:
                 break
 
             n_followers = min(rng.poisson(lambda_val), max_follower)
-            n_hv = min(n_followers, hv_num - used_hv)
+            n_hv = min(n_followers, expect_hv_num - used_hv)
             n_av = n_followers - n_hv
 
-            if used_av + 1 + n_av > av_num:
+            if used_av + 1 + n_av > expect_av_num:
                 break
 
             platoon_key = f"1 lead {n_followers}"
@@ -92,11 +93,11 @@ def _generate_type_num4(av_percentage, flow_rate, simulation_time, platoon_perce
         # Evaluate difference
         total_leader_av = sum(v[0] for v in result.values())
         total_follower_av = sum(v[1] for v in result.values())
-        result_av = total_leader_av + total_follower_av
-        result_hv = sum(int(k.split()[-1]) * v[0] - v[1] for k, v in result.items())
+        gen_av_num = total_leader_av + total_follower_av
+        gen_hv_num = sum(int(k.split()[-1]) * v[0] - v[1] for k, v in result.items())
 
-        av_diff = abs(av_num - result_av)
-        hv_diff = abs(hv_num - result_hv)
+        av_diff = abs(expect_av_num - gen_av_num)
+        hv_diff = abs(expect_hv_num - gen_hv_num)
         total_diff = av_diff + hv_diff
 
         if total_diff < min_total_diff:
@@ -111,22 +112,24 @@ def _generate_type_num4(av_percentage, flow_rate, simulation_time, platoon_perce
         key=lambda x: int(x[0].split()[-1])
     ))
 
-    # Final printout
-    print("Final Comparison:")
+    # print info
+    sh = st / 3600 # simulation time (s) => simulation hour (h)
     result_leaderAV_num = sum(v[0] for v in sorted_distribution.values())
     result_followerAV_num = sum(v[1] for v in sorted_distribution.values())
-    result_av_num = result_leaderAV_num + result_followerAV_num
-    result_hv_num = sum(int(k.split()[-1]) * v[0] - v[1] for k, v in sorted_distribution.items())
-    result_total_veh_num = result_hv_num + result_av_num
-    print('              ---overview---')
-    print(f'total_veh_num: {total_veh_num}, free_hv_num: {free_hv_num}')
-    print(f'platoon_veh_num: {platoon_veh_num}, platoon_av: {av_num}, platoon_hv: {hv_num}')
+    gen_av_num = result_leaderAV_num + result_followerAV_num
+    gen_hv_num = sum(int(k.split()[-1]) * v[0] - v[1] for k, v in sorted_distribution.items())
+    gen_veh_num = gen_av_num + gen_hv_num
+    gen_demands = int(gen_veh_num / sh)
+    print('           ---generation overview (platoon)---')
+    print(f'expect_demands: {fr} veh/h, gen_demands: {gen_demands} veh/h')
+    print(f'expect_veh_num: {expect_veh_num}, gen_veh_num: {gen_veh_num}, diff: {expect_veh_num - gen_veh_num}')
+    print(f'expect_av_num: {expect_av_num}, gen_av_num: {gen_av_num}, diff: {expect_av_num - gen_av_num}')
+    print(f"Target av_p: {expect_av_num / expect_veh_num:.2f}, av_p: {gen_av_num / gen_veh_num:.2f}")
     print('              ---detail---')
-    print(f"Target AVs: {av_num}, Allocated AVs: {result_av_num}, Difference: {av_num - result_av_num}")
-    print(f"Target HVs: {hv_num}, Allocated HVs: {result_hv_num}, Difference: {hv_num - result_hv_num}")
+    print(f'expect_veh_num: {expect_veh_num}, expect_free_hv_num: {expect_free_hv_num}')
+    print(f'expect_platoon_veh_num: {expect_platoon_veh_num}, platoon_av: {expect_av_num}, platoon_hv: {expect_hv_num}')
     print(f'result_leaderAV_num: {result_leaderAV_num}, result_followerAV_num: {result_followerAV_num}')
-    print(f"Target av_p: {av_num / total_veh_num:.2f}, av_p: {result_av_num / result_total_veh_num:.2f}")
-    return sorted_distribution, result_followerAV_num, free_hv_num
+    return sorted_distribution, result_followerAV_num, expect_free_hv_num
 
 def generate_dt(dic_type_num, simulation_time, interval=0, seed=None):
     '''
@@ -609,7 +612,7 @@ def get_schedule2(st, av_p, fr, platoon_p=1, max_attempts=5, plot=False, seed=No
     if fr == 0:
         return {}
     dic_type_count, followerAV_num, freeHV_num = _generate_type_num4(
-        av_percentage=av_p, flow_rate=fr, simulation_time=st,
+        av_p=av_p, fr=fr, st=st,
         platoon_percentage=platoon_p, seed=seed)
     max_interval = find_max_interval2(st, dic_type_count)
     dp_times_dict, dp_times = find_optimse_schedule2(dic_type_count, st, max_interval, \
@@ -638,8 +641,8 @@ def get_schedule_dynamic(st, change_t, av_p, fr, platoon_p=1, max_attempts=5,
     :return:
     '''
     real_st = st - change_t # the total time for vehicle generation
-    dic_type_count, followerAV_num, freeHV_num = _generate_type_num4(av_percentage=av_p, flow_rate=fr,
-                                                            simulation_time=real_st,
+    dic_type_count, followerAV_num, freeHV_num = _generate_type_num4(av_p=av_p, fr=fr,
+                                                            st=real_st,
                                                             platoon_percentage=platoon_p,
                                                             seed=seed)
     max_interval = find_max_interval2(real_st, dic_type_count)

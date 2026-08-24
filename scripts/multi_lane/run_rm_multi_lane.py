@@ -107,6 +107,13 @@ def loop(traci, st, veh_gen,
     occupancy_sum = 0
     occupancy_samples = 0
 
+    rm_debug_path = "rm_debug.csv"
+    with open(rm_debug_path, "w") as f:
+        f.write(
+            "time,center_occupancy,"
+            "release_rate,green_time,red_time\n"
+        )
+
     # scripts loop
     while step < horizon_steps:
         # checkpoint
@@ -133,18 +140,30 @@ def loop(traci, st, veh_gen,
             st, ls_veh_id, 'center',
             warmup_time=hpc_utils.DEFAULT_WARMUP_TIME)  # throughput
 
-        occupancy_sum += rm_algo.get_current_density("center_0")
+        # occupancy_sum += rm_algo.get_current_density("center_0")
+        occupancy_sum += rm_algo.get_detector_occupancy("rm_occ_detector")
         occupancy_samples += 1
 
-        if c_ts % 90 == 0:
+        if c_ts % 60 == 0: # 90
             des_center = occupancy_sum / occupancy_samples
             des_ramp = rm_algo.get_current_density("inflow_merge_0")
 
             c_release_rate = rm_algo.alinea_control(des_center)
-            prc.print_message(f'c_release_rate: {c_release_rate}')
+            # prc.print_message(f'c_release_rate: {c_release_rate}')
+
+            g_time, r_time = rm_algo.set_ramp_metering_signal('center', c_release_rate)
+
+            with open(rm_debug_path, "a") as f:
+                f.write(
+                    f"{c_ts},"
+                    f"{des_center:.4f},"
+                    # f"{des_ramp:.4f},"
+                    f"{c_release_rate:.2f},"
+                    f"{g_time:.2f},"
+                    f"{r_time:.2f}\n"
+                )
 
             # set the green time of the signal
-            g_time, r_time = rm_algo.set_ramp_metering_signal('center', c_release_rate)
             occupancy_sum = 0
             occupancy_samples = 0
 
@@ -227,13 +246,13 @@ if __name__ == '__main__':
     print(">>> Running Local RM Test (Direct Function Call)...")
     prc.PRINT_ENABLED = False
     start = time.time()
-    st = 300
+    st = 1500
     speed_log, tp, output_file_path = rm_main(
         av_p = 0,
         r_fr = 1400,
         m_fr = 1500,
-        seed = 10,
-        gui = False,
+        seed = 5,
+        gui = True,
         plot = False,
         display = False,
         st = st

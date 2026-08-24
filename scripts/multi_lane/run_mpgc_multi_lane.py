@@ -3,6 +3,7 @@ run_mpgc_multi_lane.py
 multi-lane simulation
 test longer platoon
 '''
+import argparse
 import os
 import time
 from pathlib import Path
@@ -21,9 +22,9 @@ from functions import hpc_utils
 from functions import accident_simulation
 
 
-def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0.1,
+def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0,
               gui=False, plot=False, display=False, lc=True, st=1500,
-              tsg_mode='predict', max_team_size=12):
+              tsg_mode='predict', max_team_size=12, fc_mode='full'):
     set_global_seed(seed, enable=True)  # set global random seed (especially for RL training)
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
@@ -108,7 +109,8 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
 
         formation_controller = fc.FormationController(data_recorder, traci,
                                                       loss_rate=loss_rate, tsg_mode=tsg_mode,
-                                                      max_team_size=max_team_size) # fix/off/predict/train/audit
+                                                      max_team_size=max_team_size,
+                                                      fc_mode=fc_mode) # fix/off/predict/train/audit
         merging_controller = mc.MergingController(data_recorder, traci, av_p,
                                                   platoon_formation=True, ml=True,
                                                   loss_rate=loss_rate,
@@ -178,7 +180,7 @@ def loop(traci, st, data_recorder,
 
         tp, queue_log, ts_first_jam, ts_first_back_to_regular = merging_controller.step(st, step, r_dpt_type)
 
-        accident_simulation.sudden_accident(traci, step, data_recorder)
+        # accident_simulation.sudden_accident(traci, step, data_recorder)
 
         data_recorder.record_tail_arrival(step)
         step += 1
@@ -208,6 +210,10 @@ def main(args=None, root=None):
 
     # 1. Parse Args (HPC/CLI Mode)
     parser = hpc_utils.standard_arg_parser()
+    parser.add_argument('--fc_mode', choices=fc.FC_MODES,
+                        default='full', help='Platoon formation ablation mode')
+    parser.add_argument('--lc', action=argparse.BooleanOptionalAction,
+                        default=True, help='Enable background lane-changing control')
     parsed_args = parser.parse_args(args=args)
 
     # 2. Run simulation
@@ -221,18 +227,17 @@ def main(args=None, root=None):
         m_fr=parsed_args.m_fr, # default 1500; parsed_args.m_fr
         seed=parsed_args.seed,
         gui=parsed_args.gui,
-        lc=True, # temp for PF res
+        lc=parsed_args.lc,
+        fc_mode=parsed_args.fc_mode,
         st=parsed_args.st,
         tsg_mode=parsed_args.tsg_mode, # default 'predict'
         max_team_size=parsed_args.max_team_size, # default 12
     )
     end = time.time()
     runtime = end - start
+    # CFR: coupled_following_ratio; SPR: standard_size_platoon_ratio
     res = hpc_utils.get_fc_detail(dic_follower_state, his_dic_platoon_size,
                                   max_size=parsed_args.max_team_size)
-    # CFR: coupled_following_ratio; SPR: standard_size_platoon_ratio
-    cfr, spr = hpc_utils.get_fc_indicator(
-        dic_follower_state, his_dic_platoon_size, max_size=parsed_args.max_team_size)
     tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
         hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'],
                                    runtime, max_time=parsed_args.st))
@@ -244,14 +249,15 @@ def main(args=None, root=None):
     if parsed_args.out_csv:
         row = {
             "algo": "mpgc_multi_lane",
+            'fc_mode': parsed_args.fc_mode,
             "tsg_mode": parsed_args.tsg_mode,
             "av_p": parsed_args.av_p,
             "ramp_demand": parsed_args.r_fr,
             "mainline_demand": parsed_args.m_fr,
             "seed": parsed_args.seed,
             "max_team_size": parsed_args.max_team_size,
-            "CFR": cfr,
-            "SPR": spr,
+            "CFR": res["cfr"],
+            "SPR": res["spr"],
             "over_pltn": res["over_pltn"],
             "std_pltn": res["std_pltn"],
             "sparse_pltn": res["sparse_pltn"],
@@ -322,7 +328,7 @@ if __name__ == '__main__':
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam, ts_first_back_to_regular) = mpgc_main(
         av_p = 0.1, # 0.1
-        r_fr = 600, # 1300
+        r_fr = 800, # 1300
         m_fr = 1500, # 1500
         seed = 2, # 2 analysis
         r_autoFollow_p = 0,  # auto follow proportion
@@ -331,7 +337,8 @@ if __name__ == '__main__':
         gui = False,
         plot = False,
         display = False,
-        lc = True, # if allow HV lane-changing; True
+        lc = False, # if allow HV lane-changing; True
+        fc_mode = 'full', # full/dla_only/dla_lhr/dla_lhr_ce
         st = st, # 1200
         tsg_mode = 'predict', # off/fix/predict/train/audit
         max_team_size = max_team_size
@@ -341,7 +348,6 @@ if __name__ == '__main__':
 
     print(f'\nse_result: {se_result}, ce_result: {ce_result}')
     hpc_utils.get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=max_team_size)
-    hpc_utils.get_fc_indicator(dic_follower_state, his_dic_platoon_size, max_size=max_team_size)
 
     tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
         hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st)) # 1 => 1.5s

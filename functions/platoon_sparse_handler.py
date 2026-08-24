@@ -148,7 +148,7 @@ class PlatoonSparseHandler:
         dic_sparse_platoon = {}
         dic_standard_platoon = {}
         for leader, ls_followers in dic_nonOversized.items():
-            if leader == 'm_av3414':
+            if leader == 'm_av1389':
                 pass
             first_free_follower = None
             for follower in ls_followers:
@@ -235,7 +235,7 @@ class PlatoonSparseHandler:
         leaders = list(self.p_basic.dic_platoon_members)
 
         for sparse_leader, first_free_fol in dic_sparse_platoon.items():
-            if sparse_leader == 'm_av238':
+            if sparse_leader == 'm_av1389':
                 pass
             # Get position of first free follower
             try:

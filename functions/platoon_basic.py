@@ -91,7 +91,7 @@ class PlatoonBasic:
         self.data_recorder.ls_m_leader_his_asc = list(self.dic_platoon_size.keys())
         return self.dic_platoon_size, dic_platoon_size, dic_platoon_members
 
-    def tag_vehicles13(self, ls_ihA_asc, max_team_size=11):
+    def tag_vehicles13(self, ls_ihA_asc, max_team_size=11, enable_lhr=True):
         '''
         260301 crucial update, only keep dic_tags for vehicles still on current road network
 
@@ -165,7 +165,7 @@ class PlatoonBasic:
                         self.dic_tags[id] = 1  # Mark as leader
                         current_leader = id
                         current_team_size = 1
-                    elif too_many_hv_behind:
+                    elif enable_lhr and too_many_hv_behind:
                         if 'b' in id:
                             self.dic_AVroleChange[id] = 'split_insert'
                         else:
@@ -467,8 +467,6 @@ class PlatoonBasic:
         # Ensure this leader is recorded only once
         if leader_mc_newest in self.ls_leader_fol_states_checked_sensor:
             return self.dic_follower_state_sensor
-        if leader_mc_newest in ['mb_av3022', 'm_av7608']:
-            pass
         self.ls_leader_fol_states_checked_sensor.append(leader_mc_newest)
         # 2. Retrieve all followers belonging to this leader's platoon
         platoon_followers = self.dic_platoon_members.get(leader_mc_newest, [])[1:]
@@ -476,8 +474,6 @@ class PlatoonBasic:
         free_mode_detected = False # detect any free_mode fol, then all fol (same leader) behind it are in free_mode
         ls_decision_info = []
         for fol in platoon_followers:
-            if fol == 'm_hv_cons3565':
-                pass
             decision_info = self._check_state(fol)  # Determine free_mode or following_mode
             state = decision_info[-1] if decision_info is not None else None
             if free_mode_detected or state in ('free_mode', 0):
@@ -733,8 +729,6 @@ class PlatoonBasic:
         Traci has been used to gain all related information, including hv driving style
         """
         # gap tolerance factor # mhv1174
-        if veh_id in ['mhv1174', 'mhv1096', 'mhv1060', 'm_hv_agg6067']:
-            pass
         tolerance_factor = 2 # 2.0
 
         # obtain id category

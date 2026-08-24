@@ -9,10 +9,19 @@ from rl_model import split_insert_agent_handler as agent
 from rl_model import free_insert_agent_handler as free_agent
 from rl_model import tsg_manager
 
+
+FC_MODES = {
+    'dla_only': {'lhr': False, 'se': False, 'ce': False},
+    'dla_lhr': {'lhr': True, 'se': False, 'ce': False},
+    'dla_lhr_ce': {'lhr': True, 'se': False, 'ce': True},
+    'full': {'lhr': True, 'se': True, 'ce': True},
+}
+
+
 class FormationController:
     def __init__(self, data_recorder, traci, sa_mode='predict', ca_mode='predict',
                  tsg_mode='off', exp_name='default_run', loss_rate=0, learning_rate=5e-4,
-                 train_interval=32, max_team_size=11):
+                 train_interval=32, max_team_size=11, fc_mode='full'):
         '''
         Train split_agent, "sa_mode='train', ca_mode='off'"
         Train free_insert_agent, "sa_mode='off', ca_mode='train'
@@ -23,6 +32,8 @@ class FormationController:
 
         self.data_recorder = data_recorder
         self.max_team_size = max_team_size
+        self.fc_mode = fc_mode
+        self.modules = FC_MODES[fc_mode]
 
         # Initialise platoon modules
         self.pass_recorder = detector.DetectorPassRecorder(
@@ -76,7 +87,8 @@ class FormationController:
     def platoon_initialise(self, ls_ihA_asc, ls_vehid, rf_model):
         # ******** PLATOON INITIALISATION ********
         dic_tags, ls_leader_AV, ls_follower_AV, dic_AVroleChange \
-            = self.p_basic.tag_vehicles13(ls_ihA_asc, max_team_size=self.max_team_size)  # ** SPLIT_PROMOTE **
+            = self.p_basic.tag_vehicles13(
+                ls_ihA_asc, max_team_size=self.max_team_size, enable_lhr=self.modules['lhr'])
         his_dic_platoon_size, dic_platoon_size, dic_platoon_members \
             = self.p_basic.get_platoon_size3(ls_ihA_asc, ls_leader_AV)
         dic_id_preState, dic_id_features \
@@ -87,15 +99,14 @@ class FormationController:
     def splitting(self, st, step, ls_ihA_asc, ls_ihB_av_asc,
                   dic_platoon_size, dic_platoon_members, selected_vid):
         # ******** HANDLE OVERSIZED PLATOONS ********
-        if self.sa_mode == 'off': # if self.ca_mode is None:
-            return None
-        self.split_agent.release_insertion(step, self.sa_buffer)
+        if self.modules['se'] and self.split_agent:
+            self.split_agent.release_insertion(step, self.sa_buffer)
         if step % self.update_interval != 0:
             return {}
         dic_oversized_platoon_states, dic_split_candidates, dic_nonOversizedP \
             = self.p_oversized.find_oversizedP_nearbyAV(ls_ihB_av_asc, dic_platoon_size, dic_platoon_members)
         # ** SPLIT_INSERT ** agent
-        if self.split_agent:
+        if self.modules['se'] and self.split_agent:
             dic_split_insertedAV = self.split_agent.run_agent_decision(step, dic_platoon_members,
                                                                        dic_oversized_platoon_states,
                                                                        dic_split_candidates,
@@ -111,14 +122,17 @@ class FormationController:
     def collecting(self, st, step, ls_ihA_asc, ls_ihB_av_asc, dic_nonOversizedP,
                    dic_platoon_members, dic_id_preState, selected_vid):
         # ******** HANDLE SPARSE PLATOONS ********
-        if self.ca_mode == 'off':
-            return {}, {}
-        self.free_insert_agent.release_insertion(step, self.ca_buffer)
+        # ** free_promote **
+        if self.modules['ce'] and self.free_insert_agent:
+            self.free_insert_agent.release_insertion(step, self.ca_buffer)
         if step % self.update_interval != 0:
-            return {}, {}
+            return {}
         # dic_id_preState, dic_id_features = self.p_basic.predict_flw_state(dic_tags, ls_vehid, model=True)
         dic_sparseP, dic_standard_platoon = self.p_sparse.find_sparse_platoon(dic_nonOversizedP, dic_id_preState)
-        addressed_leaders = self.p_sparse.free_promote(dic_sparseP, dic_platoon_members)  # ** FREE_PROMOTE **
+        if self.modules['lhr']:
+            addressed_leaders = self.p_sparse.free_promote(dic_sparseP, dic_platoon_members)
+        else:
+            addressed_leaders = set()
         # filter out AV followers from sparse platoons
         dic_sparseP_filered_temp = self.p_sparse.filter_out_AV_followers(dic_sparseP, dic_platoon_members)
         dic_sparseP_filered = {
@@ -133,7 +147,7 @@ class FormationController:
             if k not in selected_vid
         }
         # ** FREE_INSERT ** agent
-        if self.free_insert_agent:
+        if self.modules['ce'] and self.free_insert_agent:
             dic_free_insertedAV = self.free_insert_agent.run_free_insert_decision(step, dic_platoon_members,
                                                                                   dic_sparseP_filered,
                                                                                   dic_collect_candidates,
@@ -158,13 +172,12 @@ class FormationController:
         # set follower color as light green
         self.p_basic.set_follower_color()
 
-    def step(self, st, step, lc, lc_av_fol=True, rf_model=True):
+    def step(self, st, step, lc, rf_model=True):
         '''
 
         :param st:
         :param step:
-        :param lc:
-               lc_av_fol: whether allow lane change for av_followers; default True
+        :param lc: whether allow lane change for HV / av_followers; default True
         :return:
             dic_socre_reward: {'mbav1533': [0.6405384540557861]}
             dic_follower_state: {'mhv48': ['following_mode', 'mav38'], 'mhv65': ['following_mode', 'mav38']}
@@ -184,16 +197,17 @@ class FormationController:
         ls_wsB_av_asc = dic_vid_groups['ls_wsB_av_asc']
         ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']
 
-        # ******** PLATOON INITIALISATION ********
+        # ******** PLATOON INITIALISATION (DLA, dynamic leader assignment) ********
+        # ** split_promote **
         (dic_tags, ls_leader_AV, ls_follower_AV, dic_platoon_size,
          dic_platoon_members, his_dic_platoon_size, dic_id_preState, dic_id_features) \
             = self.platoon_initialise(ls_ihA_asc, ls_vehid, rf_model=rf_model)
 
-        # ******** HANDLE OVERSIZED PLATOONS ********
+        # ******** HANDLE OVERSIZED PLATOONS (SE) ********
         dic_nonOversizedP = self.splitting(st, step, ls_ihA_asc, ls_ihB_av_asc, dic_platoon_size,
                                            dic_platoon_members, selected_vid)
-
-        # ******** HANDLE SPARSE PLATOONS ********
+        # ******** HANDLE SPARSE PLATOONS (CE) ********
+        # ** free_promote **
         dic_standard_platoon = self.collecting(st, step, ls_ihA_asc, ls_ihB_av_asc, dic_nonOversizedP,
                                                dic_platoon_members, dic_id_preState, selected_vid)
         # ******** SELF-GATING TRAINING ********
@@ -207,7 +221,7 @@ class FormationController:
         # encourage AV_leader without follower move to inner lane (from lane0 to lane1)
         self.p_lane.move_leader_no_fol_to_inner(ls_leader_AV, dic_platoon_members)
         # encourage AV followers move to inner lane (from lane0 to lane1)
-        self.p_lane.move_av_fol_to_inner(ls_leader_AV, dic_standard_platoon, lc_av_fol)
+        self.p_lane.move_av_fol_to_inner(ls_leader_AV, dic_standard_platoon, lc)
 
         # control gaps between platoons
         self.control_platoon_gap(step, ls_vehid, ls_leader_AV, ls_follower_AV,

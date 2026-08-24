@@ -5,19 +5,17 @@ class Func:
         # --- minimal knobs with safe defaults ---
         self.K = 70.0                 # >0 for ALINEA
         self.use_occupancy = True     # True: use occupancy on a 0-1 scale; False: veh/km
-        self.target_occupancy = 0.20  # only used when use_occupancy=True
+        self.target_occupancy = 0.10  # only used when use_occupancy=True
 
         # release-rate bounds (veh/h)
         self.r_min = 0.0
-        self.r_max = 800.0
-        self._r_prev = 800.0
+        self.r_max = 720.0
+        self._r_prev = 720.0
 
         # signal timing
-        self.cycle_time = 20          # s
         self.yellow_time = 0          # s
-        self.sat_flow = 1900.0        # veh/h-of-green on ramp
-        self.min_green = 1.8          # s
-        self.min_red   = 4          # s
+        self.min_green = 2          # s 1.8
+        self.min_red   = 3         # s 4
 
         # if TLS controls multiple links, which index is the ramp movement (0-based)
         self.ramp_conn_index = 0
@@ -60,6 +58,12 @@ class Func:
             veh = self.traci.lane.getLastStepVehicleNumber(lane_id)
             Lkm = max(1e-6, self.traci.lane.getLength(lane_id) / 1000.0)
             return veh / Lkm
+
+    def get_detector_occupancy(self, detector_id):
+        """
+        Return E1 detector occupancy on a 0-1 scale.
+        """
+        return self.traci.inductionloop.getLastStepOccupancy(detector_id) / 100.0
 
     # ---------- rate -> signal timing (fixed) ----------
     def set_ramp_metering_signal(self, ramp_meter_id, release_rate):
