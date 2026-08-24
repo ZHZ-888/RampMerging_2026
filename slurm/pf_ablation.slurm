@@ -41,7 +41,7 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # Fixed experiment settings
 # ================================
 R_FR=0
-M_FR=1500
+M_FR=1000
 ST=1500
 MAX_TEAM_SIZE=12
 TSG_MODE=predict
