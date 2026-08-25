@@ -7,7 +7,7 @@
 #SBATCH --error=error-logs/pf_ablation_%A_%a.err
 
 # Submit with:
-# sbatch --array=0-119 slurm/pf_ablation.slurm
+# sbatch --array=0-149 slurm/pf_ablation.slurm
 
 set -euo pipefail
 
@@ -22,6 +22,7 @@ source /nesi/project/uoa04480/myenv/bin/activate
 # Deterministic behaviour
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
+export PYTHONHASHSEED=1
 
 # ================================
 # Log directories
@@ -41,7 +42,7 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # Fixed experiment settings
 # ================================
 R_FR=0
-M_FR=1000
+M_FR=1500
 ST=1500
 MAX_TEAM_SIZE=12
 TSG_MODE=predict
@@ -49,7 +50,7 @@ TSG_MODE=predict
 # ================================
 # Parameter sweep
 # ================================
-FC_MODES=(dla_only dla_lhr dla_lhr_ce full)
+FC_MODES=(dla_only dla_tsc dla_tsc_lhr dla_tsc_lhr_ce full)
 AV_P_VALS=(0.1 0.2 0.3)
 SEEDS=(0 1 2 3 4 5 6 7 8 9)
 
@@ -80,8 +81,6 @@ s_idx=$(( rem % NS ))
 FC_MODE=${FC_MODES[$mode_idx]}
 AV_P=${AV_P_VALS[$av_idx]}
 SEED=${SEEDS[$s_idx]}
-
-export PYTHONHASHSEED="$SEED"
 
 echo "=================================="
 echo "TASK_ID : $TASK_ID"

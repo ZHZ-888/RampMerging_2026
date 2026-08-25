@@ -328,7 +328,7 @@ if __name__ == '__main__':
         av_p = 0.1, # 0.1
         r_fr = 800, # 1300
         m_fr = 1500, # 1500
-        seed = 9, # 2 analysis
+        seed = 2, # 2 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 1, # percentage of platoon vehicles on ramp
         loss_rate = 0, # 0.15
@@ -336,7 +336,7 @@ if __name__ == '__main__':
         plot = False,
         display = False,
         lc = True, # if allow HV lane-changing; True
-        fc_mode = 'full', # full/dla_only/dla_lhr/dla_lhr_ce
+        fc_mode = 'dla_only', # dla_only/dla_tsc/dla_tsc_lhr/dla_tsc_lhr_ce/full
         st = st, # 1200
         tsg_mode = 'predict', # off/fix/predict/train/audit
         max_team_size = max_team_size

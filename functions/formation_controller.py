@@ -11,10 +11,11 @@ from rl_model import tsg_manager
 
 
 FC_MODES = {
-    'dla_only': {'lhr': False, 'se': False, 'ce': False},
-    'dla_lhr': {'lhr': True, 'se': False, 'ce': False},
-    'dla_lhr_ce': {'lhr': True, 'se': False, 'ce': True},
-    'full': {'lhr': True, 'se': True, 'ce': True},
+    'dla_only': {'tsc': False, 'lhr': False, 'ce': False, 'se': False},
+    'dla_tsc': {'tsc': True, 'lhr': False, 'ce': False, 'se': False},
+    'dla_tsc_lhr': {'tsc': True, 'lhr': True, 'ce': False, 'se': False},
+    'dla_tsc_lhr_ce': {'tsc': True, 'lhr': True, 'ce': True, 'se': False},
+    'full': {'tsc': True, 'lhr': True, 'ce': True, 'se': True},
 }
 
 
@@ -223,9 +224,10 @@ class FormationController:
         # encourage AV followers move to inner lane (from lane0 to lane1)
         self.p_lane.move_av_fol_to_inner(ls_leader_AV, dic_standard_platoon, lc)
 
-        # control gaps between platoons
-        self.control_platoon_gap(step, ls_vehid, ls_leader_AV, ls_follower_AV,
-                                 ls_m_leader_up_asc, ls_wsB_av_asc, dic_id_preState)
+        # Control gaps between platoons
+        if self.modules['tsc']:
+            self.control_platoon_gap(step, ls_vehid, ls_leader_AV, ls_follower_AV,
+                                     ls_m_leader_up_asc, ls_wsB_av_asc, dic_id_preState)
 
         # ******** UPDATE PLATOON MEMBERS BY LOOP DETECTOR RECORD INFO ********
         _ = self.pass_recorder.update(step)
