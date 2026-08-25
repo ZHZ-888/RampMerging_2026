@@ -336,7 +336,7 @@ if __name__ == '__main__':
         plot = False,
         display = False,
         lc = True, # if allow HV lane-changing; True
-        fc_mode = 'dla_only', # dla_only/dla_tsc/dla_tsc_lhr/dla_tsc_lhr_ce/full
+        fc_mode = 'dla_tsc', # dla_only/dla_tsc/dla_tsc_lhr/dla_tsc_lhr_ce/full
         st = st, # 1200
         tsg_mode = 'predict', # off/fix/predict/train/audit
         max_team_size = max_team_size
