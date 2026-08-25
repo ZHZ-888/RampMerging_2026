@@ -41,7 +41,7 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # ================================
 # Fixed experiment settings
 # ================================
-R_FR=1000
+R_FR=1200
 M_FR=1500
 AV_P=0.1
 ST=1500
