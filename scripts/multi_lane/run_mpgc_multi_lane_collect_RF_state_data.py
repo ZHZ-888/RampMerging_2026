@@ -5,6 +5,7 @@ multi-lane simulation
 test longer platoon
 '''
 
+import os
 import pandas as pd
 from pathlib import Path
 
@@ -26,7 +27,10 @@ def mpgc_main(av_p=0.1, r_fr=0, m_fr=1000, seed=0,
     )
     # Simulation step length
     sim_step = 0.1
-    sumo_bin = 'sumo-gui' if gui else 'sumo'
+
+    sumo_home = "/home/zzha/opt/sumo-1.19.0-src"
+    os.environ["SUMO_HOME"] = sumo_home
+    sumo_bin = os.path.join(sumo_home, "bin", "sumo-gui" if gui else "sumo",)
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
                 "--seed", str(seed),
                 "--no-warnings"] # , '-S' start auto, and quit auto
@@ -71,13 +75,14 @@ def loop(traci, st, data_recorder, veh_gen,
             pass
         traci.simulationStep()  # start simulation
         # vehicle generation
-        veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
-        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h
-        # veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')
-        # veh_gen.veh_gen_hetero(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')
+        # 25m/s => 90km/h; ori 29.5; 30m/s => 110km/h
+        # veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')
+        # veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')
+        veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')
+        veh_gen.veh_gen_hetero(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')
 
-        (dic_score_reward, dic_follower_state, his_dic_platoon_size,
-         dic_id_features) = formation_controller.step(st, step, lc, lc_av_fol=False, rf_model=False)
+        (dic_follower_state, his_dic_platoon_size,
+         dic_id_features) = formation_controller.step(st, step, lc, rf_model=False)
         step += 1
     return dic_follower_state, his_dic_platoon_size, dic_id_features
 
@@ -88,7 +93,11 @@ def main(args=None, root=None):
 
     dic_follower_state, his_dic_platoon_size, dic_id_features = mpgc_main(
         av_p=parsed_args.av_p,
-        seed=parsed_args.seed)
+        r_fr=parsed_args.r_fr,
+        m_fr=parsed_args.m_fr,
+        seed=parsed_args.seed,
+        gui=parsed_args.gui,
+        st=parsed_args.st)
     df_fea_tar = organise_data(dic_follower_state, dic_id_features)
     print(len(dic_follower_state))
     print(len(dic_id_features))

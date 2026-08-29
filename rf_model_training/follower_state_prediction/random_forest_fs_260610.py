@@ -123,13 +123,6 @@ X_train, X_test, y_train, y_test = train_test_split(
     stratify=y
 )
 
-# X_train, y_train = undersample_training_data(
-#     X_train,
-#     y_train,
-#     ratio=4,
-#     random_state=42
-# )
-
 #%%
 # 4. Create and train the Random Forest Regressor model
 model = RandomForestClassifier(n_estimators=500, random_state=36)
@@ -160,13 +153,15 @@ print(importance_df)
 #%% save the model
 # joblib.dump(model, 'Models/follower_state_prediction_model_250415.pkl')
 # joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/follower_state_prediction_model_260610_ndarray.pkl')
-joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/follower_state_prediction_model_260715_ndarray.pkl')
+joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/'
+                   'follower_state_prediction_model_260715_ndarray.pkl')
 
 #%% load model
 # loaded_model = joblib.load('Models/follower_state_prediction_model_250415.pkl')
 # loaded_model = joblib.load('Models/follower_state_prediction_model_250501.pkl')
 # loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging_2026/rf_models/follower_state_prediction_model_260610_ndarray.pkl') # employed
-loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging_2026/rf_models/follower_state_prediction_model_260715_ndarray.pkl')
+loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging_2026/rf_models/'
+                           'follower_state_prediction_model_260715_ndarray.pkl')
 ls_new_features = [25, 778, 3, 12.7]
 
 X_new = np.array(ls_new_features, dtype=float).reshape(1, -1)
