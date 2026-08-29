@@ -3,10 +3,10 @@
 #SBATCH --time=00:20:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=2G
-#SBATCH --array=0-59
+#SBATCH --array=0-40
 #SBATCH --output=output-logs/out_%A_%a.txt
 #SBATCH --error=error-logs/err_%A_%a.txt
-# 30 jobs: 3 AV penetration rates × 20 random seeds
+# 40 jobs: 1 AV penetration rates × 40 random seeds
 
 set -euo pipefail
 
@@ -37,8 +37,11 @@ ST=1500
 # ================================
 # Experiment parameter grid
 # ================================
-AV_P_VALS=(0.1 0.2 0.3)
-SEEDS=(31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50)
+AV_P_VALS=(0.1)
+SEEDS=(21 22 23 24 25 26 27 28 29 30 \
+       31 32 33 34 35 36 37 38 39 40 \
+       41 42 43 44 45 46 47 48 49 50 \
+       51 52 53 54 55 56 57 58 59 60)
 # SEEDS=(51 52 53 54 55 56 57 58 59 60)
 
 NAV=${#AV_P_VALS[@]}

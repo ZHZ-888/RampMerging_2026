@@ -45,7 +45,7 @@ data_agg = df_agg.to_numpy()
 
 #%% load model
 loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging_2026/rf_models/'
-                           'follower_state_prediction_model_260715_ndarray.pkl')
+                           'follower_state_prediction_model_260829_ndarray_test.pkl')
 
 #%% evaluate model
 def evaluate_model(data, model, name="Dataset"):
