@@ -76,10 +76,10 @@ def loop(traci, st, data_recorder, veh_gen,
         traci.simulationStep()  # start simulation
         # vehicle generation
         # 25m/s => 90km/h; ori 29.5; 30m/s => 110km/h
-        # veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')
-        # veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')
-        veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')
-        veh_gen.veh_gen_hetero(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')
+        veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route_m', 27.5, '0', hv_type='hv_mean')
+        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1', hv_type='hv_mean')
+        # veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')
+        # veh_gen.veh_gen_hetero(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')
 
         (dic_follower_state, his_dic_platoon_size,
          dic_id_features) = formation_controller.step(st, step, lc, rf_model=False)

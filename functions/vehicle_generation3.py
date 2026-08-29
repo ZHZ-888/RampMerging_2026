@@ -895,7 +895,7 @@ class VehGen:
                     self.add_vehicle(id_suffix, veh_route, dp_v, vehicle_type)
 
     def veh_gen_homo(self, step, dp_times_dict, id_prefix, \
-                     veh_route, dp_v, dp_lane='0'):
+                     veh_route, dp_v, dp_lane='0', hv_type='idm'):
         '''
         ml: multi-lane; homo: homogeneous
         2450209: new input format, dic =  {1: 'HV', 31: 'AV', ...,}
@@ -914,14 +914,14 @@ class VehGen:
             departSpeed.
         dp_lane:
             departure lane
+        hv_type:
+            idm or hv_mean or hv_cons or hv_agg
         '''
 
-        c_ts = round(step/10 + 0.1, 1) # this is a big bug!!! cost me more than 1.5 h to find this
-        if c_ts == 7.9:
-            pass
+        c_ts = round(step/10 + 0.1, 1) # this is a big bug!!! costs me more than 1.5 h to find this
         if c_ts in dp_times_dict:
             vehicle_type = 'av' if dp_times_dict[c_ts] == 'AV' else 'hv'
-            mode = 'av' if dp_times_dict[c_ts] == 'AV' else 'idm'
+            mode = 'av' if dp_times_dict[c_ts] == 'AV' else hv_type
             if dp_lane == '1':
                 id = f"{id_prefix}b{vehicle_type}{step}" # use b indicate lane_1
             else:
