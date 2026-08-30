@@ -37,8 +37,8 @@ def filter_data(df):
 
 # combination 2, 6 features
 def filter_data2(df):
-    df_filtered = df.loc[:, ['platoon_type', 'dis_leader_pv', 'leader_v', 'leader_r_dis', 'tail_arr_duration',
-                             'tail_v', 'tail_r_dis']]
+    df_filtered = df.loc[:, ['platoon_type', 'dis_leader_pv', 'leader_v', 'leader_r_dis',
+                             'tail_arr_duration', 'tail_v', 'tail_r_dis']]
     return df_filtered
 
 #%%

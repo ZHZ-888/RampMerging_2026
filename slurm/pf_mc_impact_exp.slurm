@@ -2,12 +2,12 @@
 #SBATCH --job-name=pf_mc_impact_exp
 #SBATCH --time=00:20:00
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=4G
+#SBATCH --mem=2G
 #SBATCH --output=output-logs/pf_mc_impact_exp_%A_%a.out
 #SBATCH --error=error-logs/pf_mc_impact_exp_%A_%a.err
 
 # Submit with:
-# sbatch --array=0-19 slurm/pf_mc_impact_exp.slurm
+# sbatch --array=0-9 slurm/pf_mc_impact_exp.slurm
 
 set -euo pipefail
 
@@ -41,7 +41,7 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # ================================
 # Fixed experiment settings
 # ================================
-R_FR=1200
+R_FR=1000
 M_FR=1500
 AV_P=0.1
 ST=1500
@@ -51,7 +51,7 @@ TSG_MODE=predict
 # ================================
 # Parameter sweep
 # ================================
-FC_MODES=(dla_only full)
+FC_MODES=(dla_only)
 SEEDS=(0 1 2 3 4 5 6 7 8 9)
 
 NM=${#FC_MODES[@]}
