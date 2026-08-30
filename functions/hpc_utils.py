@@ -42,6 +42,12 @@ def standard_arg_parser():
         default="predict",
         choices=["off", "train", "predict", "audit", "fix"],
     )
+    parser.add_argument(
+        "--r_platoon_p",
+        type=float,
+        default=1,
+        help="Proportion of standard ramp platoons",
+    )
     return parser
 
 def training_arg_parser():

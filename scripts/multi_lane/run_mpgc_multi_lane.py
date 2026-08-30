@@ -21,7 +21,7 @@ from functions import data_recording as dr
 from functions import hpc_utils
 from functions import accident_simulation
 
-def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=0.2, loss_rate=0,
+def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0,
               gui=False, plot=False, display=False, lc=True, st=1500,
               tsg_mode='predict', max_team_size=12, fc_mode='full'):
     set_global_seed(seed, enable=True)  # set global random seed (especially for RL training)
@@ -224,6 +224,7 @@ def main(args=None, root=None):
         r_fr=parsed_args.r_fr, # default 800
         m_fr=parsed_args.m_fr, # default 1500; parsed_args.m_fr
         seed=parsed_args.seed,
+        r_platoon_p=parsed_args.r_platoon_p,
         gui=parsed_args.gui,
         lc=parsed_args.lc,
         fc_mode=parsed_args.fc_mode,
@@ -254,6 +255,7 @@ def main(args=None, root=None):
             "mainline_demand": parsed_args.m_fr,
             "seed": parsed_args.seed,
             "max_team_size": parsed_args.max_team_size,
+            "r_platoon_p": parsed_args.r_platoon_p,
             "CFR": res["cfr"],
             "SPR": res["spr"],
             "over_pltn": res["over_pltn"],
@@ -328,15 +330,15 @@ if __name__ == '__main__':
         av_p = 0.1, # 0.1
         r_fr = 800, # 1300
         m_fr = 1500, # 1500
-        seed = 2, # 2 analysis
+        seed = 1, # 2 analysis
         r_autoFollow_p = 0,  # auto follow proportion
-        r_platoon_p = 0.2, # percentage of platoon vehicles on ramp
+        r_platoon_p = 0.2, # percentage of rplatoon vehicles on ramp
         loss_rate = 0, # 0.15
         gui = True,
         plot = False,
         display = False,
         lc = True, # if allow HV lane-changing; True
-        fc_mode = 'dla_tsc', # dla_only/dla_tsc/dla_tsc_lhr/dla_tsc_lhr_ce/full
+        fc_mode = 'dla_only', # dla_only/dla_tsc/dla_tsc_lhr/dla_tsc_lhr_ce/full
         st = st, # 1200
         tsg_mode = 'predict', # off/fix/predict/train/audit
         max_team_size = max_team_size
