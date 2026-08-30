@@ -11,126 +11,53 @@ from sklearn.ensemble import RandomForestClassifier # FOR CLASSIFICATION
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
 import joblib
 
-#%% input data
-# path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_state_feature_target_260610_2.csv'
-path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_state_mixedHV_260829_homo_Kruass.csv'
-df = pd.read_csv(path)
-print(df.columns)
-print(df.head())
-print(len(df))
 
 #%% data preprocessing
-# drop None
-df_filtered = df.dropna()
-print(len(df_filtered))
+def prepare_xy(df):
+    # drop None
+    df_filtered = df.dropna()
 
-# drop line if dis_leader_to_mcz <0
-df_filtered2 = df_filtered[df_filtered['dis_leader_to_mcz'] >= 0]
-print(len(df_filtered2))
+    # drop line if dis_leader_to_mcz < 0
+    df_filtered = df_filtered.loc[
+        df_filtered['dis_leader_to_mcz'] >= 0
+    ].copy()
 
-# convert state string into '0' or '1'; following_mode = 1, free_mode = 0
-df_filtered3 = df_filtered2.copy()
-df_filtered3['state'] = df_filtered3['state'].replace({'following_mode': 1, 'free_mode': 0})
-# columns: ['follower_id', 'v_leader', 'dis_leader_to_mcz', 'n_veh_between', 'time_headway_to_leader', 'state', 'leader_id']
-print(len(df_filtered3))
+    # convert state string into 0/1
+    df_filtered['state'] = df_filtered['state'].replace({
+        'following_mode': 1,
+        'free_mode': 0
+    })
 
-# use numpy as input
-data = df_filtered3.to_numpy()
+    # dataframe -> numpy
+    data = df_filtered.to_numpy()
 
-#%% model training
-# 2. Separate features and target variable
-X = data[:, 1:5].astype(float)
-y = data[:, 5].astype(int) # should be int instead of object
+    # features and target
+    X = data[:, 1:5].astype(float)
+    y = data[:, 5].astype(int)
 
-#%%
-# 3. Split the dataset into training and testing sets
-# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    return X, y
 
-# undersampling function
-def undersample_training_data(X_train, y_train, ratio=2, random_state=42):
-    """
-    Undersample the majority class in the training set only.
+#%% input data
+path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_state_mixedHV_260829_homo_Kruass_seed21_50.csv'
+df_train = pd.read_csv(path)
+print(df_train.columns)
+print(len(df_train))
 
-    Parameters
-    ----------
-    X_train : np.ndarray
-        Training features.
-    y_train : np.ndarray
-        Training labels. 0 = free, 1 = coupled-following.
-    ratio : int
-        Target ratio of class 1 to class 0.
-        ratio=2 means class 0 : class 1 = 1 : 2.
-    random_state : int
-        Random seed for reproducibility.
-
-    Returns
-    -------
-    X_train_balanced : np.ndarray
-        Undersampled training features.
-    y_train_balanced : np.ndarray
-        Undersampled training labels.
-    """
-
-    train_df = pd.DataFrame(X_train, columns=[
-        'v_leader',
-        'dis_leader_to_mcz',
-        'n_veh_between',
-        'time_headway_to_leader'
-    ])
-    train_df['state'] = y_train
-
-    train_0 = train_df[train_df['state'] == 0]
-    train_1 = train_df[train_df['state'] == 1]
-
-    print("Before undersampling:")
-    print(train_df['state'].value_counts())
-
-    n_class1 = min(len(train_1), len(train_0) * ratio)
-
-    train_1_sampled = train_1.sample(
-        n=n_class1,
-        random_state=random_state
-    )
-
-    train_balanced = pd.concat(
-        [train_0, train_1_sampled],
-        ignore_index=True
-    )
-
-    train_balanced = train_balanced.sample(
-        frac=1,
-        random_state=random_state
-    ).reset_index(drop=True)
-
-    print("After undersampling:")
-    print(train_balanced['state'].value_counts())
-
-    X_train_balanced = train_balanced[[
-        'v_leader',
-        'dis_leader_to_mcz',
-        'n_veh_between',
-        'time_headway_to_leader'
-    ]].to_numpy()
-
-    y_train_balanced = train_balanced['state'].to_numpy()
-
-    return X_train_balanced, y_train_balanced
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y,
-    test_size=0.2,
-    random_state=42,
-    stratify=y
-)
+path_test = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_state_mixedHV_260829_homo_Kruass_seed51_60.csv'
+df_test = pd.read_csv(path_test)
+print(df_test.columns)
+print(len(df_test))
 
 #%%
-# 4. Create and train the Random Forest Regressor model
+X_train, y_train = prepare_xy(df_train)
+X_test, y_test = prepare_xy(df_test)
+
+#%% Create and train the Random Forest Regressor model
 model = RandomForestClassifier(n_estimators=500, random_state=36)
 model.fit(X_train, y_train)
 
 # 5. Make predictions
 y_pred = model.predict(X_test)
-
 #%%
 # 6. Evaluate model performance
 print("Accuracy:", accuracy_score(y_test, y_pred))
@@ -151,15 +78,10 @@ print("\nFeature Importances:")
 print(importance_df)
 
 #%% save the model
-# joblib.dump(model, 'Models/follower_state_prediction_model_250415.pkl')
-# joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/follower_state_prediction_model_260610_ndarray.pkl')
 joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/'
-                   'follower_state_prediction_model_260829_ndarray_test.pkl')
+                   'follower_state_prediction_model_260829_ndarray_final.pkl')
 
 #%% load model
-# loaded_model = joblib.load('Models/follower_state_prediction_model_250415.pkl')
-# loaded_model = joblib.load('Models/follower_state_prediction_model_250501.pkl')
-# loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging_2026/rf_models/follower_state_prediction_model_260610_ndarray.pkl') # employed
 loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging_2026/rf_models/'
                            'follower_state_prediction_model_260715_ndarray.pkl')
 ls_new_features = [25, 778, 3, 12.7]
@@ -218,7 +140,6 @@ plt.show()
 
 #%%
 # Import necessary libraries
-import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from matplotlib.colors import LinearSegmentedColormap

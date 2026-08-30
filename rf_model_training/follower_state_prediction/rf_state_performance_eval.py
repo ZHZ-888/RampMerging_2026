@@ -45,7 +45,7 @@ data_agg = df_agg.to_numpy()
 
 #%% load model
 loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging_2026/rf_models/'
-                           'follower_state_prediction_model_260829_ndarray_test.pkl')
+                           'follower_state_prediction_model_260829_ndarray_final.pkl')
 
 #%% evaluate model
 def evaluate_model(data, model, name="Dataset"):
@@ -76,68 +76,3 @@ evaluate_model(data_hv, loaded_model, name="HV")
 evaluate_model(data_cons, loaded_model, name="cons")
 evaluate_model(data_mean, loaded_model, name="mean")
 evaluate_model(data_agg, loaded_model, name="agg")
-
-#%%
-# Import necessary libraries
-import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-from matplotlib.colors import LinearSegmentedColormap
-
-# Custom colormap
-main_blue = "#0000FF"
-custom_blues = LinearSegmentedColormap.from_list(
-    "custom_blues",
-    ["white", main_blue]
-)
-
-# Convert predicted probabilities to binary class
-# If y_pred is already class labels, replace this line with: y_pred_class = y_pred
-y_pred_class = (y_pred >= 0.5).astype(int)
-
-# Raw confusion matrix
-cm = confusion_matrix(y, y_pred_class, labels=[0, 1])
-
-# Row-normalized confusion matrix
-cm_norm = cm.astype(float) / cm.sum(axis=1, keepdims=True)
-
-# Class labels
-class_names = ["Free", "Coupled-following"]
-
-# Plot
-fig, ax = plt.subplots(figsize=(5, 4), dpi=600)
-
-disp = ConfusionMatrixDisplay(
-    confusion_matrix=cm_norm,
-    display_labels=class_names
-)
-
-disp.plot(
-    cmap=custom_blues,
-    ax=ax,
-    values_format=".1%",
-    colorbar=True
-)
-
-# Axis labels
-ax.set_xlabel("Predicted label", fontsize=11)
-ax.set_ylabel("True label", fontsize=11)
-ax.set_title("Normalized confusion matrix", fontsize=12)
-
-# Improve tick label style
-ax.tick_params(axis="both", labelsize=10)
-
-# Make text color readable
-for text in disp.text_.ravel():
-    value = float(text.get_text().replace("%", ""))
-    text.set_fontsize(11)
-    text.set_color("white" if value > 50 else "black")
-
-plt.tight_layout()
-
-# Save as pdf/svg if needed
-# plt.savefig("/home/zzha/PycharmProjects/RampMerging_2026/figures/rf_following_states_norm.pdf",
-#             format="pdf", bbox_inches="tight")
-# plt.savefig("/home/zzha/PycharmProjects/RampMerging_2026/figures/rf_following_states_norm.svg",
-#             format="svg", bbox_inches="tight")
-
-plt.show()

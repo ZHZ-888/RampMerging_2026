@@ -76,7 +76,7 @@ print(f"\nPredicted Arrival Time for new data: {predicted_time[0]:.2f} seconds")
 # joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/mr_arrival_prediction_model260319_ndarray.pkl')
 
 #%% load model
-loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging4_250208/models/mr_arrival_prediction_model241128.pkl')
+# loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging4_250208/models/mr_arrival_prediction_model241128.pkl')
 loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging_2026/rf_models/mr_arrival_prediction_model260319_ndarray.pkl')
 
 ls_new_features = [4, 83.05, 24.04, 184.59, 0] # [3, 155.23, 24.74, 53.7524]

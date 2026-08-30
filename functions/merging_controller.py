@@ -14,8 +14,8 @@ from functions import merging_control_jam as mcj
 
 
 class MergingController:
-    def __init__(self, data_recorder, traci, av_p, platoon_formation=False, ml=False, loss_rate=0,
-                 mpc_interval=60, delta_t=15, warmup_time=0):  # ml: multi-lane
+    def __init__(self, data_recorder, traci, av_p, platoon_formation=False, ml=False,
+                 loss_rate=0, mpc_interval=60, delta_t=15, warmup_time=0):  # ml: multi-lane
         self.traci = traci
         self.data_recorder = data_recorder
         self.merge_regular = mcr.MergingControlRegular(traci, self.data_recorder, ml)

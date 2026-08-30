@@ -181,6 +181,44 @@ class MergingControlRegular:
 
     def get_platoon_info2(self):
         """
+        Record platoon_type, tail_id
+        IMPORTANT: recording platoon information
+        240929update: fixed length of platoon info
+        240622update: add tail_id
+
+        :param
+                ls_mr_leader_up: ~ = ls_ms_leader_up_asc + ls_r_leader_up_asc
+                m_dpt_type: scripts lane veh departure schedule; {4: 'AHHHHHHHHH', 31: 'AHHHHHHHHHHH'}
+                r_dpt_type: ramp lane veh departure schedule; {4: 'AHHHHHHHHH', 58: 'AHHHHHHHHHHH'}
+        :return: dic_platoon_info:
+                {'mavh70': [['AHH', 'mhv90'], deque([platoon_length1, platoon_length2], maxlen=10)]}
+        """
+        # get info at this moment
+        dic_vid_groups = self.data_recorder.dic_vid_groups
+        ls_m_leader_net_asc = dic_vid_groups['ls_m_leader_net_asc']
+        ls_r_leader_net_asc = dic_vid_groups['ls_r_leader_net_asc']
+        ls_mr_leader_net_asc = ls_m_leader_net_asc + ls_r_leader_net_asc
+
+        for leader in ls_mr_leader_net_asc:
+            platoon_type = self.data_recorder.dic_leader_ptype.get(leader)
+            if platoon_type is None:
+                continue
+            if leader not in self.dic_platoon_info:
+                self.dic_platoon_info[leader] = [[platoon_type, None], deque(maxlen=10)]
+            # SPECIAL CASE: type 'A' (vehicle number is 1), no tail vehicle, no platoon length
+            if len(platoon_type) == 1:
+                self.dic_platoon_info[leader][0] = [platoon_type, None]
+                continue
+            tail_id = self._get_tail_id(dic_vid_groups, platoon_type, leader)
+            ori_tail_id = self.dic_platoon_info[leader][0][1]
+            if tail_id != ori_tail_id: # if different, then update
+                self.dic_platoon_info[leader][0] = [platoon_type, tail_id]
+            # self.data_recorder.ls_tail_ids.append(tail_id)
+        self.data_recorder.dic_platoon_info = self.dic_platoon_info
+        return self.dic_platoon_info
+
+    def get_platoon_info2_ori(self):
+        """
         IMPORTANT: recording platoon information
         240929update: fixed length of platoon info
         240622update: add tail_id
@@ -213,11 +251,10 @@ class MergingControlRegular:
                 self.dic_platoon_info[leader][0] = [platoon_type, None]
                 continue
             tail_id = self._get_tail_id(dic_vid_groups, platoon_type, leader)
-            # if tail_id in dic_vid_groups['ls_vehid']:
-            #     # update Tail ID
-            #     self.dic_platoon_info[leader][0] = [platoon_type, tail_id]
-            #     if tail_id not in self.data_recorder.ls_tail_ids:
-            #         self.data_recorder.ls_tail_ids.append(tail_id) # ls_tail_ids (purpose?)
+            if tail_id in dic_vid_groups['ls_vehid']:
+                self.dic_platoon_info[leader][0] = [platoon_type, tail_id]
+                if tail_id not in self.data_recorder.ls_tail_ids:
+                    self.data_recorder.ls_tail_ids.append(tail_id) # ls_tail_ids (purpose? record tail id then record tail arrival time)
                 # dic_head_states = self.data_recorder.get_vid_states(leader)
                 # dic_tail_states = self.data_recorder.get_vid_states(tail_id)
                 # pos_head = dic_head_states['pos']
@@ -577,7 +614,7 @@ class MergingControlRegular:
             travel_time = t_uni+t_acc
         return travel_time
 
-    def _get_tail_id(self, dic_vid_groups, platoon_type, leader_id):
+    def _get_tail_id_ori(self, dic_vid_groups, platoon_type, leader_id):
         '''
         get platoon tail id
         Params:
@@ -594,6 +631,25 @@ class MergingControlRegular:
         dev_idx = len(platoon_type) - 1
         idx_tail = idx_leader - dev_idx
         tail_id = ls_veh_net[idx_tail] if idx_tail >= 0 else None
+        return tail_id
+
+    def _get_tail_id(self, dic_vid_groups, platoon_type, leader_id):
+        '''
+        get platoon tail id
+        Params:
+            ls_m_veh_up_asc: ascedning order, old to new
+            ls_r_veh_up_asc: desc
+
+            ls_r_veh_net: should be desc
+        '''
+        if leader_id.startswith('m'):
+            ls_vid = dic_vid_groups['ls_m_veh_net_asc']
+        else:
+            ls_vid = dic_vid_groups['ls_r_veh_net_asc']
+        idx_leader = ls_vid.index(leader_id)
+        dev_idx = len(platoon_type) - 1
+        idx_tail = idx_leader + dev_idx
+        tail_id = ls_vid[idx_tail] if 0 <= idx_tail < len(ls_vid) else None
         return tail_id
 
     def _apply_acceleration_ori(self, vid, acc):

@@ -1,19 +1,16 @@
 #!/bin/bash
 #SBATCH --job-name=mpgc_ml_array          # Job name shown in the queue
-#SBATCH --time=00:45:00                  # Walltime limit (hh:mm:ss)
+#SBATCH --time=00:20:00                  # Walltime limit (hh:mm:ss)
 #SBATCH --cpus-per-task=1                # Number of CPU cores per task
-#SBATCH --mem=4G                         # Memory per task
+#SBATCH --mem=2G                         # Memory per task
 #SBATCH --output=output-logs/out_%A_%a.txt   # Standard output log
 #SBATCH --error=error-logs/err_%A_%a.txt    # Standard error log
-# NOTE: Submit with --array=0-14  (3 AV_Ps * 5 Seeds = 15 jobs)
+# NOTE: Submit with --array=0-29  (2 demand settings * 3 AV_Ps * 5 seeds = 30 jobs)
 
 # ==============================================================================
 # USAGE EXAMPLES:
 # 1. Default submission (uses values defined in this script):
-#    sbatch --array=0-14 run_mpgc_multi_lane_array_RF_AT.slurm
-#
-# 2. Overriding Flow Rates from Command Line:
-#    sbatch --array=0-14 --export=ALL,M_FR=1200,R_FR=600 run_mpgc_multi_lane_array_RF_AT.slurm
+#    sbatch --array=0-29 slurm/collect_RF_arrival_time_data.slurm
 # ==============================================================================
 
 set -euo pipefail
@@ -21,14 +18,6 @@ set -euo pipefail
 # Ensure relative paths are resolved from the submission directory
 cd "$SLURM_SUBMIT_DIR"
 
-# ================================
-# External Parameters (Flow Rates)
-# Set default values if not provided via --export
-# ================================
-M_FR=${M_FR:-1500}  # Default Mainroad flow rate: 1500 veh/h
-R_FR=${R_FR:-900}   # Default Ramp flow rate: 900 veh/h
-
-echo "Flow Settings: M_FR=$M_FR, R_FR=$R_FR"
 
 # ================================
 # Load Python environment
@@ -51,12 +40,15 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # ================================
 # Experiment parameter grid
 # ================================
-AV_P_VALS=(0.1 0.2 0.3) # AV penetration
-SEEDS=(16 17 18 19 20)  # Random seeds
+AV_P_VALS=(0.1 0.2 0.3)
+SEEDS=(21 22 23 24 25)
+M_FR_VALS=(1500 0)
+R_FR_VALS=(0 800)
 
-NAV=${#AV_P_VALS[@]}   # Number of AV Settings (3)
-NS=${#SEEDS[@]}        # Number of Seeds (5)
-NT=$((NAV * NS))       # Total Tasks (15)
+NAV=${#AV_P_VALS[@]}
+NS=${#SEEDS[@]}
+NF=${#M_FR_VALS[@]}
+NT=$((NF * NAV * NS))
 
 # Check SLURM array task ID
 if [ -z "${SLURM_ARRAY_TASK_ID:-}" ]; then
@@ -66,14 +58,18 @@ fi
 
 TASK_ID=${SLURM_ARRAY_TASK_ID}
 
-# Map array task ID to (av_p, seed)
-av_idx=$(( TASK_ID / NS ))
-s_idx=$(( TASK_ID % NS ))
+# Map array task ID to (demand, av_p, seed)
+flow_idx=$(( TASK_ID / (NAV * NS) ))
+remaining=$(( TASK_ID % (NAV * NS) ))
+av_idx=$(( remaining / NS ))
+s_idx=$(( remaining % NS ))
 
+M_FR=${M_FR_VALS[$flow_idx]}
+R_FR=${R_FR_VALS[$flow_idx]}
 AV_P=${AV_P_VALS[$av_idx]}
 SEED=${SEEDS[$s_idx]}
 
-echo "TASK_ID=$TASK_ID | AV_P=$AV_P | Seed=$SEED | (Indices: av=$av_idx, s=$s_idx)"
+echo "TASK_ID=$TASK_ID | M_FR=$M_FR | R_FR=$R_FR | AV_P=$AV_P | Seed=$SEED"
 
 # ================================
 # Per-task CSV output (safe for parallel jobs)

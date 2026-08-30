@@ -21,7 +21,6 @@ from functions import data_recording as dr
 from functions import hpc_utils
 from functions import accident_simulation
 
-
 def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0,
               gui=False, plot=False, display=False, lc=True, st=1500,
               tsg_mode='predict', max_team_size=12, fc_mode='full'):
@@ -176,7 +175,8 @@ def loop(traci, st, data_recorder,
         (dic_follower_state, his_dic_platoon_size,
          dic_id_features) = formation_controller.step(st, step, lc)
 
-        tp, queue_log, ts_first_jam, ts_first_back_to_regular = merging_controller.step(st, step, r_dpt_type)
+        (tp, queue_log, ts_first_jam,
+         ts_first_back_to_regular) = merging_controller.step(st, step, r_dpt_type)
 
         # accident_simulation.sudden_accident(traci, step, data_recorder)
 

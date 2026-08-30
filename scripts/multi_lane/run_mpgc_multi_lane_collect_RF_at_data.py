@@ -17,12 +17,11 @@ from functions import data_recording as dr
 from functions import hpc_utils
 
 
-def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate=0,
-              gui=False, plot=False, display=False, lc=False, st=2400):
+def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0,
+              gui=False, plot=False, display=False, lc=False, st=1500):
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
-    sumo_config_path = (
-            ROOT
+    sumo_config_path = (ROOT
             / "road_network"
             / "multi_lane_motorway"
             / "real"
@@ -30,15 +29,14 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
     )
     # Simulation step length
     sim_step = 0.1
-    # Determine the SUMO binary based on whether GUI is needed
-    sumo_bin = 'sumo-gui' if gui else 'sumo'
+    sumo_home = "/home/zzha/opt/sumo-1.19.0-src"
+    os.environ["SUMO_HOME"] = sumo_home
+    sumo_bin = os.path.join(sumo_home, "bin", "sumo-gui" if gui else "sumo",)
     # Construct the SUMO command and options
-    file_name = f'trj_{r_fr}_{av_p}_{seed}_{loss_rate}.xml'
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
                 "--seed", str(seed),
                 "--no-warnings"]  # , '-S' start auto, and quit auto
     sumo_options = ["--step-length", str(sim_step)]
-
     # If GUI is enabled, set the GUI view schema
     if gui:
         import traci
@@ -50,15 +48,14 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
         traci.start(sumo_cmd + sumo_options)
     try:
         # VEHICLE GENERATOR
-        # scripts road veh departure schedule (lane0 and lane1)
         max_attempts = 7
         av_p0, av_p1 = av_p, av_p
         m0_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p0, m_fr, seed)
         m1_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p1, m_fr, 100 - seed)
         r_dpt_type = vg.get_schedule2(st, av_p, r_fr, r_platoon_p,
                                       max_attempts, plot, seed, display)
-        # ramp road veh depature schedule
-        veh_gen = vg.VehGen(traci)  # function related to veh generation
+        # ramp road vehicle depature schedule
+        veh_gen = vg.VehGen(traci, seed)  # function related to veh generation
         data_recorder = dr.DataRecording(traci)
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
@@ -73,29 +70,31 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=1, r_platoon_p=1, loss_rate
         traci.close()
     return (dic_targets, ls_features)
 
-def loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller, lc,
+def loop(traci, st, data_recorder,
+         veh_gen, formation_controller, merging_controller, lc,
          r_autoFollow_p, m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None):
     # START SIMULATION
     step = 0
     # scripts loop
     while step < st * 10:
         # checkpoint
-        if step > 740 * 10:
+        if step > 100 * 10:
+            dic_vid_groups = data_recorder.dic_vid_groups
+            ls_m_leader_net_asc = dic_vid_groups['ls_m_leader_net_asc']
+            ls_r_leader_net = dic_vid_groups['ls_r_leader_net']
+            ls_r_leader_net_asc = sorted(ls_r_leader_net, key=lambda x: int(''.join(filter(str.isdigit, x))))
             pass
         traci.simulationStep()  # start simulation
-        # mainlane vehicle generation
-        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '0')  # 30m/s => 110km/h
-        # ramp vehicle generation
-        veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p)
+        # Vehicle generation without Heterogeneous
+        # veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '0')
+        # veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p)
+        # Vehicle generation with Heterogeneous
+        veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')
+        veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p) # default: with heterogeneous
 
-        # disable lane-changing
-        # data_recorder.disable_all_lane_changes()
-
-        # core control
-        dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features = (
-            formation_controller.step(st, step, lc))
-        tp, speed_log, queue_log = (
-            merging_controller.step(st, step, r_dpt_type))
+        # control
+        formation_controller.step(st, step, lc)
+        merging_controller.step(st, step, r_dpt_type)
 
         # record targets
         data_recorder.record_tail_arrival(step) # data_recorder.dic_tail_arrived_ws
@@ -154,24 +153,22 @@ if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
     dic_targets, ls_features = mpgc_main(
-        av_p = 0.05,
-        r_fr = 0,
-        m_fr = 1500, # 1500
+        av_p = 0.1,
+        r_fr = 800,
+        m_fr = 0, # 1500
         seed = 16,
-        r_autoFollow_p = 1,
+        r_autoFollow_p = 0,
         r_platoon_p = 1,
         loss_rate = 0,
         gui = False,
         plot = False,
         display = False,
         lc = False,
-        st = 1200
+        st = 600
     )
     end = time.time()
 
     # orgnise data
-    # output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260123.csv"
-    # output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260318.csv"
-    output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/test_260712.csv"
+    output_path = "/home/zzha/PycharmProjects/RampMerging_2026/data/features/test.csv"
     collect_RF_data(dic_targets, ls_features, output_path)
 

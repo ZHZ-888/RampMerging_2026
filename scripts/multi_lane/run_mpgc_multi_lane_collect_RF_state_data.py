@@ -27,7 +27,6 @@ def mpgc_main(av_p=0.1, r_fr=0, m_fr=1000, seed=0,
     )
     # Simulation step length
     sim_step = 0.1
-
     sumo_home = "/home/zzha/opt/sumo-1.19.0-src"
     os.environ["SUMO_HOME"] = sumo_home
     sumo_bin = os.path.join(sumo_home, "bin", "sumo-gui" if gui else "sumo",)
