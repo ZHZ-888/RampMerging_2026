@@ -241,10 +241,10 @@ def main(args=None, root=None):
         hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'],
                                    runtime, max_time=parsed_args.st))
     delay_res = hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
-    ramp_entry_count, mrm_insertion_count = hpc_utils.get_mrm_insertion_counts(
+    ramp_entry_count, mrm_insertion_count, ramp_entry_ids = hpc_utils.get_mrm_insertion_counts(
         output_file_path['xml_path'], hpc_utils.DEFAULT_WARMUP_TIME, parsed_args.st)
     mr_ttc_ratio_3, mr_ttc_ratio_2, mr_ttc_ratio_1_5 = hpc_utils.get_mr_ttc_ratios(
-        output_file_path['ssm_path'], ramp_entry_count, max_time=parsed_args.st)
+        output_file_path['ssm_path'], ramp_entry_ids, max_time=parsed_args.st)
 
     # 3. Save results
     if parsed_args.out_csv:
@@ -333,17 +333,17 @@ if __name__ == '__main__':
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam, ts_first_back_to_regular) = mpgc_main(
         av_p = 0.1, # 0.1
-        r_fr = 800, # 1300
+        r_fr = 1000, # 1300
         m_fr = 1500, # 1500
-        seed = 1, # 2 analysis
+        seed = 2, # 2 analysis
         r_autoFollow_p = 0,  # auto follow proportion
-        r_platoon_p = 0.2, # percentage of rplatoon vehicles on ramp
+        r_platoon_p = 1, # percentage of rplatoon vehicles on ramp
         loss_rate = 0, # 0.15
-        gui = True,
+        gui = False,
         plot = False,
         display = False,
         lc = True, # if allow HV lane-changing; True
-        fc_mode = 'dla_only', # dla_only/dla_tsc/dla_tsc_lhr/dla_tsc_lhr_ce/full
+        fc_mode = 'full', # dla_only/dla_tsc/dla_tsc_lhr/dla_tsc_lhr_ce/full
         st = st, # 1200
         tsg_mode = 'predict', # off/fix/predict/train/audit
         max_team_size = max_team_size
@@ -355,7 +355,9 @@ if __name__ == '__main__':
     hpc_utils.get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=max_team_size)
 
     tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
-        hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st)) # 1 => 1.5s
+        hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st))
     hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
-    hpc_utils.get_mrm_insertion_counts(output_file_path['xml_path'], hpc_utils.DEFAULT_WARMUP_TIME, st)
+    ramp_entry_count, _, ramp_entry_ids = hpc_utils.get_mrm_insertion_counts(output_file_path['xml_path'], hpc_utils.DEFAULT_WARMUP_TIME, st)
+    mr_ttc_ratio_3, mr_ttc_ratio_2, mr_ttc_ratio_1_5 = hpc_utils.get_mr_ttc_ratios(
+        output_file_path['ssm_path'], ramp_entry_ids, max_time=st)
     print(f'ts_first_jam: {ts_first_jam}, ts_first_back_to_regular: {ts_first_back_to_regular}')

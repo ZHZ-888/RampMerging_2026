@@ -86,16 +86,17 @@ def get_mc_indicator(speed_log, tp, ssm_path, runtime,
     print("\n           ---merging control performance indicators---")
     print(f'tp: {tp:.0f} veh/h, average_v:{average_v:.2f} m/s, '
           f'ttc_ratio_3: {ttc_ratio_3:.8f}, '
+          f'mr_confilct_cnt_3: {ttc_metrics_3[3]}, '
           f'ttc_ratio_2: {ttc_ratio_2:.8f}, '
           f'ttc_ratio_1.5: {ttc_ratio_1:.8f}, '
           f'execution_time:{runtime:.2f} s')
     return tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime
 
 
-def get_mr_ttc_ratios(ssm_path, ramp_entry_count, max_time=None,
+def get_mr_ttc_ratios(ssm_path, ramp_entry_ids, max_time=None,
                       warmup_time=DEFAULT_WARMUP_TIME):
     """Calculate M-R TTC exposure ratios among ramp entries."""
-    if ramp_entry_count == 0:
+    if not ramp_entry_ids:
         return 0.0, 0.0, 0.0
 
     ratios = []
@@ -106,8 +107,8 @@ def get_mr_ttc_ratios(ssm_path, ramp_entry_count, max_time=None,
             min_time=warmup_time,
             max_time=max_time,
         )
-        ratios.append(metrics[3] / ramp_entry_count)
-
+        ratios.append(len(metrics[3] & ramp_entry_ids) / len(ramp_entry_ids))
+    print(f'mr_ttc: {ratios}')
     return tuple(ratios)
 
 
@@ -168,6 +169,7 @@ def get_mrm_insertion_counts(fcd_path, warmup_time=DEFAULT_WARMUP_TIME, st=1500)
     ramp_vehicles_entered_ws_1 = set()
     ramp_entry_count = 0
     mrm_insertion_count = 0
+    ramp_entry_ids = set()
 
     for _, timestep in ET.iterparse(fcd_path, events=("end",)):
         if timestep.tag != "timestep":
@@ -194,6 +196,7 @@ def get_mrm_insertion_counts(fcd_path, warmup_time=DEFAULT_WARMUP_TIME, st=1500)
         ramp_vehicles_entered_ws_1.update(new_ramp_entries)
 
         if sim_time >= warmup_time:
+            ramp_entry_ids.update(new_ramp_entries)
             ws_1_vehicles = sorted(
                 (state[1], vehicle_id)
                 for vehicle_id, state in vehicles.items()
@@ -216,7 +219,7 @@ def get_mrm_insertion_counts(fcd_path, warmup_time=DEFAULT_WARMUP_TIME, st=1500)
 
         timestep.clear()
     print(f"Ramp entries: {ramp_entry_count}, M-R-M insertions: {mrm_insertion_count}")
-    return ramp_entry_count, mrm_insertion_count
+    return ramp_entry_count, mrm_insertion_count, ramp_entry_ids
 
 def get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=12):
     """
@@ -351,6 +354,6 @@ if __name__ == "__main__":
     #             "trj_rm_1400_0_3_20260808_142224.xml")
     fcd_path = ("/home/zzha/PycharmProjects/RampMerging_2026/data/multi_lane/algo/"
                 "trj_fifo_1400_0_3_20260807_210226.xml")
-    ramp_entry_count, mrm_insertion_count = get_mrm_insertion_counts(fcd_path=fcd_path, st=1500)
+    ramp_entry_count, mrm_insertion_count, _ = get_mrm_insertion_counts(fcd_path=fcd_path, st=1500)
     print(ramp_entry_count, mrm_insertion_count)
 

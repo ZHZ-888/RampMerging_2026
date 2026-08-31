@@ -86,11 +86,11 @@ def loop(traci, st, data_recorder,
             pass
         traci.simulationStep()  # start simulation
         # Vehicle generation without Heterogeneous
-        # veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '0')
-        # veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p)
+        veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '0')
+        veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p=1)
         # Vehicle generation with Heterogeneous
-        veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')
-        veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p) # default: with heterogeneous
+        # veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')
+        # veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p=0) # default: with heterogeneous
 
         # control
         formation_controller.step(st, step, lc)

@@ -216,10 +216,10 @@ def main(args=None, root=None):
         hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'],
                                    runtime, max_time=parsed_args.st))
     delay_res = hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
-    ramp_entry_count, mrm_insertion_count = hpc_utils.get_mrm_insertion_counts(
+    ramp_entry_count, mrm_insertion_count, ramp_entry_ids = hpc_utils.get_mrm_insertion_counts(
         output_file_path['xml_path'], hpc_utils.DEFAULT_WARMUP_TIME, parsed_args.st)
     mr_ttc_ratio_3, mr_ttc_ratio_2, mr_ttc_ratio_1_5 = hpc_utils.get_mr_ttc_ratios(
-        output_file_path['ssm_path'], ramp_entry_count, max_time=parsed_args.st)
+        output_file_path['ssm_path'], ramp_entry_ids, max_time=parsed_args.st)
 
     # 3. Save results
     if parsed_args.out_csv:

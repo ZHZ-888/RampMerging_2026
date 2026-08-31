@@ -6,6 +6,7 @@
 #SBATCH --output=output-logs/out_%A_%a.txt   # Standard output log
 #SBATCH --error=error-logs/err_%A_%a.txt    # Standard error log
 # NOTE: Submit with --array=0-29  (2 demand settings * 3 AV_Ps * 5 seeds = 30 jobs)
+# NOTE: Submit with --array=0-60  (2 demand settings * 3 AV_Ps * 10 seeds = 60 jobs)
 
 # ==============================================================================
 # USAGE EXAMPLES:
@@ -41,7 +42,8 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # Experiment parameter grid
 # ================================
 AV_P_VALS=(0.1 0.2 0.3)
-SEEDS=(21 22 23 24 25)
+# SEEDS=(21 22 23 24 25)
+SEEDS=(11 12 13 14 15 16 17 18 19 20)
 M_FR_VALS=(1500 0)
 R_FR_VALS=(0 800)
 
