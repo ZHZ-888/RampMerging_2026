@@ -92,6 +92,25 @@ def get_mc_indicator(speed_log, tp, ssm_path, runtime,
     return tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime
 
 
+def get_mr_ttc_ratios(ssm_path, ramp_entry_count, max_time=None,
+                      warmup_time=DEFAULT_WARMUP_TIME):
+    """Calculate M-R TTC exposure ratios among ramp entries."""
+    if ramp_entry_count == 0:
+        return 0.0, 0.0, 0.0
+
+    ratios = []
+    for threshold in (3, 2, 1.5):
+        metrics = calc_ttc_sd_exposure.calc_ttc_conflict_metrics(
+            ssm_path,
+            ttc_threshold=threshold,
+            min_time=warmup_time,
+            max_time=max_time,
+        )
+        ratios.append(metrics[3] / ramp_entry_count)
+
+    return tuple(ratios)
+
+
 def get_delay_indicator(tripinfo_path, warmup_time=DEFAULT_WARMUP_TIME):
     """
     Calculate delay indicators from tripinfo XML file.

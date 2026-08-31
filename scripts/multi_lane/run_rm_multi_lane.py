@@ -218,6 +218,8 @@ def main(args=None, root=None):
     delay_res = hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
     ramp_entry_count, mrm_insertion_count = hpc_utils.get_mrm_insertion_counts(
         output_file_path['xml_path'], hpc_utils.DEFAULT_WARMUP_TIME, parsed_args.st)
+    mr_ttc_ratio_3, mr_ttc_ratio_2, mr_ttc_ratio_1_5 = hpc_utils.get_mr_ttc_ratios(
+        output_file_path['ssm_path'], ramp_entry_count, max_time=parsed_args.st)
 
     # 3. Save results
     if parsed_args.out_csv:
@@ -231,6 +233,9 @@ def main(args=None, root=None):
             "ttc_ratio_3": ttc_ratio_3,
             "ttc_ratio_2": ttc_ratio_2,
             "ttc_ratio_1": ttc_ratio_1,
+            "mr_ttc_ratio_3": mr_ttc_ratio_3,
+            "mr_ttc_ratio_2": mr_ttc_ratio_2,
+            "mr_ttc_ratio_1.5": mr_ttc_ratio_1_5,
             'avg_time_loss': delay_res["avg_time_loss"],
             'mainline_time_loss': delay_res["mainline_time_loss"],
             'ramp_time_loss': delay_res["ramp_time_loss"],

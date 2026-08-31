@@ -29,7 +29,7 @@ def calc_ttc_conflict_metrics(ssm_file, total_vehicles=None, ttc_threshold=3.0,
 
     ssm_file = Path(ssm_file)
     if not ssm_file.exists():
-        return 0.0, 0, 0.0
+        return 0.0, 0, 0.0, 0
 
     root = ET.parse(ssm_file).getroot()
     measure = measure.upper()
@@ -83,10 +83,28 @@ def calc_ttc_conflict_metrics(ssm_file, total_vehicles=None, ttc_threshold=3.0,
                 if pair not in pair_values or value > pair_values[pair]:
                     pair_values[pair] = value
 
+    mr_ramp_values = {}
+    for pair, value in pair_values.items():
+        first, second = pair
+        is_mr_pair = (
+            (first.startswith("m") and second.startswith("r"))
+            or (first.startswith("r") and second.startswith("m"))
+        )
+        if not is_mr_pair:
+            continue
+
+        ramp_id = first if first.startswith("r") else second
+        if (ramp_id not in mr_ramp_values
+                or (measure == "TTC" and value < mr_ramp_values[ramp_id])
+                or (measure != "TTC" and value > mr_ramp_values[ramp_id])):
+            mr_ramp_values[ramp_id] = value
+
     if measure == "TTC":
         risky_values = [v for v in pair_values.values() if v < ttc_threshold]
+        risky_mr_ramps = [v for v in mr_ramp_values.values() if v < ttc_threshold]
     else:
         risky_values = [v for v in pair_values.values() if v > ttc_threshold]
+        risky_mr_ramps = [v for v in mr_ramp_values.values() if v > ttc_threshold]
 
     conflict_count = len(risky_values)
     avg_value = float(np.mean(risky_values)) if risky_values else 0.0
@@ -97,7 +115,7 @@ def calc_ttc_conflict_metrics(ssm_file, total_vehicles=None, ttc_threshold=3.0,
         else 0.0
     )
 
-    return avg_value, conflict_count, conflict_rate
+    return avg_value, conflict_count, conflict_rate, len(risky_mr_ramps)
 
 
 if __name__ == "__main__":
@@ -105,5 +123,7 @@ if __name__ == "__main__":
         "/home/zzha/PycharmProjects/RampMerging_2026/"
         "data/multi_lane/algo/ssm_rm_1400_0_0_20260807_194334.xml"
     )
-    avg_min_ttc, conflict_count, conflict_rate = calc_ttc_conflict_metrics(ssm_file, total_vehicles=1235, ttc_threshold=3)
-    print(f"Avg min TTC: {avg_min_ttc:.2f}, Conflict Count: {conflict_count}, Conflict Rate: {conflict_rate:.4f}")
+    avg_min_ttc, conflict_count, conflict_rate, mr_ramp_count = calc_ttc_conflict_metrics(
+        ssm_file, total_vehicles=1235, ttc_threshold=3)
+    print(f"Avg min TTC: {avg_min_ttc:.2f}, Conflict Count: {conflict_count}, "
+          f"Conflict Rate: {conflict_rate:.4f}, M-R Ramp Count: {mr_ramp_count}")
