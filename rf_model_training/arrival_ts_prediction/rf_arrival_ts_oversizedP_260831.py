@@ -14,23 +14,35 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error, mean_absolute_percentage_error
 import joblib
 
-#%%
-# 1. Data
-# Feature data (platoon_type, distance, speed)
-# path = '/home/zzha/PycharmProjects/RampMerging4_250208/data/features/df_combined_mr_4f_241128.csv'
-# path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/rf_at_data_rm.csv'
-path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_at_260318.csv'
+#%% function: data preprocess
+def process_data(df):
+    df = df.copy()
+    # 1. drop nan
+    df = df.dropna()
+    # 2. modify 'AHH' to '3'
+    df['platoon_type'] = df['platoon_type'].str.len()
+    # 3. add target
+    df['target'] = df['arrival_ts'] - df['prediction_ts']
+    return df
+
+#%% Feature data (platoon_type, distance, speed)
+path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_arrival_time_homo_seed11-20_260830.csv'
 df_ft = pd.read_csv(path)
 print(df_ft.columns)
 print(len(df_ft))
+
+#%% Data preprocess
+df_ft2 = process_data(df_ft)
+print(df_ft2.columns)
+print(len(df_ft2))
 
 #%%
 # 2. Separate features and target variable
 # feature_cols = ['platoon_type', 'dis_to_pv', 'speed_leader', 'remain_dis_leader', 'm']
 feature_cols = ['platoon_type', 'leader_to_pv_dis', 'leader_speed', 'leader_left_dis', 'm']
 
-X = df_ft[feature_cols].values
-y = df_ft['target'].values
+X = df_ft2[feature_cols].values
+y = df_ft2['target'].values
 
 # 3. Split the dataset into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -67,13 +79,13 @@ print("\nFeature Importances:")
 print(importance_df)
 
 #%% 8. Predict with new data example
-ls_features = [7, 221.53, 21.76, 5.73, 0]  # [3, 155.23, 24.74, 53.7524], [7, 127.04, 24.56, 5.98]
+ls_features = [12, 221.53, 21.76, 5.73, 0]  # [3, 155.23, 24.74, 53.7524], [7, 127.04, 24.56, 5.98]
 new_data = np.array([ls_features])  # Platoon type 1, distance 500 meters, speed 15 m/s
 predicted_time = model.predict(new_data)
 print(f"\nPredicted Arrival Time for new data: {predicted_time[0]:.2f} seconds")
 
 #%% save the model
-# joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/mr_arrival_prediction_model260319_ndarray.pkl')
+joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/mr_arrival_prediction_model260831_ndarray.pkl')
 
 #%% load model
 # loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging4_250208/models/mr_arrival_prediction_model241128.pkl')
