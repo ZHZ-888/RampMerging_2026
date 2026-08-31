@@ -91,10 +91,6 @@ class MergingControlRegular:
         if step % interval == 0 or new_leader_flag:
             c_ts = round(step / 10 + 0.1, 1)
             for leader in ls_leader_up:
-                if leader == 'mb_av3470':
-                    pass
-                if leader in ['m_av4670', 'mb_av4970', 'mv_av4936', 'm_av3944']:
-                    pass
                 platoon_type = self.data_recorder.dic_leader_ptype.get(leader, "A")
                 if platoon_type is None:
                     continue  # pass
@@ -144,8 +140,6 @@ class MergingControlRegular:
 
         prev_tail = None  # Tail arrival time of the previous valid platoon
         for key, val in items:
-            if len(val) < 3:
-                continue
             head = val[1]
             tail = val[2]
             # Skip past or ongoing platoons (do not modify)
