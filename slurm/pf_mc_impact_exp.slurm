@@ -7,7 +7,7 @@
 #SBATCH --error=error-logs/pf_mc_impact_exp_%A_%a.err
 
 # Submit with:
-# sbatch --array=0-389 slurm/pf_mc_impact_exp.slurm
+# sbatch --array=0-130 slurm/pf_mc_impact_exp.slurm
 
 set -euo pipefail
 
@@ -52,8 +52,8 @@ TSG_MODE=predict
 # ================================
 RAMP_DEMANDS=(200 300 400 500 600 700 800 900 1000 1100 1200 1300 1400)
 SEEDS=(0 1 2 3 4 5 6 7 8 9)
-FC_MODES=(dla_only dla_only full)
-R_PLATOON_PS=(0.2 1 1)
+FC_MODES=(dla_only)
+R_PLATOON_PS=(0.7)
 
 NG=${#FC_MODES[@]}
 NR=${#RAMP_DEMANDS[@]}
