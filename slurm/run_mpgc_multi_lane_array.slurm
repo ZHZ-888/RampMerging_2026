@@ -39,7 +39,7 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # ================================
 MAINLINE=1500                                # Mainline demand (veh/h)
 AV_P_VALS=(0.1 0.2 0.3)                     # AV penetration
-SEEDS=(1 2 3 4 5 6 7 8 9 10)                      # Random seeds
+SEEDS=(0 1 2 3 4 5 6 7 8 9)                      # Random seeds
 RAMPS=(200 300 400 500 600 700 800 900 1000 1100 1200 1300 1400) # Ramp demands
 
 NAV=${#AV_P_VALS[@]}                        # Number of AV Settings (3)
