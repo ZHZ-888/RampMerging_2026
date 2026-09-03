@@ -45,7 +45,7 @@ def standard_arg_parser():
     parser.add_argument(
         "--r_platoon_p",
         type=float,
-        default=1,
+        default=0.6,
         help="Proportion of standard ramp platoons",
     )
     return parser
