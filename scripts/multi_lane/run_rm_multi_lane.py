@@ -254,9 +254,9 @@ if __name__ == '__main__':
     st = 1500
     speed_log, tp, output_file_path = rm_main(
         av_p = 0,
-        r_fr = 1400,
+        r_fr = 800,
         m_fr = 1500,
-        seed = 5,
+        seed = 10,
         gui = True,
         plot = False,
         display = False,

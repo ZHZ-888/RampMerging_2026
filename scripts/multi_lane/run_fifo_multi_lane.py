@@ -204,11 +204,11 @@ if __name__ == '__main__':
     start = time.time()
     st = 1500
     speed_log, tp, output_file_path = fifo_main(
-        av_p = 0,
-        r_fr = 1400, # 1300
+        av_p = 10,
+        r_fr = 200, # 1300
         m_fr = 1500,
-        seed = 10,
-        gui = False,
+        seed = 0,
+        gui = True,
         plot = False,
         display = False,
         st = st
