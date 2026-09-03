@@ -9,6 +9,7 @@ robustness under imperfect communication conditions.
 from functions import print_control as prc
 from collections import deque
 import random
+import math
 
 class UpdateDelayBuffer:
     def __init__(self, loss_rate=0.2, sim_step=0.1):
@@ -16,34 +17,16 @@ class UpdateDelayBuffer:
         self.sim_step = sim_step
         self.buffer = deque()  # store (payload, release_step)
 
-    def push_ori(self, current_step, payload):
-        """
-        Decide delay (release_step) and store payload if not dropped
-            latency (delay): 0.05~0.2 s
-
-        self.buffer: (payload, release_step)
-        """
-        if payload:
-            prc.print_message(f"\n[SEND] Step {current_step}: Generated command → {payload}")
-            if random.random() < self.loss_rate:
-                # print(f"[DROP] Payload lost: {payload}")
-                prc.print_message("[DROP] Payload lost")
-                return
-            min_steps = int(0.05 / self.sim_step)
-            max_steps = int(0.2 / self.sim_step)
-            delay = random.randint(min_steps, max_steps)
-            release_step = current_step + delay
-            prc.print_message(f"[DELAY] {delay} for command → {payload}")
-            self.buffer.append((payload, release_step))
-
     def push(self, current_step, payload): # only in jam_control?
         """Decide delay (release_step) and store payload if not dropped
         latency (delay): 0.05~0.2 s
         """
         if payload:
-            min_steps = int(0.05 / self.sim_step)
-            max_steps = int(0.2 / self.sim_step)
-            delay = random.randint(min_steps, max_steps)
+            # min_steps = int(0.05 / self.sim_step)
+            # max_steps = int(0.2 / self.sim_step)
+            # delay = random.randint(min_steps, max_steps)
+            delay_seconds = random.uniform(0.05, 0.20)
+            delay = math.ceil(delay_seconds / self.sim_step)
             release_step = current_step + delay
             # this is the only difference between push_ori and push
             if any(p == payload for p, _ in self.buffer):
@@ -64,9 +47,11 @@ class UpdateDelayBuffer:
         latency (delay): 0.05~0.2 s
         """
         if payload:
-            min_steps = int(0.05 / self.sim_step)
-            max_steps = int(0.2 / self.sim_step)
-            delay = random.randint(min_steps, max_steps)
+            # min_steps = int(0.05 / self.sim_step)
+            # max_steps = int(0.2 / self.sim_step)
+            # delay = random.randint(min_steps, max_steps)
+            delay_seconds = random.uniform(0.05, 0.20)
+            delay = math.ceil(delay_seconds / self.sim_step)
             release_step = current_step + delay
 
             prc.print_message(f"\n[SEND] Step {current_step}: Generated command → {payload}")
@@ -85,7 +70,7 @@ class UpdateDelayBuffer:
         """
         if current_step == 601:
             pass
-        if self.buffer and self.buffer[0][1] == current_step:
+        if self.buffer and self.buffer[0][1] <= current_step:
             payload = self.buffer.popleft()[0]
             prc.print_message(f"[EXECUTE] Step {current_step}: AV executes → {payload}")
             return payload
