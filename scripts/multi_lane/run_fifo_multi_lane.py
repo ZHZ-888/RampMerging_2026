@@ -36,7 +36,7 @@ def fifo_main(av_p, r_fr, m_fr, seed,
     traj_dir = Path(os.environ.get("TRAJ_DIR", ROOT / "data" / "multi_lane" / "algo")) # default 'data/mpgc'
     file_name = f"trj_fifo_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     xml_path = os.path.join(traj_dir, file_name)
-    lc_file_name = f"lc_fifo_seed{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
+    lc_file_name = f"lc_fifo_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     lc_path = os.path.join(traj_dir, lc_file_name)
     ssm_file_name = f"ssm_fifo_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     ssm_path = traj_dir / ssm_file_name
@@ -79,7 +79,7 @@ def fifo_main(av_p, r_fr, m_fr, seed,
         m1_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p1, m_fr, 100 - seed)
         r_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p, r_fr, seed)
         # ramp road veh depature schedule
-        vgvg = vg.VehGen(traci)  # function related to veh generation
+        vgvg = vg.VehGen(traci, seed)  # function related to veh generation
         data_recorder = dr.DataRecording(traci)
         output_file_path = {'xml_path': xml_path, 'ssm_path': ssm_path, 'tripinfo_path': tripinfo_path}
         # run loop
@@ -154,7 +154,7 @@ def main(args=None, root=None):
     start = time.time()
     # Call the original algorithm
     speed_log, tp, output_file_path = fifo_main(
-        av_p=0,
+        av_p=parsed_args.av_p,
         r_fr=parsed_args.r_fr,
         m_fr=parsed_args.m_fr,
         seed=parsed_args.seed,
@@ -176,6 +176,7 @@ def main(args=None, root=None):
     if parsed_args.out_csv:
         row = {
             "algo": "fifo_multi_lane",
+            "av_p": parsed_args.av_p,
             "ramp_demand": parsed_args.r_fr,
             "mainline_demand": parsed_args.m_fr,
             "seed": parsed_args.seed,
@@ -204,8 +205,8 @@ if __name__ == '__main__':
     start = time.time()
     st = 1500
     speed_log, tp, output_file_path = fifo_main(
-        av_p = 10,
-        r_fr = 200, # 1300
+        av_p = 0.3,
+        r_fr = 800, # 1300
         m_fr = 1500,
         seed = 0,
         gui = True,
@@ -218,6 +219,5 @@ if __name__ == '__main__':
     hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st)
     hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
     hpc_utils.get_mrm_insertion_counts(output_file_path['xml_path'], hpc_utils.DEFAULT_WARMUP_TIME, st)
-
 
 

@@ -2,7 +2,7 @@
 #SBATCH --job-name=mpgc_ml_simulation       # Job name shown in the queue
 #SBATCH --time=00:20:00                     # Walltime limit (hh:mm:ss)
 #SBATCH --cpus-per-task=1                   # Number of CPU cores per task
-#SBATCH --mem=4G                            # Memory per task
+#SBATCH --mem=2G                            # Memory per task
 #SBATCH --output=output-logs/out_%A_%a.txt  # Standard output log
 #SBATCH --error=error-logs/err_%A_%a.txt    # Standard error log
 # NOTE: Submit with --array=0-389  (3 AV_Ps * 10 Seeds * 13 RAMPS = 390 jobs)
@@ -55,7 +55,7 @@ fi
 
 TASK_ID=${SLURM_ARRAY_TASK_ID}
 
-# Map array task ID to (av_p, seed, ramp)
+# Map array task ID to (av_p, ramp, seed)
 av_idx=$(( TASK_ID / (NS * NR) ))
 r_idx=$(( (TASK_ID / NS) % NR ))
 s_idx=$(( TASK_ID % NS ))

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2026-08-10 16:37:10 by Eclipse SUMO netedit Version 1.23.1
+<!-- generated on 2026-09-04 14:38:45 by Eclipse SUMO netedit Version 1.23.1
 <neteditConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/neteditConfiguration.xsd">
 
     <input>
@@ -73,7 +73,7 @@
         <lane id="inflow_highway_0" index="0" allow="private emergency authority army vip passenger hov taxi bus coach delivery truck trailer motorcycle evehicle custom1 custom2" speed="30.00" length="1999.49" shape="-2000.43,-11.40 -1943.68,-5.65 -1898.28,-2.48 -1843.72,-1.75 -1796.19,-3.28 -1738.15,-5.88 -1668.03,-9.06 -1601.08,-11.80 -1531.96,-11.95 -1470.05,-11.91 -1415.83,-10.68 -1309.57,-10.97 -1227.85,-9.91 -1136.00,-10.63 -1022.54,-7.28 -850.14,-6.26 -674.60,-5.46 -523.75,-4.54 -439.73,-3.22 -413.33,-2.84 -1.51,-0.02">
             <param key="origId" value="327889075 182651410"/>
         </lane>
-        <lane id="inflow_highway_1" index="1" allow="private emergency authority army vip passenger hov taxi bus coach delivery truck trailer motorcycle evehicle custom1 custom2" speed="30.00" length="1999.49" shape="-2000.11,-14.58 -1943.40,-8.83 -1898.14,-5.68 -1843.76,-4.95 -1796.31,-6.48 -1738.29,-9.08 -1668.17,-12.26 -1601.14,-15.00 -1531.96,-15.15 -1470.01,-15.11 -1415.79,-13.88 -1309.55,-14.17 -1227.85,-13.11 -1135.96,-13.83 -1022.48,-10.48 -850.12,-9.46 -674.58,-8.66 -523.71,-7.74 -439.69,-6.42 -413.29,-6.04 -1.49,-3.22" changeLeft="custom1">
+        <lane id="inflow_highway_1" index="1" allow="private emergency authority army vip passenger hov taxi bus coach delivery truck trailer motorcycle evehicle custom1 custom2" speed="30.00" length="1999.49" shape="-2000.11,-14.58 -1943.40,-8.83 -1898.14,-5.68 -1843.76,-4.95 -1796.31,-6.48 -1738.29,-9.08 -1668.17,-12.26 -1601.14,-15.00 -1531.96,-15.15 -1470.01,-15.11 -1415.79,-13.88 -1309.55,-14.17 -1227.85,-13.11 -1135.96,-13.83 -1022.48,-10.48 -850.12,-9.46 -674.58,-8.66 -523.71,-7.74 -439.69,-6.42 -413.29,-6.04 -1.49,-3.22">
             <param key="origId" value="327889075 182651410"/>
         </lane>
         <param key="ref" value="WRR;SH 18"/>

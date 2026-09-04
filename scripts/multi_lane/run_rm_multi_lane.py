@@ -42,7 +42,7 @@ def rm_main(av_p, r_fr, m_fr, seed,
     file_name = f"trj_rm_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     xml_path = os.path.join(traj_dir, file_name)
 
-    lc_file_name = f"lc_rm_seed{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
+    lc_file_name = f"lc_rm_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     lc_path = os.path.join(traj_dir, lc_file_name)
 
     ssm_file_name = f"ssm_rm_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
@@ -50,6 +50,8 @@ def rm_main(av_p, r_fr, m_fr, seed,
     # delay indicators
     trip_file_name = f"tripinfo_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     tripinfo_path = os.path.join(traj_dir, trip_file_name)
+    rm_debug_file_name = f"rm_debug_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    rm_debug_path = os.path.join(traj_dir, rm_debug_file_name)
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
                 "--seed", str(seed),
                 # fcd trajectory path
@@ -85,12 +87,12 @@ def rm_main(av_p, r_fr, m_fr, seed,
         m1_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p1, m_fr, 100 - seed)
         r_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p, r_fr, seed)
 
-        veh_gen = vg.VehGen(traci)  # function related to veh generation
+        veh_gen = vg.VehGen(traci, seed)  # function related to veh generation
         rm_algo = rm.Func(traci)  # function related to ramp_metering algo
         data_recorder = dr.DataRecording(traci, sim_step)
         output_file_path = {'xml_path': xml_path, 'ssm_path': ssm_path, 'tripinfo_path': tripinfo_path}
         speed_log, tp = \
-            loop(traci, st, veh_gen, data_recorder, rm_algo,
+            loop(traci, st, veh_gen, data_recorder, rm_algo, rm_debug_path,
                  m0_dpt_type, m1_dpt_type, r_dpt_type)
     finally:
         traci.close()
@@ -98,7 +100,7 @@ def rm_main(av_p, r_fr, m_fr, seed,
 
 
 def loop(traci, st, veh_gen,
-         data_recorder, rm_algo,
+         data_recorder, rm_algo, rm_debug_path,
          m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None):
     # START SIMULATION
     step = 0
@@ -107,7 +109,6 @@ def loop(traci, st, veh_gen,
     occupancy_sum = 0
     occupancy_samples = 0
 
-    rm_debug_path = "rm_debug.csv"
     with open(rm_debug_path, "w") as f:
         f.write(
             "time,center_occupancy,"
@@ -202,7 +203,7 @@ def main(args=None, root=None):
     start = time.time()
     # Call the original algorithm
     speed_log, tp, output_file_path = rm_main(
-        av_p=0,
+        av_p=parsed_args.av_p,
         r_fr=parsed_args.r_fr,
         m_fr=parsed_args.m_fr,
         seed=parsed_args.seed,
@@ -225,6 +226,7 @@ def main(args=None, root=None):
     if parsed_args.out_csv:
         row = {
             "algo": "rm_multi_lane",
+            "av_p": parsed_args.av_p,
             "ramp_demand": parsed_args.r_fr,
             "mainline_demand": parsed_args.m_fr,
             "seed": parsed_args.seed,

@@ -2,7 +2,7 @@
 #SBATCH --job-name=fifo_ml_array          # Job name shown in the queue
 #SBATCH --time=00:20:00                  # Walltime limit (hh:mm:ss)
 #SBATCH --cpus-per-task=1                # Number of CPU cores per task
-#SBATCH --mem=4G                         # Memory per task
+#SBATCH --mem=2G                         # Memory per task
 #SBATCH --output=output-logs/out_%A_%a.txt   # Standard output log
 #SBATCH --error=error-logs/err_%A_%a.txt    # Standard error log
 # NOTE: --array is specified at submission time
@@ -34,12 +34,14 @@ echo "TRAJ_DIR=$TRAJ_DIR"
 # Experiment parameter grid
 # ================================
 MAINLINE=1500                             # Mainline demand (veh/h)
+AV_P_VALS=(0.1 0.2 0.3)                     # AV penetration
 RAMPS=(200 300 400 500 600 700 800 900 1000 1100 1200 1300 1400)  # Ramp demands
 SEEDS=(1 2 3 4 5 6 7 8 9 10)   # Random seeds (10 seeds)
 
+NAV=${#AV_P_VALS[@]}                        # Number of AV Settings (3)
 NR=${#RAMPS[@]}                           # Number of ramp demand levels
 NS=${#SEEDS[@]}                           # Number of seeds
-NT=$((NR * NS))                           # Total number of array tasks
+NT=$((NAV * NR * NS))                     # Total number of array tasks
 
 # Check SLURM array task ID
 if [ -z "${SLURM_ARRAY_TASK_ID:-}" ]; then
@@ -50,16 +52,19 @@ fi
 TASK_ID=${SLURM_ARRAY_TASK_ID}
 
 # Map array task ID to (ramp demand, seed)
-r_idx=$(( TASK_ID / NS ))
-s_idx=$(( TASK_ID % NS ))
+av_idx=$(( TASK_ID / (NS * NR) ))
+remaining=$(( TASK_ID % (NS * NR) ))
+r_idx=$(( remaining / NS ))
+s_idx=$(( remaining % NS ))
 
+AV_P=${AV_P_VALS[$av_idx]}
 RAMP=${RAMPS[$r_idx]}
 SEED=${SEEDS[$s_idx]}
 
 # Fix Python string/set hash order for reproducible runs.
 export PYTHONHASHSEED="$SEED"
 
-echo "TASK_ID=$TASK_ID | ramp=$RAMP | mainline=$MAINLINE | seed=$SEED"
+echo "TASK_ID=$TASK_ID | AV_P=$AV_P | ramp=$RAMP | mainline=$MAINLINE | seed=$SEED"
 
 # ================================
 # Per-task CSV output (safe for parallel jobs)
@@ -73,6 +78,7 @@ mkdir -p data/raw/tmp
 # ================================
 python run.py \
   --algo fifo_multi_lane \
+  --av_p "$AV_P" \
   --r_fr "$RAMP" \
   --m_fr "$MAINLINE" \
   --seed "$SEED" \
