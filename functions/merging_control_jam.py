@@ -7,7 +7,7 @@ from functions import print_control as prc
 from functions import v2x_disturbance as v2x
 
 class MergingControlJam:
-    def __init__(self, traci, instance_dr, merge_regular, loss_rate, ml):
+    def __init__(self, traci, instance_dr, merge_regular, loss_rate, ml, comm_rng=None):
         self.traci = traci
         self.data_recorder = instance_dr
         self.merge_regular = merge_regular
@@ -37,8 +37,8 @@ class MergingControlJam:
         self.dic_max_interval = {} # {m_leader: max_interval}
 
         self.loss_rate = loss_rate
-        self.action_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate)
-        self.timing_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate)
+        self.action_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate, rng=comm_rng)
+        self.timing_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate, rng=comm_rng)
         self.last_action_payload = None
         self.last_timing_payload = None
 

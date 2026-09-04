@@ -22,7 +22,7 @@ FC_MODES = {
 class FormationController:
     def __init__(self, data_recorder, traci, sa_mode='predict', ca_mode='predict',
                  tsg_mode='off', exp_name='default_run', loss_rate=0, learning_rate=5e-4,
-                 train_interval=32, max_team_size=12, fc_mode='full'):
+                 train_interval=32, max_team_size=12, fc_mode='full', comm_rng=None):
         '''
         Train split_agent, "sa_mode='train', ca_mode='off'"
         Train free_insert_agent, "sa_mode='off', ca_mode='train'
@@ -48,9 +48,11 @@ class FormationController:
         if self.loss_rate == 0:
             self.sa_buffer = None
             self.ca_buffer = None
+            self.lane_buffer = None
         else:
-            self.sa_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate)  # buffer for splitting agent
-            self.ca_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate)  # buffer for collecting agent
+            self.sa_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate, rng=comm_rng)  # buffer for splitting agent
+            self.ca_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate, rng=comm_rng)  # buffer for collecting agent
+            self.lane_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate, rng=comm_rng)
 
         self.train_interval = train_interval # rl training update interval
         self.update_interval = 10 # test
@@ -220,9 +222,15 @@ class FormationController:
         self.p_lane.manage_hv_lc_behaviour(lc, dic_tags) # mange hv_followers lane change behavior
         self.p_lane.restrict_av_lc(ls_ihAB_av_asc) # only restrict AV strategic lane change
         # encourage AV_leader without follower move to inner lane (from lane0 to lane1)
-        self.p_lane.move_leader_no_fol_to_inner(ls_leader_AV, dic_platoon_members)
+        lane_commands = self.p_lane.move_leader_no_fol_to_inner(
+            ls_leader_AV, dic_platoon_members)
         # encourage AV followers move to inner lane (from lane0 to lane1)
-        self.p_lane.move_av_fol_to_inner(ls_leader_AV, dic_standard_platoon, lc)
+        lane_commands += self.p_lane.move_av_fol_to_inner(
+            ls_leader_AV, dic_standard_platoon, lc)
+        if self.lane_buffer:
+            self.lane_buffer.push(step, lane_commands)
+            lane_commands = self.lane_buffer.maybe_release(step) or []
+        self.p_lane.execute_av_commands(lane_commands)
 
         # Control gaps between platoons
         if self.modules['tsc']:

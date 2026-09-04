@@ -12,9 +12,10 @@ import random
 import math
 
 class UpdateDelayBuffer:
-    def __init__(self, loss_rate=0.2, sim_step=0.1):
+    def __init__(self, loss_rate=0.2, sim_step=0.1, rng=None):
         self.loss_rate = loss_rate
         self.sim_step = sim_step
+        self.rng = rng or random.Random()
         self.buffer = deque()  # store (payload, release_step)
 
     def push(self, current_step, payload): # only in jam_control?
@@ -25,7 +26,7 @@ class UpdateDelayBuffer:
             # min_steps = int(0.05 / self.sim_step)
             # max_steps = int(0.2 / self.sim_step)
             # delay = random.randint(min_steps, max_steps)
-            delay_seconds = random.uniform(0.05, 0.20)
+            delay_seconds = self.rng.uniform(0.05, 0.20)
             delay = math.ceil(delay_seconds / self.sim_step)
             release_step = current_step + delay
             # this is the only difference between push_ori and push
@@ -34,7 +35,7 @@ class UpdateDelayBuffer:
                 return
 
             prc.print_message(f"\n[SEND] Step {current_step}: Generated command → {payload}")
-            if random.random() < self.loss_rate:
+            if self.rng.random() < self.loss_rate:
                 # print(f"[DROP] Payload lost: {payload}")
                 prc.print_message("[DROP] Payload lost")
                 return
@@ -50,12 +51,12 @@ class UpdateDelayBuffer:
             # min_steps = int(0.05 / self.sim_step)
             # max_steps = int(0.2 / self.sim_step)
             # delay = random.randint(min_steps, max_steps)
-            delay_seconds = random.uniform(0.05, 0.20)
+            delay_seconds = self.rng.uniform(0.05, 0.20)
             delay = math.ceil(delay_seconds / self.sim_step)
             release_step = current_step + delay
 
             prc.print_message(f"\n[SEND] Step {current_step}: Generated command → {payload}")
-            if random.random() < self.loss_rate:
+            if self.rng.random() < self.loss_rate:
                 # print(f"[DROP] Payload lost: {payload}")
                 prc.print_message("[DROP] Payload lost")
                 return

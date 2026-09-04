@@ -4,14 +4,14 @@ import re
 import copy
 
 class ActionManager:
-    def __init__(self, instance_dr, merge_regular, loss_rate=0):
+    def __init__(self, instance_dr, merge_regular, loss_rate=0, comm_rng=None):
         self.data_recorder = instance_dr
         self.merge_regular = merge_regular
         self.loss_rate = loss_rate
 
-        self.delay_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate)
-        self.delay_buffer_leader = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate) # leader action
-        self.delay_buffer_followup = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate) # followup leader action
+        self.delay_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate, rng=comm_rng)
+        self.delay_buffer_leader = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate, rng=comm_rng) # leader action
+        self.delay_buffer_followup = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate, rng=comm_rng) # followup leader action
 
         self.dic_rm_leader_map = None
         self.dic_leader_action_mgr = None

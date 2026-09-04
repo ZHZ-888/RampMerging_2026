@@ -25,6 +25,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
               gui=False, plot=False, display=False, lc=True, st=1500,
               tsg_mode='predict', max_team_size=12, fc_mode='full'):
     set_global_seed(seed, enable=True)  # set global random seed (especially for RL training)
+    comm_rng = random.Random(seed + 100)
     # SUMO SETTING
     ROOT = Path(__file__).resolve().parents[2]
     sumo_config_path = (ROOT
@@ -109,11 +110,13 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
         formation_controller = fc.FormationController(data_recorder, traci,
                                                       loss_rate=loss_rate, tsg_mode=tsg_mode,
                                                       max_team_size=max_team_size,
-                                                      fc_mode=fc_mode) # fix/off/predict/train/audit
+                                                      fc_mode=fc_mode,
+                                                      comm_rng=comm_rng) # fix/off/predict/train/audit
         merging_controller = mc.MergingController(data_recorder, traci, av_p,
                                                   platoon_formation=True, ml=True,
                                                   loss_rate=loss_rate,
-                                                  warmup_time=hpc_utils.DEFAULT_WARMUP_TIME)
+                                                  warmup_time=hpc_utils.DEFAULT_WARMUP_TIME,
+                                                  comm_rng=comm_rng)
 
         (dic_follower_state, his_dic_platoon_size,
          dic_id_features, tp, speed_log, queue_log, ts_first_jam, ts_first_back_to_regular) = \
@@ -212,6 +215,8 @@ def main(args=None, root=None):
                         default='full', help='Platoon formation ablation mode')
     parser.add_argument('--lc', action=argparse.BooleanOptionalAction,
                         default=True, help='Enable background lane-changing control')
+    parser.add_argument('--loss_rate', type=float, default=0.0,
+                        help='Packet loss rate for MPGC communication')
     parsed_args = parser.parse_args(args=args)
 
     # 2. Run simulation
@@ -225,6 +230,7 @@ def main(args=None, root=None):
         m_fr=parsed_args.m_fr, # default 1500; parsed_args.m_fr
         seed=parsed_args.seed,
         r_platoon_p=parsed_args.r_platoon_p,
+        loss_rate=parsed_args.loss_rate,
         gui=parsed_args.gui,
         lc=parsed_args.lc,
         fc_mode=parsed_args.fc_mode,
@@ -258,6 +264,7 @@ def main(args=None, root=None):
             "seed": parsed_args.seed,
             "max_team_size": parsed_args.max_team_size,
             "r_platoon_p": parsed_args.r_platoon_p,
+            "loss_rate": parsed_args.loss_rate,
             "CFR": res["cfr"],
             "SPR": res["spr"],
             "over_pltn": res["over_pltn"],
@@ -332,8 +339,8 @@ if __name__ == '__main__':
     (dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam, ts_first_back_to_regular) = mpgc_main(
-        av_p = 0.1, # 0.1
-        r_fr = 800, # 1300
+        av_p = 0.3, # 0.1
+        r_fr = 1400, # 1300
         m_fr = 1500, # 1500
         seed = 10, # 2 analysis
         r_autoFollow_p = 0,  # auto follow proportion

@@ -15,13 +15,15 @@ from functions import merging_control_jam as mcj
 
 class MergingController:
     def __init__(self, data_recorder, traci, av_p, platoon_formation=False, ml=False,
-                 loss_rate=0, mpc_interval=60, delta_t=15, warmup_time=0):  # ml: multi-lane
+                 loss_rate=0, mpc_interval=60, delta_t=15, warmup_time=0,
+                 comm_rng=None):  # ml: multi-lane
         self.traci = traci
         self.data_recorder = data_recorder
         self.merge_regular = mcr.MergingControlRegular(traci, self.data_recorder, ml)
-        self.action_mgr = act_mgr.ActionManager(self.data_recorder, self.merge_regular, loss_rate)
+        self.action_mgr = act_mgr.ActionManager(
+            self.data_recorder, self.merge_regular, loss_rate, comm_rng)
         self.merge_jam = mcj.MergingControlJam(traci, self.data_recorder, self.merge_regular, loss_rate,
-                                               ml)  # vehicle control during_jame3
+                                               ml, comm_rng)  # vehicle control during_jame3
         self.mode_switch = mcj.ShiftMode(traci, self.data_recorder, av_p)
         self.mpc_interval = mpc_interval
         self.delta_t = delta_t
