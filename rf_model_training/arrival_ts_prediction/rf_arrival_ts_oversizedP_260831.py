@@ -26,7 +26,8 @@ def process_data(df):
     return df
 
 #%% Feature data (platoon_type, distance, speed)
-path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_arrival_time_homo_seed11-20_260830.csv'
+path_ori = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_arrival_time_homo_seed11-20_260830.csv'
+path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_arrival_ts_homo_seed11-20_260905.csv'
 df_ft = pd.read_csv(path)
 print(df_ft.columns)
 print(len(df_ft))
@@ -85,7 +86,7 @@ predicted_time = model.predict(new_data)
 print(f"\nPredicted Arrival Time for new data: {predicted_time[0]:.2f} seconds")
 
 #%% save the model
-joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/mr_arrival_prediction_model260831_ndarray.pkl')
+joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/mr_arrival_prediction_model260905_ndarray.pkl')
 
 #%% load model
 # loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging4_250208/models/mr_arrival_prediction_model241128.pkl')

@@ -60,6 +60,7 @@ class MergingControlRegular:
         # random forest arrival time prediction model
         if self.ml:
             self.speed_level3 = 25
+            # mr_arrival_prediction_model260905_ndarray.pkl ; mr_arrival_prediction_model260831_ndarray.pkl
             self.rf_at_model = joblib.load(
                 os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model260831_ndarray.pkl'))  # mr_arrival_prediction_model260319_ndarray.pkl
         else:

@@ -345,13 +345,13 @@ if __name__ == '__main__':
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam, ts_first_back_to_regular) = mpgc_main(
         av_p = 0.3, # 0.1
-        r_fr = 800, # 1300
+        r_fr = 1400, # 1300
         m_fr = 1500, # 1500
         seed = 1, # 2 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 0.7, # percentage of rplatoon vehicles on ramp
         loss_rate = 0, # 0.15
-        gui = True,
+        gui = False,
         plot = False,
         display = False,
         lc = True, # if allow HV lane-changing; True
