@@ -156,13 +156,13 @@ if __name__ == '__main__':
     start = time.time()
     dic_targets, ls_features = mpgc_main(
         av_p = 0.1,
-        r_fr = 800,
-        m_fr = 0, # 1500
+        r_fr = 0,
+        m_fr = 1500, # 1500
         seed = 16,
         r_autoFollow_p = 0,
         r_platoon_p = 1,
         loss_rate = 0,
-        gui = False,
+        gui = True,
         plot = False,
         display = False,
         lc = False,

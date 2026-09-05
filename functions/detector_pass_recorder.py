@@ -22,7 +22,6 @@ class DetectorPassRecorder:
             "pfz_entry": None,
             "mcz_entry": None
         }
-
         # {leader_id: platoon_size}
         self.dic_leader_platoon_size = {}
 
@@ -47,7 +46,6 @@ class DetectorPassRecorder:
             "pfz_entry": None,
             "mcz_entry": None
         }
-
         for detector_id in self.detector_ids:
             try:
                 passed_vehicle_ids = (

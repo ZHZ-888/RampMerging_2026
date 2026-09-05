@@ -19,6 +19,7 @@ from functions import merging_controller as mc
 from functions import data_recording as dr
 # Shared tools for arguments, KPIs, and CSV logging.// CLI and HPC
 from functions import hpc_utils
+from functions import merging_traffic_calibrator as mtc
 from functions import accident_simulation
 
 def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate=0,
@@ -155,6 +156,7 @@ def loop(traci, st, data_recorder,
     # START SIMULATION
     step = 0
     horizon_steps = st * 10
+    traffic_calibrator = mtc.MergingTrafficCalibrator(traci)
     # scripts loop
     while step < horizon_steps:
         # checkpoint
@@ -175,6 +177,8 @@ def loop(traci, st, data_recorder,
         # ramp vehicle generation
         veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p)
 
+        traffic_calibrator.update()
+
         (dic_follower_state, his_dic_platoon_size,
          dic_id_features) = formation_controller.step(st, step, lc)
 
@@ -190,6 +194,7 @@ def loop(traci, st, data_recorder,
     # so stopped ramp vehicles can be released and complete their trips.
     while traci.simulation.getMinExpectedNumber() > 0:
         traci.simulationStep()
+        traffic_calibrator.update()
         data_recorder.record_multi_lane_info()
         formation_controller.step(st, step, lc)
         merging_controller.step(st, step, r_dpt_type)
@@ -340,13 +345,13 @@ if __name__ == '__main__':
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam, ts_first_back_to_regular) = mpgc_main(
         av_p = 0.3, # 0.1
-        r_fr = 1400, # 1300
+        r_fr = 800, # 1300
         m_fr = 1500, # 1500
-        seed = 10, # 2 analysis
+        seed = 1, # 2 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 0.7, # percentage of rplatoon vehicles on ramp
         loss_rate = 0, # 0.15
-        gui = False,
+        gui = True,
         plot = False,
         display = False,
         lc = True, # if allow HV lane-changing; True

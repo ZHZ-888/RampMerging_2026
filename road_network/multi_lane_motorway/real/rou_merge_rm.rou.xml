@@ -9,7 +9,7 @@
     <route id="route_r" edges="inflow_merge inflow_merge2 ws center"/>
 
     <!-- VTypes -->
-    <vType id="av" vClass='custom1' minGap="1.50" maxSpeed="27.78" color="red" carFollowModel="IDM" tau="0.8"/>
+    <vType id="av" vClass='custom1' minGap="1.50" maxSpeed="27.78" color="red" carFollowModel="IDM" tau="0.5"/>
 
     <vType id="hv_agg" vClass='passenger' minGap="2.00" maxSpeed="27.78" color="white" carFollowModel="Krauss" accel="3.2" decel="5.0" sigma="0.3" startupDelay="0.4" tau="0.6"/>
     <vType id="hv_mean" vClass='passenger' minGap="2.50" maxSpeed="27.78" color="white" carFollowModel="Krauss" accel="2.6" decel="4.5" sigma="0.5" startupDelay="0.8" tau="1"/>

@@ -12,6 +12,7 @@ from functions import print_control as prc  # the shared function of print contr
 from functions import data_recording as dr
 # Shared tools for arguments, KPIs, and CSV logging.// CLI and HPC
 from functions import hpc_utils
+from functions import merging_traffic_calibrator as mtc
 
 def fifo_main(av_p, r_fr, m_fr, seed,
               gui=False, plot=False, display=False, st=1500):
@@ -95,6 +96,7 @@ def loop(traci, st, vgvg, data_recorder,
     # START SIMULATION
     step = 0
     horizon_steps = st * 10
+    traffic_calibrator = mtc.MergingTrafficCalibrator(traci)
     speed_log = []
     # scripts loop
     while step < horizon_steps:
@@ -116,6 +118,8 @@ def loop(traci, st, vgvg, data_recorder,
         vgvg.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
         # ramp vehicle generation
         vgvg.veh_gen_hetero(step, r_dpt_type, 'r', 'route_r', 10, '0')
+
+        traffic_calibrator.update()
         # performance indicator
         dic_vehinfo = data_recorder.record_vehinfo()
         ls_veh_id = dic_vehinfo['ls_vehid']
@@ -133,6 +137,7 @@ def loop(traci, st, vgvg, data_recorder,
     # Flush-out stage: stop generating vehicles and let all generated trips finish.
     while traci.simulation.getMinExpectedNumber() > 0:
         traci.simulationStep()
+        traffic_calibrator.update()
         step += 1
 
     return (speed_log, tp)
@@ -208,7 +213,7 @@ if __name__ == '__main__':
         av_p = 0.3,
         r_fr = 1400, # 1300
         m_fr = 1500,
-        seed = 0,
+        seed = 2,
         gui = False,
         plot = False,
         display = False,

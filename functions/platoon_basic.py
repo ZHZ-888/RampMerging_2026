@@ -616,6 +616,7 @@ class PlatoonBasic:
         if this_pass_time is None:
             return None
         leader_pass_time = self.dic_pass_time['pfz_entry'].get(leader_id)
+
         if leader_pass_time is None:
             fol_id, _ = self.traci.vehicle.getFollower(leader_id, 1e6)
             fol_pass_time = self.dic_pass_time['pfz_entry'].get(fol_id)
@@ -623,6 +624,9 @@ class PlatoonBasic:
                 prev_id, gap_leader_prev = self.traci.vehicle.getLeader(leader_id, 1e6)
                 th_leader_prev = (gap_leader_prev+5+2.5)/ v_leader # time headway between leader and its preceding vehicle
                 prev_pass_time = self.dic_pass_time['pfz_entry'].get(prev_id)
+                if prev_pass_time is None:
+                    prev_pass_time = int(''.join(filter(str.isdigit, prev_id))) / 10
+                    pass
                 leader_pass_time = prev_pass_time + th_leader_prev
             else: # based on leader's following vehicle to estimate leader's pass time
                 v_fol = self.data_recorder.get_vid_states(fol_id)['v']
