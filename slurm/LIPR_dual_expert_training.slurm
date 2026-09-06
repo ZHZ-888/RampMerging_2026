@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=mpgc_training            # Job name for tracking
-#SBATCH --time=3:00:00                     # Increased time limit for longer simulation
+#SBATCH --time=7:00:00                     # Increased time limit for longer simulation
 #SBATCH --cpus-per-task=1                   # CPU cores per task for Torch/SUMO
 #SBATCH --mem=4G                            # Memory allocation for Replay Buffer
 #SBATCH --output=train-logs/out_%A_%a.txt   # Standard output log
