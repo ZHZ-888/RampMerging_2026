@@ -1,16 +1,15 @@
-# free_insert_agent_handler.py (also collect agent)
+# collect_agent_handler.py
 
 import os
 import numpy as np
 from datetime import datetime
-
 from rl_model.rl_module import RLScoringAgent
 
 # Model path for free-insert agent
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 
-class FreeInsertAgentHandler:
+class CollectAgentHandler:
     """RL agent for free-insert scenario: Score side-lane AVs for inserting
     ahead of free followers in sparse platoons.
 
@@ -19,7 +18,7 @@ class FreeInsertAgentHandler:
 
     def __init__(self, traci, data_recorder, p_basic, scoring_interval=10,
                  mode='train', tsg_mode='off', exp_name='default_run',
-                 lr=5e-4, gate_agent=None, tsg_manager=None):
+                 lr=5e-4, hidden_dims=(64, 64), gate_agent=None, tsg_manager=None):
         """
         Initialise the free-insert agent.
 
@@ -44,7 +43,7 @@ class FreeInsertAgentHandler:
         self.agent = RLScoringAgent(traci, data_recorder,
                                     exp_name=active_exp_name,
                                     model_path=path_pt if mode == "predict" else None,
-                                    lr=lr) # 0.0005
+                                    lr=lr, hidden_dims=hidden_dims) # 0.0005
 
         self.gate_agent = gate_agent
         self.tsg_manager = tsg_manager
@@ -57,7 +56,7 @@ class FreeInsertAgentHandler:
 
         # Configuration
         self.scoring_interval = scoring_interval
-        self.training_warmup_steps = 20000
+        self.training_warmup_steps = 1800
         self.next_save_step = 10000
         self.collected = 0  # Transition count
         self.target_lane = 0  # Inner lane
@@ -71,56 +70,66 @@ class FreeInsertAgentHandler:
         self.dic_score_reward = {}  # {av_id: [score, reward]}
         self.dic_tsg_meta = {}  # track deploy-time metadata for logging
 
-        self.last_update_payload_pair = None  # {target leader: candidate leader}
-        self.payload = None
+        self.payloads = []
+        self.selected_avs_this_step = set()
 
-    def run_free_insert_decision(self, step, dic_platoon_members, dic_sparse_platoons,
+    def run_free_insert_decision(self, step, dic_platoon_members,
+                                 dic_sparse_platoons,
                                  dic_sparse_candidates, gating_value=0):
-        """
-        Main decision loop: Score candidate AVs and select best one for each sparse platoon.
+        """Score and reserve one distinct AV for each sparse platoon."""
+        self.payloads = []
+        self.selected_avs_this_step = set()
 
-        Args:
-            step: Current simulation step
-            dic_platoon_members: {leader_id: [members]}
-            dic_sparse_platoons: {sparse_leader: first_free_follower_id}
-            dic_sparse_candidates: {sparse_leader: [candidate_av_ids]}
-            gating_value: Minimum score threshold for insertion
-
-        Returns:
-            dic_insertedAV: {av_id: 'free_insert'}
-        """
+        if self.mode == 'train' and step < self.training_warmup_steps:
+            return {}
         if not dic_sparse_candidates:
             return {}
+
+        # Target platoons inherit downstream-to-upstream order (closest to MCZ first).
         for sparse_leader, ls_candidates in dic_sparse_candidates.items():
-            if sparse_leader in ['mb_av4108', 'mb_av5939', 'mb_av7435']:
-                pass
             if sparse_leader not in dic_sparse_platoons:
                 continue
-            # Evaluate candidates and select best
+
+            available_candidates = [
+                av_id for av_id in ls_candidates
+                if av_id not in self.selected_avs_this_step
+            ]
+            if not available_candidates:
+                continue
+
             selected_av, selected_state, best_score, gate_input = self._evaluate_candidates(
                 step, sparse_leader, dic_platoon_members, dic_sparse_platoons,
-                ls_candidates, gating_value)
+                available_candidates, gating_value)
 
-            if selected_av and (self.last_update_payload_pair != {sparse_leader:selected_av}):
-                self.payload = (sparse_leader, selected_av, selected_state,
-                                dic_platoon_members, dic_sparse_platoons, best_score, gate_input)
-                self.last_update_payload_pair = {sparse_leader: selected_av}
+            if selected_av:
+                first_free_follower = dic_sparse_platoons[sparse_leader]
+                sparse_members_snapshot = list(
+                    dic_platoon_members.get(sparse_leader, [])
+                )
+                self.payloads.append((
+                    sparse_leader, selected_av, selected_state,
+                    first_free_follower, sparse_members_snapshot,
+                    best_score, gate_input
+                ))
+                self.selected_avs_this_step.add(selected_av)
 
         return self.dic_collect_insertedAV
 
     def release_insertion(self, step, laneChange_buffer):
-        payload = self.payload
         if laneChange_buffer:
-            if payload:
-                laneChange_buffer.push(step, payload)  # Add to buffer for delayed execution
-                self.payload = None
-            delayed_payload = laneChange_buffer.maybe_release(step)
-            if delayed_payload:
+            for payload in self.payloads:
+                laneChange_buffer.push(step, payload)
+            self.payloads.clear()
+
+            while True:
+                delayed_payload = laneChange_buffer.maybe_release(step)
+                if delayed_payload is None:
+                    break
                 self._execute_insertion(step, *delayed_payload)
         else:
-            if payload:
+            for payload in self.payloads:
                 self._execute_insertion(step, *payload)
-                self.payload = None
+            self.payloads.clear()
 
 
     def update_reward(self, current_step, st, dic_platoon_members, train_interval):
@@ -191,7 +200,7 @@ class FreeInsertAgentHandler:
 
         # === Update CA scorer ===
         if updated and self.mode == 'train':
-            if self.collected >= train_interval and current_step > self.training_warmup_steps:
+            if self.collected >= train_interval:
                 self.agent.log_training_metrics(current_step)
                 self.agent.train_on_recorded(
                     current_step,
@@ -200,10 +209,22 @@ class FreeInsertAgentHandler:
                 )
                 self.collected = 0
 
+        # Train any completed transitions left below train_interval at shutdown.
+        if (self.mode == 'train' and current_step == st * 10 - 10
+                and self.agent.memory):
+            self.agent.log_training_metrics(current_step)
+            self.agent.train_on_recorded(
+                current_step,
+                epochs=5,
+                batch_size=max(1, int(train_interval / 2))
+            )
+            self.collected = 0
+
         if self.mode == 'train':
             self._save_model_if_needed(current_step, st)
 
         return self.dic_score_reward
+
 
     def evaluate_free_insert_reward(self, lc_av, first_free_follower,
                                     sparse_snapshot, dic_platoon_members):
@@ -271,11 +292,13 @@ class FreeInsertAgentHandler:
             print(f"[FreeInsert] {lc_av} exception: {e}")
             return penalty
 
+
     def _get_pos(self, veh_id, fallback=0.0):
         try:
             return float(self.data_recorder.get_vid_states(veh_id)['pos'])
         except Exception:
             return float(fallback)
+
 
     def _build_tsg_timing_features_collecting(
             self,
@@ -326,11 +349,14 @@ class FreeInsertAgentHandler:
         return float(d_target_norm), float(offset_norm)
 
 
-    def _evaluate_candidates(self, step, sparse_leader, dic_platoon_members, dic_sparse_platoons,
+    def _evaluate_candidates(self, step, sparse_leader, dic_platoon_members,
+                             dic_sparse_platoons,
                              ls_candidates, gating_value):
         """
         Score all candidate AVs and select the best one.
         Also build gate_input for TSG.
+
+        dic_sparse_platoons: {sparse_leader: first_free_follower_id}
         """
         # Cooldown check
         last_step = self.last_score_step.get(sparse_leader, -999)
@@ -349,11 +375,14 @@ class FreeInsertAgentHandler:
         # === Score all candidate AVs ===
         for av_id in ls_candidates:
             try:
-                state = self.agent.state_builder.build_state_free(
+                state = self.agent.state_builder.build_state_ce(
                     cand_leader=av_id,
                     target_sparse_platoon={sparse_leader: dic_sparse_platoons[sparse_leader]},
                     dic_platoon_member=dic_platoon_members,
                 )
+
+                if state is None:
+                    continue
 
                 score = self.agent.predict_score(state)
 
@@ -455,8 +484,10 @@ class FreeInsertAgentHandler:
 
         return selected_av, selected_state, best_score, gate_input
 
-    def _execute_insertion(self, step, sparse_leader, selected_av, selected_state,
-                           dic_platoon_members, dic_sparse_platoons, score, gate_input):
+
+    def _execute_insertion(self, step, sparse_leader, selected_av,
+                           selected_state, first_free_follower,
+                           sparse_members_snapshot, score, gate_input):
         """
         Execute lane change and update tracking structures.
 
@@ -464,8 +495,6 @@ class FreeInsertAgentHandler:
         sparse_snapshot: {sparse_leader: ori_followers} at decision time
         """
         try:
-            if selected_av == 'mb_av948':
-                pass
             # Check if this sparse_leader is already being tracked
             if any(entry['sparse_leader'] == sparse_leader for entry in self.insert_buffer):
                 # print(f"[FreeInsert] {sparse_leader} already being tracked, skipping insertion")
@@ -473,8 +502,7 @@ class FreeInsertAgentHandler:
             self.traci.vehicle.changeLane(selected_av, self.target_lane, duration=100)
             print(f"[FreeInsert] {selected_av} selected with score {score:.3f}")
 
-            first_free_follower = dic_sparse_platoons[sparse_leader]
-            sparse_snapshot = {sparse_leader: dic_platoon_members.get(sparse_leader, [])}
+            sparse_snapshot = {sparse_leader: sparse_members_snapshot}
             # Record insertion for delayed reward
             self.insert_buffer.append({
                 'sparse_leader': sparse_leader,
@@ -497,25 +525,31 @@ class FreeInsertAgentHandler:
         except self.traci.TraCIException:
             print(f"[FreeInsert] {selected_av} insert failed as TraCI exception")
 
+
     def _save_model_if_needed(self, current_step, st, model_type='sa'):
         """
         Periodically save the trained model.
         """
         save_interval = 30000
-        if current_step > self.next_save_step or current_step == st * 10 - 1:
+        if current_step > self.next_save_step or current_step == st * 10 - 10:
             timestamp = datetime.now().strftime("%y%m%d_%H%M")
             filename = f'free_insert_score_model_{timestamp}.pt'
             self.agent.save_model(filename)
+            if current_step == st * 10 - 10:
+                self.agent.save_model("final_CA.pt")
             print(f"[Model] Auto-saved at step {current_step}")
             self.next_save_step += save_interval
 
+
     def record_loss(self, current_step, st):
-        if current_step != st * 10 - 1 or self.mode != 'train':
+        if current_step != st * 10 - 10 or self.mode != 'train':
             return
         self.agent.record_plot_loss()  # plot loss curve
 
+
     def record_scores(self, current_step, st):
         """Plot distribution of predicted scores."""
-        if current_step != st * 10 - 1 or self.mode != 'train':
+        if current_step != st * 10 - 10 or self.mode != 'train':
             return
         self.agent.record_plot_scores(self.ls_score)
+        self.agent.record_plot_score_reward(self.dic_score_reward)

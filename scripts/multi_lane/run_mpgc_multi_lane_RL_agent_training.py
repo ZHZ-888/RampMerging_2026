@@ -17,9 +17,10 @@ from functions import data_recording as dr
 # Shared tools for arguments, KPIs, and CSV logging.// CLI and HPC
 from functions import hpc_utils
 
-def mpgc_main(av_p=0.3, r_fr=0, m_fr=1200, seed=21, r_platoon_p=1, loss_rate=0,
-              gui=False, plot=False, display=False, lc=False, st=1000, train_agent=None,
-              lr=0.0005, train_interval=32, hidden_layer=[64, 64]):
+def mpgc_main(av_p=0.3, r_fr=0, m_fr=1000, seed=21, r_platoon_p=1,
+              loss_rate=0, gui=False, plot=False, display=False,
+              lc=False, st=1000, train_agent=None, lr=0.0005,
+              train_interval=32, hidden_layer=[64, 64]):
     '''
     SA: splitting agent; CA: collecting agent
     LR: learning rate; batch_epoch: B, E; hidden_layer: HA, HB; seed: S
@@ -54,6 +55,8 @@ def mpgc_main(av_p=0.3, r_fr=0, m_fr=1200, seed=21, r_platoon_p=1, loss_rate=0,
                 "--no-warnings"]
     sumo_options = ["--step-length", str(sim_step)]
 
+    formation_controller = None
+
     # If GUI is enabled, set the GUI view schema
     if gui:
         import traci
@@ -80,31 +83,37 @@ def mpgc_main(av_p=0.3, r_fr=0, m_fr=1200, seed=21, r_platoon_p=1, loss_rate=0,
         # Configure isolation training logic
         SA_mode, CA_mode = 'predict', 'predict'
         if train_agent == 'SA':
-            SA_mode, CA_mode = 'train', None
+            SA_mode, CA_mode = 'train', 'off'
         elif train_agent == 'CA':
-            SA_mode, CA_mode = None, 'train'
+            SA_mode, CA_mode = 'off', 'train'
         elif train_agent is None: # If None, both agents remain in 'predict'
             pass
         else:
             raise ValueError(f"[Error] Unknown train_model parameter: {train_agent}")
-        formation_controller = fc.FormationController(data_recorder, traci, splitting_agent=SA_mode,
-            collecting_agent=CA_mode, exp_name=exp_name, learning_rate=lr, train_interval=train_interval)  # Passes the unique folder name down
 
-        (dic_score_reward, dic_follower_state, his_dic_platoon_size,
-         dic_id_features) = \
+        formation_controller = fc.FormationController(
+            data_recorder, traci, sa_mode=SA_mode,
+            ca_mode=CA_mode, exp_name=exp_name, learning_rate=lr,
+            train_interval=train_interval, hidden_dims=hidden_layer)
+
+        dic_follower_state, his_dic_platoon_size, dic_id_features = \
             loop(traci, st, data_recorder, veh_gen, formation_controller, lc,
                  m0_dpt_type, m1_dpt_type)
     finally:
         # Close TensorBoard writers for any active agents
-        for attr in ['splitting_agent', 'collecting_agent']:
-            agent = getattr(formation_controller, attr, None)
-            if hasattr(agent, 'writer'): agent.writer.close()
+        for attr in ['split_agent', 'collect_agent']:
+            handler = getattr(formation_controller, attr, None)
+            scoring_agent = getattr(handler, 'agent', None)
+
+            if scoring_agent is not None and hasattr(scoring_agent, 'writer'):
+                scoring_agent.writer.close()
 
         traci.close()
-    return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
+    return (dic_follower_state, his_dic_platoon_size, dic_id_features,
             xml_path)
 
-def loop(traci, st, data_recorder, veh_gen, formation_controller, lc,
+def loop(traci, st, data_recorder,
+         veh_gen, formation_controller, lc,
          m0_dpt_type=None, m1_dpt_type=None):
     # START SIMULATION
     step = 0
@@ -123,12 +132,12 @@ def loop(traci, st, data_recorder, veh_gen, formation_controller, lc,
         veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h
         veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
 
-        (dic_score_reward, dic_follower_state, his_dic_platoon_size,
-         dic_id_features, dic_final_platoon_info) = formation_controller.step(st, step, lc)
+        dic_follower_state, his_dic_platoon_size, dic_id_features = (
+            formation_controller.step(st, step, lc))
 
         data_recorder.record_tail_arrival(step)
         step += 1
-    return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features)
+    return (dic_follower_state, his_dic_platoon_size, dic_id_features)
 
 def set_global_seed(seed, enable=True):
     """Fix all sources of randomness globally
@@ -162,6 +171,8 @@ def main(args=None, root=None):
     start = time.time()
     _ = mpgc_main(
         av_p=parsed_args.av_p,
+        r_fr=parsed_args.r_fr,
+        m_fr=parsed_args.m_fr,
         seed=parsed_args.seed,
         gui=parsed_args.gui,
         st=parsed_args.st,
@@ -177,13 +188,13 @@ def main(args=None, root=None):
 if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
-    (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
+    (dic_follower_state, his_dic_platoon_size, dic_id_features,
      xml_path) = mpgc_main(
         av_p = 0.1, # 0.3
         r_fr = 0,
         m_fr = 1200,
         seed = 21, # 1
-        gui = False,
+        gui = True,
         st = 1200*5, # 50; 100
         train_agent = 'CA',
         lr = 0.0001, # 0.0005

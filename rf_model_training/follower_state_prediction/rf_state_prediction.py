@@ -38,7 +38,8 @@ def prepare_xy(df):
     return X, y
 
 #%% input data
-path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_state_mixedHV_260829_homo_Kruass_seed21_50.csv'
+# path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_state_mixedHV_260829_homo_Kruass_seed21_50.csv'
+path = '/home/zzha/PycharmProjects/RampMerging_2026/data/features/df_rf_state_homoHV_seed21-60_avp102030_260905.csv'
 df_train = pd.read_csv(path)
 print(df_train.columns)
 print(len(df_train))
@@ -78,8 +79,11 @@ print("\nFeature Importances:")
 print(importance_df)
 
 #%% save the model
+# joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/'
+#                    'follower_state_prediction_model_260829_ndarray_final.pkl')
+
 joblib.dump(model, '/home/zzha/PycharmProjects/RampMerging_2026/rf_models/'
-                   'follower_state_prediction_model_260829_ndarray_final.pkl')
+                   'follower_state_prediction_model_260905_ndarray_updateAVtau.pkl')
 
 #%% load model
 loaded_model = joblib.load('/home/zzha/PycharmProjects/RampMerging_2026/rf_models/'

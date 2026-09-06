@@ -18,6 +18,27 @@ class UpdateDelayBuffer:
         self.rng = rng or random.Random()
         self.buffer = deque()  # store (payload, release_step)
 
+    @staticmethod
+    def _payloads_equal(left, right):
+        """Compare nested payloads without failing on array-like values."""
+        if isinstance(left, (tuple, list)) and isinstance(right, (tuple, list)):
+            return (len(left) == len(right) and
+                    all(UpdateDelayBuffer._payloads_equal(a, b)
+                        for a, b in zip(left, right)))
+        if isinstance(left, dict) and isinstance(right, dict):
+            return (left.keys() == right.keys() and
+                    all(UpdateDelayBuffer._payloads_equal(left[key], right[key])
+                        for key in left))
+        try:
+            result = left == right
+            if isinstance(result, bool):
+                return result
+            if hasattr(result, "all"):
+                return bool(result.all())
+        except (TypeError, ValueError):
+            pass
+        return False
+
     def push(self, current_step, payload): # only in jam_control?
         """Decide delay (release_step) and store payload if not dropped
         latency (delay): 0.05~0.2 s
@@ -30,7 +51,7 @@ class UpdateDelayBuffer:
             delay = math.ceil(delay_seconds / self.sim_step)
             release_step = current_step + delay
             # this is the only difference between push_ori and push
-            if any(p == payload for p, _ in self.buffer):
+            if any(self._payloads_equal(p, payload) for p, _ in self.buffer):
                 prc.print_message(f"[SKIP] Duplicate entry: ({payload}, {release_step})")
                 return
 

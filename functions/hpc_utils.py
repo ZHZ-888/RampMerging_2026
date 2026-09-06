@@ -53,7 +53,9 @@ def standard_arg_parser():
 def training_arg_parser():
     """Parser for RL Training"""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--av_p", type=float, default=0.3)
+    parser.add_argument("--av_p", type=float, default=0.1)
+    parser.add_argument("--r_fr", type=float, default=0)
+    parser.add_argument("--m_fr", type=float, default=1000)
     parser.add_argument("--seed", type=int, default=21)
     parser.add_argument("--gui", action="store_true")
     parser.add_argument("--st", type=int, default=1200*100)

@@ -62,7 +62,7 @@ class MergingControlRegular:
             self.speed_level3 = 25
             # mr_arrival_prediction_model260905_ndarray.pkl ; mr_arrival_prediction_model260831_ndarray.pkl
             self.rf_at_model = joblib.load(
-                os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model260831_ndarray.pkl'))  # mr_arrival_prediction_model260319_ndarray.pkl
+                os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model260905_ndarray.pkl'))  # mr_arrival_prediction_model260319_ndarray.pkl
         else:
             # model241128 is more accurate compare with model260125 in single lane
             self.rf_at_model = joblib.load(

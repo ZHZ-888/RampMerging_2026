@@ -16,7 +16,7 @@ class SimpleMLP(nn.Module):
     """
     A simple multi-layer perceptron (MLP) for regression (predicting score).
     """
-    def __init__(self, input_dim, hidden_dims=[64, 64]):
+    def __init__(self, input_dim, hidden_dims=(64, 64)):
         super(SimpleMLP, self).__init__()
         layers = []
         dims = [input_dim] + hidden_dims + [1]
@@ -37,7 +37,8 @@ class RLScoringAgent:
     This module predicts the score of inserting a candidate AV,
     and learns to regress the expected reward based on observed outcomes.
     """
-    def __init__(self, traci, data_recorder, exp_name, model_path=None, lr=5e-4, gamma=0.99):
+    def __init__(self, traci, data_recorder, exp_name, model_path=None,
+                 lr=5e-4, gamma=0.99, hidden_dims=(64, 64)):
         """
         Initialize the scoring model and training components.
 
@@ -51,17 +52,17 @@ class RLScoringAgent:
         self.data_recorder = data_recorder
         self.state_builder = StateBuilder(traci, data_recorder)
         self.gamma = gamma
-        # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.device = torch.device("cpu")  # Force CPU for compatibility and simplicity
 
-        # self.model = SimpleMLP(input_dim=8).to(self.device)
-        self.model = SimpleMLP(input_dim=10).to(self.device)
+        self.model = SimpleMLP(input_dim=7, hidden_dims=list(hidden_dims)).to(self.device)
         print(f"***** Learning rate: {lr} *****")
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr) # for auto optimising parameters
         # self.loss_fn = nn.MSELoss() # Mean Squared Error Loss
         self.loss_fn = nn.SmoothL1Loss()
         self.memory = []  # Buffer to store (state, reward) tuples
-        self.loss_history = []  # Track training loss over time
+        self.loss_history = []  # (global_epoch, simulation_step, epoch_loss)
+        self.training_epoch = 0
+        self.training_session = 0
 
         self.IS_HPC = "RUN_DIR" in os.environ  # Simple check for HPC environment variable
         # **** Define project root (rl_model folder) ****
@@ -131,6 +132,8 @@ class RLScoringAgent:
         batch_count = 0
 
         for _ in range(epochs):
+            epoch_loss = 0.0
+            epoch_batch_count = 0
             np.random.shuffle(indices) # Shuffle the data at each epoch
             for start in range(0, dataset_size, batch_size):
                 end = start + batch_size
@@ -144,24 +147,37 @@ class RLScoringAgent:
                 loss.backward()
                 self.optimizer.step()
 
-                total_loss += loss.item()
+                loss_value = loss.item()
+                epoch_loss += loss_value
+                epoch_batch_count += 1
+                total_loss += loss_value
                 batch_count += 1
 
+            avg_epoch_loss = epoch_loss / epoch_batch_count
+            self.training_epoch += 1
+            self.loss_history.append(
+                (self.training_epoch, current_step, avg_epoch_loss)
+            )
+            self.writer.add_scalar(
+                'Loss/Epoch_Training_Loss', avg_epoch_loss,
+                self.training_epoch
+            )
+
         avg_loss = total_loss / batch_count if batch_count > 0 else 0.0
-        self.loss_history.append((current_step, avg_loss))
         self.writer.add_scalar('Loss/Avg_Training_Loss', avg_loss, current_step)
         print(f"[Train] Fitted on {len(self.memory)} samples, at step {current_step}, Avg_loss = {avg_loss:.4f}")
         self.memory.clear()
+        self.training_session += 1
 
     def log_training_metrics(self, current_step):
         """
         SAVE (Records) training performance data to a CSV file.
         Triggered every time a training session is initiated.
         """
-        if len(self.memory) < 32:
+        if not self.memory:
             return
 
-        recent_samples = self.memory[-32:]
+        recent_samples = self.memory
         recent_rewards = [m[1] for m in recent_samples]
 
         avg_reward = np.mean(recent_rewards)
@@ -173,12 +189,12 @@ class RLScoringAgent:
         self.writer.add_scalar('Reward/Min', min_reward, current_step)
 
         log_entry = {
-            'session_id': len(self.loss_history),  # Index of the training iteration
+            'session_id': self.training_session,
             'sim_step': current_step,  # Current simulation time-step
             'avg_reward': round(float(avg_reward), 4),
             'max_reward': round(float(max_reward), 4),
             'min_reward': round(float(min_reward), 4),
-            'sample_size': 32}  # Number of transitions in this batch
+            'sample_size': len(recent_samples)}
 
         file_path = os.path.join(self.run_dir, "reward_log.csv")
         file_exists = os.path.isfile(file_path)
@@ -199,19 +215,23 @@ class RLScoringAgent:
         if not self.loss_history:
             print("[Plot] No loss history to show.")
             return
-        steps, losses = zip(*self.loss_history)
+        epochs, simulation_steps, losses = zip(*self.loss_history)
         loss_csv_path = os.path.join(self.run_dir, "loss_log.csv")
-        df_loss = pd.DataFrame({'step': steps, 'loss': losses})
+        df_loss = pd.DataFrame({
+            'epoch': epochs,
+            'sim_step': simulation_steps,
+            'loss': losses
+        })
         df_loss.to_csv(loss_csv_path, index=False)
         print(f"[Plot] Loss data saved to {loss_csv_path}")
 
         if not self.IS_HPC:
-            plt.plot(steps, losses, label="Training Loss", color='blue', linewidth=1, alpha=0.3)
+            plt.plot(epochs, losses, label="Epoch Loss", color='blue', linewidth=1, alpha=0.3)
             loss_series = pd.Series(losses)
             smoothed = loss_series.rolling(window=10).mean()
-            plt.plot(smoothed, label="Smoothed Loss (window=15)", color='red', linewidth=2)
-            plt.xlabel("Training Step")
-            plt.ylabel("MSE Loss")
+            plt.plot(epochs, smoothed, label="Smoothed Loss (window=10)", color='red', linewidth=2)
+            plt.xlabel("Training Epoch")
+            plt.ylabel("Smooth L1 Loss")
             plt.title("Loss Curve of Scoring Model")
             plt.grid(True)
             plt.legend()
@@ -233,6 +253,50 @@ class RLScoringAgent:
             plt.ylabel('Predicted Score')
             plt.grid(True)
             plt.legend()
+            plt.tight_layout()
+            plt.show()
+    def record_plot_score_reward(self, dic_score_reward):
+        """Save and plot paired decision scores and realised rewards."""
+        paired = [
+            (vehicle_id, values[0], values[1])
+            for vehicle_id, values in dic_score_reward.items()
+            if len(values) >= 2
+        ]
+        if not paired:
+            print("[Plot] No completed score-reward pairs.")
+            return
+
+        vehicle_ids, scores, rewards = zip(*paired)
+        df = pd.DataFrame({
+            "vehicle_id": vehicle_ids,
+            "score": scores,
+            "reward": rewards,
+        })
+        csv_path = os.path.join(self.run_dir, "score_reward_log.csv")
+        df.to_csv(csv_path, index=False)
+        print(f"[Plot] Score-reward data saved to {csv_path}")
+
+        score_array = np.asarray(scores, dtype=float)
+        reward_array = np.asarray(rewards, dtype=float)
+        if (len(score_array) >= 2 and
+                np.std(score_array) > 0 and np.std(reward_array) > 0):
+            correlation = float(np.corrcoef(score_array, reward_array)[0, 1])
+            correlation_text = f"{correlation:.3f}"
+        else:
+            correlation_text = "N/A"
+        print(f"[Metric] Score-reward correlation: {correlation_text}")
+
+        if not self.IS_HPC:
+            colours = ["red" if reward <= 0 else "blue" for reward in rewards]
+            plt.figure(figsize=(6, 5))
+            plt.scatter(scores, rewards, c=colours, s=15, alpha=0.6)
+            plt.xlabel("Predicted Score")
+            plt.ylabel("Realised Reward")
+            plt.title(
+                "Predicted Score vs Realised Reward\n"
+                f"Pearson correlation = {correlation_text}"
+            )
+            plt.grid(True)
             plt.tight_layout()
             plt.show()
     def save_model(self, filename):
@@ -277,7 +341,7 @@ class GateMLP(nn.Module):
             [reject_logit, execute_logit]
     """
 
-    def __init__(self, input_dim=6, hidden_dims=[16, 16]):
+    def __init__(self, input_dim=6, hidden_dims=(16, 16)):
         super(GateMLP, self).__init__()
 
         layers = []

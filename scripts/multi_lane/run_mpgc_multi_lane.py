@@ -106,6 +106,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
         # ramp road veh depature schedule
         veh_gen = vg.VehGen(traci, seed)  # function related to veh generation
         data_recorder = dr.DataRecording(traci)
+        data_recorder.max_platoon_size = max_team_size
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
         formation_controller = fc.FormationController(data_recorder, traci,
@@ -128,8 +129,8 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
             {av_id: list(v) for av_id, v in formation_controller.split_agent.dic_score_reward.items()}
             if formation_controller.split_agent else {})
         collect_reward_log = (
-            {av_id: list(v) for av_id, v in formation_controller.free_insert_agent.dic_score_reward.items()}
-            if formation_controller.free_insert_agent else {})
+            {av_id: list(v) for av_id, v in formation_controller.collect_agent.dic_score_reward.items()}
+            if formation_controller.collect_agent else {})
 
         se_rewards = [v[1] for v in split_reward_log.values() if len(v) == 2]
         se_counts = len(se_rewards)

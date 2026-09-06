@@ -5,8 +5,8 @@ from functions import platoon_lane_manager as plane
 from functions import v2x_disturbance as v2x
 from functions import detector_pass_recorder as detector
 
-from rl_model import split_insert_agent_handler as agent
-from rl_model import free_insert_agent_handler as free_agent
+from rl_model import split_agent_handler as split_agent
+from rl_model import collect_agent_handler as collect_agent
 from rl_model import tsg_manager
 
 
@@ -22,13 +22,13 @@ FC_MODES = {
 class FormationController:
     def __init__(self, data_recorder, traci, sa_mode='predict', ca_mode='predict',
                  tsg_mode='off', exp_name='default_run', loss_rate=0, learning_rate=5e-4,
-                 train_interval=32, max_team_size=12, fc_mode='full', comm_rng=None):
+                 train_interval=32, hidden_dims=(64, 64), max_team_size=12, fc_mode='full', comm_rng=None):
         '''
         Train split_agent, "sa_mode='train', ca_mode='off'"
-        Train free_insert_agent, "sa_mode='off', ca_mode='train'
+        Train collect_agent, "sa_mode='off', ca_mode='train'
 
         Evaluate split_agent, "sa_mode='predict', ca_mode='off'"
-        Evaluate free_insert_agent, "sa_mode='off', ca_mode='predict'
+        Evaluate collect_agent, "sa_mode='off', ca_mode='predict'
         '''
 
         self.data_recorder = data_recorder
@@ -77,14 +77,15 @@ class FormationController:
             train_interval=train_interval
         )
 
-        self.split_agent = agent.AgentHandler(
-            traci, data_recorder, mode=sa_mode, tsg_mode=tsg_mode, exp_name=exp_name,
-            lr=learning_rate, gate_agent=self.tsg_manager.gate_agent,
+        self.split_agent = split_agent.SplitAgentHandler(
+            traci, data_recorder, mode=sa_mode, tsg_mode=tsg_mode,
+            exp_name=exp_name, lr=learning_rate, hidden_dims=hidden_dims,
+            gate_agent=self.tsg_manager.gate_agent,
             tsg_manager=self.tsg_manager) if sa_mode !='off' else None
-        self.free_insert_agent = free_agent.FreeInsertAgentHandler(
-            traci, data_recorder, self.p_basic,
-            mode=ca_mode, tsg_mode=tsg_mode, exp_name=exp_name,
-            lr=learning_rate, gate_agent=self.tsg_manager.gate_agent,
+        self.collect_agent = collect_agent.CollectAgentHandler(
+            traci, data_recorder, self.p_basic, mode=ca_mode, tsg_mode=tsg_mode,
+            exp_name=exp_name, lr=learning_rate, hidden_dims=hidden_dims,
+            gate_agent=self.tsg_manager.gate_agent,
             tsg_manager=self.tsg_manager) if ca_mode != 'off' else None
 
     def platoon_initialise(self, ls_ihA_asc, ls_vehid, rf_model):
@@ -110,12 +111,12 @@ class FormationController:
             = self.p_oversized.find_oversizedP_nearbyAV(ls_ihB_av_asc, dic_platoon_size, dic_platoon_members)
         # ** SPLIT_INSERT ** agent
         if self.modules['se'] and self.split_agent:
-            dic_split_insertedAV = self.split_agent.run_agent_decision(step, dic_platoon_members,
-                                                                       dic_oversized_platoon_states,
-                                                                       dic_split_candidates,
-                                                                       ls_ihA_asc, gating_value=self.sa_gating)
-            for vid in dic_split_insertedAV.keys():
-                selected_vid.add(vid)
+            self.split_agent.run_agent_decision(
+                step, dic_platoon_members,
+                dic_oversized_platoon_states,
+                dic_split_candidates,
+                ls_ihA_asc, gating_value=self.sa_gating)
+            selected_vid.update(self.split_agent.selected_avs_this_step)
             dic_score_reward = self.split_agent.update_reward(step, st, dic_platoon_members,
                                                               train_interval=self.train_interval)
             self.split_agent.record_scores(step, st)
@@ -126,8 +127,8 @@ class FormationController:
                    dic_platoon_members, dic_id_preState, selected_vid):
         # ******** HANDLE SPARSE PLATOONS ********
         # ** free_promote **
-        if self.modules['ce'] and self.free_insert_agent:
-            self.free_insert_agent.release_insertion(step, self.ca_buffer)
+        if self.modules['ce'] and self.collect_agent:
+            self.collect_agent.release_insertion(step, self.ca_buffer)
         if step % self.update_interval != 0:
             return {}
         # dic_id_preState, dic_id_features = self.p_basic.predict_flw_state(dic_tags, ls_vehid, model=True)
@@ -146,19 +147,25 @@ class FormationController:
         # Find nearby side-lane AVs
         dic_collect_candidates = self.p_sparse.find_sparseP_nearbyAV(ls_ihB_av_asc, dic_sparseP_filered)
         dic_collect_candidates = {
-            k: v for k, v in dic_collect_candidates.items()
-            if k not in selected_vid
+            leader: [av_id for av_id in candidates if av_id not in selected_vid]
+            for leader, candidates in dic_collect_candidates.items()
+        }
+        # Remove target platoons that have no candidates left.
+        dic_collect_candidates = {
+            leader: candidates
+            for leader, candidates in dic_collect_candidates.items()
+            if candidates
         }
         # ** FREE_INSERT ** agent
-        if self.modules['ce'] and self.free_insert_agent:
-            dic_free_insertedAV = self.free_insert_agent.run_free_insert_decision(step, dic_platoon_members,
+        if self.modules['ce'] and self.collect_agent:
+            dic_free_insertedAV = self.collect_agent.run_free_insert_decision(step, dic_platoon_members,
                                                                                   dic_sparseP_filered,
                                                                                   dic_collect_candidates,
                                                                                   gating_value=self.ca_gating)  # 0.4 for predict
-            dic_free_score_reward = self.free_insert_agent.update_reward(step, st, dic_platoon_members,
+            dic_free_score_reward = self.collect_agent.update_reward(step, st, dic_platoon_members,
                                                                          train_interval=self.train_interval)
-            self.free_insert_agent.record_scores(step, st)
-            self.free_insert_agent.record_loss(step, st)
+            self.collect_agent.record_scores(step, st)
+            self.collect_agent.record_loss(step, st)
         return dic_standard_platoon
 
     def control_platoon_gap(self, step, ls_vehid, ls_leader_AV, ls_follower_AV,

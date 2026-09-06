@@ -1,4 +1,4 @@
-# split_insert_agent_handler.py
+# split_agent_handler.py
 
 import os
 import numpy as np
@@ -12,10 +12,10 @@ project_root = os.path.dirname(current_dir) # Get the parent directory as the pr
 # model_name = 'split_score_model_251124_1900.pt'
 # path_pt = os.path.join(project_root, 'rl_model', 'saved_models', model_name)
 
-class AgentHandler:
+class SplitAgentHandler:
     def __init__(self, traci, data_recorder, scoring_interval=10, mode='train',
-                 tsg_mode='off', exp_name='default_run', lr=5e-4, gate_agent=None,
-                 tsg_manager=None):
+                 tsg_mode='off', exp_name='default_run', lr=5e-4,
+                 hidden_dims=(64, 64), gate_agent=None, tsg_manager=None):
         self.traci = traci
         self.data_recorder = data_recorder
         self.mode = mode
@@ -31,7 +31,8 @@ class AgentHandler:
             data_recorder,
             exp_name=active_exp_name,
             model_path=score_model_path,
-            lr=lr)
+            lr=lr,
+            hidden_dims=hidden_dims)
 
         self.gate_agent = gate_agent
         self.tsg_manager = tsg_manager
@@ -41,7 +42,7 @@ class AgentHandler:
         self.gate_collected = 0
 
         self.scoring_interval = scoring_interval  # Minimum interval (in steps) between scoring attempts
-        self.training_warmup_steps = 20000
+        self.training_warmup_steps = 1800 # 180 s
         self.next_save_step = 10000
         self.collected = 0  # Track how many transitions have been collected
         self.target_lane = 0
@@ -54,49 +55,74 @@ class AgentHandler:
         self.dic_score_reward = {} # record lc_av and [score, reward], dic = {lc_av:[score, reward]}
         self.dic_tsg_meta = {}  # track deploy-time metadata for logging
 
-        self.last_update_payload_pair = None # {target leader: candidate leader}
-        self.payload = None
+        self.payloads = []
+        self.selected_avs_this_step = set()
+
 
     def run_agent_decision(self, step, dic_platoon_members, dic_oversized_platoon_states,
                            dic_leader_candidates, ls_upA_asc, gating_value=None):
         """
         Main function to handle AV insertion decisions.
         """
-        self.payload = None
+        self.payloads = []
+        self.selected_avs_this_step = set()
+
+        if self.mode == 'train' and step < self.training_warmup_steps:
+            return {}
         if not dic_oversized_platoon_states:
             return {}
+        # Target platoons inherit downstream-to-upstream order (closest to MCZ first).
         for oversize_leader in dic_oversized_platoon_states:
             if oversize_leader in ['mb_av9304', 'm_av11610']:
                 pass
             if oversize_leader in self.ls_splited_platoon or oversize_leader not in dic_leader_candidates:
                 continue
-            # selected_av, selected_state, score = self._evaluate_candidates(
-            #     step, oversize_leader, dic_platoon_members, dic_leader_candidates,
-            #     dic_oversized_platoon_states, ls_upA_asc, gating_value)
-            selected_av, selected_state, score, gate_input = self._evaluate_candidates(
-                    step, oversize_leader, dic_platoon_members, dic_leader_candidates,
-                    dic_oversized_platoon_states, ls_upA_asc, gating_value)
 
-            if selected_av and (self.last_update_payload_pair != {oversize_leader:selected_av}):
-                self.payload = (oversize_leader, selected_av, selected_state,
-                                dic_platoon_members, score, gate_input)
-                self.last_update_payload_pair = {oversize_leader: selected_av}
+            available_candidates = [
+                av_id
+                for av_id in dic_leader_candidates[oversize_leader]
+                if av_id not in self.selected_avs_this_step
+            ]
+
+            if not available_candidates:
+                continue
+
+            current_candidates = dict(dic_leader_candidates)
+            current_candidates[oversize_leader] = available_candidates
+
+            selected_av, selected_state, score, gate_input = self._evaluate_candidates(
+                step, oversize_leader, dic_platoon_members,
+                current_candidates, dic_oversized_platoon_states,
+                ls_upA_asc, gating_value)
+
+            if selected_av:
+                platoon_snapshot = list(dic_platoon_members[oversize_leader])
+                self.payloads.append((oversize_leader, selected_av,
+                    selected_state, platoon_snapshot,
+                    score, gate_input))
+                self.selected_avs_this_step.add(selected_av)
 
         return self.dic_split_insertedAV
 
     def release_insertion(self, step, laneChange_buffer):
-        payload = self.payload
-        if laneChange_buffer: # loss_rate != 0
-            if payload:
-                laneChange_buffer.push(step, payload)  # Add to buffer for delayed execution
-                self.payload = None
-            delayed_payload = laneChange_buffer.maybe_release(step)
-            if delayed_payload:
+        if laneChange_buffer:
+            for payload in self.payloads:
+                laneChange_buffer.push(step, payload)
+
+            self.payloads.clear()
+
+            # Execute every command whose communication delay has expired.
+            while True:
+                delayed_payload = laneChange_buffer.maybe_release(step)
+                if delayed_payload is None:
+                    break
                 self._execute_insertion(step, *delayed_payload)
+
         else:
-            if payload:
+            for payload in self.payloads:
                 self._execute_insertion(step, *payload)
-                self.payload = None
+
+            self.payloads.clear()
 
 
     def update_reward(self, current_step, st, dic_platoon_members, train_interval):
@@ -145,6 +171,7 @@ class AgentHandler:
                         record['state'],
                         reward
                     )
+                    self.collected += 1
 
                 elif self.tsg_mode == 'train':
                     # Train the self-gating model using delayed outcome label
@@ -164,7 +191,6 @@ class AgentHandler:
 
         # === Train original scorer ===
         if updated and self.mode == 'train':
-            self.collected += 1
             if self.collected >= train_interval:
                 self.agent.log_training_metrics(current_step)
                 self.agent.train_on_recorded(
@@ -173,12 +199,26 @@ class AgentHandler:
                     batch_size=int(train_interval / 2)
                 )
                 self.collected = 0
-                self._save_model_if_needed(current_step, st)
+
+        # Train any completed transitions left below train_interval at shutdown.
+        if (self.mode == 'train' and current_step == st * 10 - 10
+                and self.agent.memory):
+            self.agent.log_training_metrics(current_step)
+            self.agent.train_on_recorded(
+                current_step,
+                epochs=5,
+                batch_size=max(1, int(train_interval / 2))
+            )
+            self.collected = 0
+
+        if self.mode == 'train':
+            self._save_model_if_needed(current_step, st)
 
         return self.dic_score_reward
 
 
-    def _evaluate_insertion_reward(self, lc_av, platoon_snapshot, dic_platoon_members):
+    def _evaluate_insertion_reward(self, lc_av, platoon_snapshot,
+                                   dic_platoon_members):
         """
         Evaluate insertion success and return a reward score for split_insert scenario.
 
@@ -278,25 +318,28 @@ class AgentHandler:
             return -0.1
 
     def record_loss(self, current_step, st):
-        if current_step != st*10-1 or self.mode != 'train':
+        if current_step != st*10 - 10 or self.mode != 'train':
             return
         self.agent.record_plot_loss()  # plot loss curve
 
     def record_scores(self, current_step, st):
-        if current_step != st*10-1 or self.mode != 'train':
+        if current_step != st*10 - 10 or self.mode != 'train':
             return
         self.agent.record_plot_scores(self.ls_score)
+        self.agent.record_plot_score_reward(self.dic_score_reward)
 
     def _save_model_if_needed(self, current_step, st):
         """
         Periodically save the trained model.
         """
         save_interval = 30000  # every 10k steps
-        if current_step > self.next_save_step or current_step == st*10-1:
+        if current_step > self.next_save_step or current_step == st*10 - 10:
             # os.makedirs("saved_models", exist_ok=True)
             timestamp = datetime.now().strftime("%y%m%d_%H%M")  # e.g. 250517_1915
             filename = f"sa_{timestamp}.pt"
             self.agent.save_model(filename)
+            if current_step == st * 10 - 10:
+                self.agent.save_model("final_SA.pt")
             print(f"[Model-SA] Auto-saved at step {current_step}")
             self.next_save_step += save_interval  # set next checkpoint
 
@@ -361,7 +404,8 @@ class AgentHandler:
 
         return float(d_target_norm), float(offset_norm)
 
-    def _evaluate_candidates(self, step, leader_id, dic_platoon_members, dic_leader_candidates,
+    def _evaluate_candidates(self, step, leader_id,
+                             dic_platoon_members, dic_leader_candidates,
                              dic_oversized_platoon_states, ls_upA_asc, gating_value):
         """
         Evaluate candidate AVs for a given leader.
@@ -386,27 +430,34 @@ class AgentHandler:
             return None, None, None, None
 
         pMember = dic_platoon_members[leader_id]
+        tail_id = pMember[-1]
         platoon_states = dic_oversized_platoon_states[leader_id]
 
         candidate_states = []
         scores = []
+        valid_candidates = []
 
         # === Score all candidate AVs ===
         for av_id in ls_candidateAV:
-            state = self.agent.state_builder.build_state2(
-                av_id, pMember, platoon_states, ls_upA_asc
-            )
-            score = self.agent.predict_score(state)
-
-            candidate_states.append(state)
-            scores.append(score)
+            try:
+                state = self.agent.state_builder.build_state_se(
+                    av_id, leader_id, tail_id, platoon_states)
+                if state is None:
+                    continue
+                score = self.agent.predict_score(state)
+                valid_candidates.append(av_id)
+                candidate_states.append(state)
+                scores.append(score)
+            except Exception as e:
+                print(f"[SplitInsert] {av_id} failed to score: {e}")
+                continue
 
         if not scores:
             return None, None, None, None
 
         # === Select top-ranked AV ===
         top_idx = int(np.argmax(scores))
-        selected_av = ls_candidateAV[top_idx]
+        selected_av = valid_candidates[top_idx]
         selected_state = candidate_states[top_idx]
         best_score = float(scores[top_idx])
 
@@ -493,14 +544,13 @@ class AgentHandler:
 
 
     def _execute_insertion(self, step, leader_id, selected_av, selected_state,
-                           dic_platoon_members, score, gate_input):
+                           platoon_snapshot, score, gate_input):
         """
         Execute the lane change for the selected AV and update tracking structures.
         """
         try:
             self.traci.vehicle.changeLane(selected_av, self.target_lane, duration=100)
             print(f"[SplitInsert] {selected_av} selected with score {score:.3f}")
-            platoon_snapshot = dic_platoon_members[leader_id]
             self.ls_splited_platoon.append(leader_id)
 
             self.insert_buffer.append({
