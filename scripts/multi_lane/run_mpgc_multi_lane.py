@@ -178,7 +178,7 @@ def loop(traci, st, data_recorder,
         # ramp vehicle generation
         veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p)
 
-        traffic_calibrator.update()
+        # traffic_calibrator.update()
 
         (dic_follower_state, his_dic_platoon_size,
          dic_id_features) = formation_controller.step(st, step, lc)
@@ -358,7 +358,7 @@ if __name__ == '__main__':
         lc = True, # if allow HV lane-changing; True
         fc_mode = 'full', # dla_only/dla_tsc/dla_tsc_lhr/dla_tsc_lhr_ce/full
         st = st, # 1200
-        tsg_mode = 'predict', # off/fix/predict/train/audit
+        tsg_mode = 'off', # off/fix/predict/train/audit
         max_team_size = max_team_size
     )
     end = time.time()

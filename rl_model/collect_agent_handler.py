@@ -37,8 +37,8 @@ class CollectAgentHandler:
 
         active_exp_name = exp_name if mode == 'train' else f"EVAL_{exp_name}"
 
-        default_model = 'free_insert_score_model_260303_2333_second_version.pt'
-        # default_model = 'ce_test_260907_0018.pt'
+        # default_model = 'free_insert_score_model_260303_2333_second_version.pt'
+        default_model = 'ce_test_260907_0018.pt'
         path_pt = os.path.join(project_root, 'rl_model', 'saved_models', default_model)
         # Initialize RL scoring agent
         self.agent = RLScoringAgent(traci, data_recorder,
@@ -131,7 +131,6 @@ class CollectAgentHandler:
             for payload in self.payloads:
                 self._execute_insertion(step, *payload)
             self.payloads.clear()
-
 
     def update_reward(self, current_step, st, dic_platoon_members, train_interval):
         """
@@ -229,7 +228,6 @@ class CollectAgentHandler:
 
         return self.dic_score_reward
 
-
     def evaluate_free_insert_reward(self, lc_av, first_free_follower,
                                     sparse_snapshot, dic_platoon_members):
         """
@@ -296,13 +294,11 @@ class CollectAgentHandler:
             print(f"[FreeInsert] {lc_av} exception: {e}")
             return penalty
 
-
     def _get_pos(self, veh_id, fallback=0.0):
         try:
             return float(self.data_recorder.get_vid_states(veh_id)['pos'])
         except Exception:
             return float(fallback)
-
 
     def _build_tsg_timing_features_collecting(
             self,
@@ -351,7 +347,6 @@ class CollectAgentHandler:
             offset_norm = 0.0
 
         return float(d_target_norm), float(offset_norm)
-
 
     def _evaluate_candidates(self, step, sparse_leader, dic_platoon_members,
                              dic_sparse_platoons,
@@ -490,7 +485,6 @@ class CollectAgentHandler:
 
         return selected_av, selected_state, best_score, gate_input
 
-
     def _execute_insertion(self, step, sparse_leader, selected_av,
                            selected_state, first_free_follower,
                            sparse_members_snapshot, score, gate_input):
@@ -531,7 +525,6 @@ class CollectAgentHandler:
         except self.traci.TraCIException:
             print(f"[FreeInsert] {selected_av} insert failed as TraCI exception")
 
-
     def _save_model_if_needed(self, current_step, st, model_type='sa'):
         """
         Periodically save the trained model.
@@ -546,12 +539,10 @@ class CollectAgentHandler:
             print(f"[Model] Auto-saved at step {current_step}")
             self.next_save_step += save_interval
 
-
     def record_loss(self, current_step, st):
         if current_step != st * 10 - 10 or self.mode != 'train':
             return
         self.agent.record_plot_loss()  # plot loss curve
-
 
     def record_scores(self, current_step, st):
         """Plot distribution of predicted scores."""

@@ -123,15 +123,23 @@ class FormationController:
             self.split_agent.record_loss(step, st)
         return dic_nonOversizedP
 
-    def collecting(self, st, step, ls_ihA_asc, ls_ihB_av_asc, dic_nonOversizedP,
+    def collecting(self, st, step, ls_ihB_av_asc, dic_nonOversizedP,
                    dic_platoon_members, dic_id_preState, selected_vid):
-        # ******** HANDLE SPARSE PLATOONS ********
+        '''
+        ******** HANDLE SPARSE PLATOONS ********
+        Parameters
+        ----------
+        dic_collect_candidates = {sparse_leader: [candidate_av1, candidate_av2, ...]}
+
+        Returns
+        -------
+
+        '''
         # ** free_promote **
         if self.modules['ce'] and self.collect_agent:
             self.collect_agent.release_insertion(step, self.ca_buffer)
         if step % self.update_interval != 0:
             return {}
-        # dic_id_preState, dic_id_features = self.p_basic.predict_flw_state(dic_tags, ls_vehid, model=True)
         dic_sparseP, dic_standard_platoon = self.p_sparse.find_sparse_platoon(dic_nonOversizedP, dic_id_preState)
         if self.modules['lhr']:
             addressed_leaders = self.p_sparse.free_promote(dic_sparseP, dic_platoon_members)
@@ -158,12 +166,13 @@ class FormationController:
         }
         # ** FREE_INSERT ** agent
         if self.modules['ce'] and self.collect_agent:
-            dic_free_insertedAV = self.collect_agent.run_free_insert_decision(step, dic_platoon_members,
-                                                                                  dic_sparseP_filered,
-                                                                                  dic_collect_candidates,
-                                                                                  gating_value=self.ca_gating)  # 0.4 for predict
+            dic_free_insertedAV = self.collect_agent.run_free_insert_decision(step,
+                                                                              dic_platoon_members,
+                                                                              dic_sparseP_filered,
+                                                                              dic_collect_candidates,
+                                                                              gating_value=self.ca_gating)  # 0.4 for predict
             dic_free_score_reward = self.collect_agent.update_reward(step, st, dic_platoon_members,
-                                                                         train_interval=self.train_interval)
+                                                                     train_interval=self.train_interval)
             self.collect_agent.record_scores(step, st)
             self.collect_agent.record_loss(step, st)
         return dic_standard_platoon
@@ -218,7 +227,7 @@ class FormationController:
                                            dic_platoon_members, selected_vid)
         # ******** HANDLE SPARSE PLATOONS (CE) ********
         # ** free_promote **
-        dic_standard_platoon = self.collecting(st, step, ls_ihA_asc, ls_ihB_av_asc, dic_nonOversizedP,
+        dic_standard_platoon = self.collecting(st, step, ls_ihB_av_asc, dic_nonOversizedP,
                                                dic_platoon_members, dic_id_preState, selected_vid)
         # ******** SELF-GATING TRAINING ********
         self.tsg_manager.train_if_needed(step, st)

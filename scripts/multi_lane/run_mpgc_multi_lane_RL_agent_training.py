@@ -192,7 +192,7 @@ if __name__ == '__main__':
      xml_path) = mpgc_main(
         av_p = 0.1, # 0.3
         r_fr = 0,
-        m_fr = 1200,
+        m_fr = 1000,
         seed = 21, # 1
         gui = True,
         st = 1200*5, # 50; 100

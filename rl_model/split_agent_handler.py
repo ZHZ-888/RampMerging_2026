@@ -23,8 +23,8 @@ class SplitAgentHandler:
 
         active_exp_name = exp_name if mode == 'train' else f"EVAL_{exp_name}"
 
-        default_model = 'split_score_model_251124_1900.pt'
-        # default_model = 'se_test_260907_0018.pt'
+        # default_model = 'split_score_model_251124_1900.pt'
+        default_model = 'se_test_260907_0018.pt'
         path_pt = os.path.join(project_root, 'rl_model', 'saved_models', default_model)
         score_model_path = path_pt if mode == "predict" else None
         self.agent = RLScoringAgent(

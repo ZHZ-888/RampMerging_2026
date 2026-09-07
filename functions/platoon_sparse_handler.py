@@ -18,7 +18,7 @@ class PlatoonSparseHandler:
         self.free_triggered = False  # for record_predict3
         # Load Random Forest model for follower state prediction
         self.fs_model = joblib.load(
-            os.path.join(project_root, 'rf_models', 'follower_state_prediction_model_251121_ndarray.pkl'))
+            os.path.join(project_root, 'rf_models', 'follower_state_prediction_model_260829_ndarray_final.pkl'))
 
     # TODO: Optimise prediction efficiency—consider batch processing or caching leader lookups to reduce computational burden when processing many HV followers
     def predict_flw_state_discard(self, dic_id_type, ls_vehid, model=False):
@@ -149,6 +149,13 @@ class PlatoonSparseHandler:
         dic_standard_platoon = {}
         for leader, ls_followers in dic_nonOversized.items():
             if leader == 'm_av1389':
+                pass
+            if leader in ['m_av39', 'mb_av412', 'm_av580', 'm_av1389', 'm_av1659',
+                          'm_av1874', 'm_av2119', 'm_av2437', 'm_av3218', 'm_av5277',
+                          'm_av5842', 'm_av6141', 'm_av6373', 'm_av6652', 'm_av7058',
+                          'm_av7253', 'm_av7727', 'm_av8010', 'm_av8602', 'm_av9062',
+                          'm_av9350', 'm_av9786', 'm_av11149', 'm_av11327', 'm_av11606',
+                          'm_av12019', 'm_av13729', 'm_av13892', 'm_av14487']:
                 pass
             first_free_follower = None
             for follower in ls_followers:

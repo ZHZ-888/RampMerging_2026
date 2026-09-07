@@ -18,6 +18,7 @@ class PlatoonLaneManager:
         self.leader_move_commands_sent = set()
         self.no_lc_hv = set()  # Lane change control
         self.std_leaders_done = set() # record standard platoon leaders processed for av_fol jump innner lane
+
     def encourage_inner_lane_change(
             self,
             ls_ihA_hv: list,
