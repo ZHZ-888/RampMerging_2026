@@ -24,6 +24,7 @@ class SplitAgentHandler:
         active_exp_name = exp_name if mode == 'train' else f"EVAL_{exp_name}"
 
         default_model = 'split_score_model_251124_1900.pt'
+        # default_model = 'se_test_260907_0018.pt'
         path_pt = os.path.join(project_root, 'rl_model', 'saved_models', default_model)
         score_model_path = path_pt if mode == "predict" else None
         self.agent = RLScoringAgent(
@@ -151,6 +152,9 @@ class SplitAgentHandler:
                 )
 
                 self.dic_score_reward[lc_av].append(reward)
+                self.agent.log_score_reward(
+                    lc_av, self.dic_score_reward[lc_av][0], reward
+                )
                 meta = self.dic_tsg_meta.pop(lc_av, None)
                 if self.tsg_mode in ("predict", "audit") and self.tsg_manager and meta is not None:
                     self.tsg_manager.log_tsg_reward(
@@ -527,6 +531,7 @@ class SplitAgentHandler:
         # === If rejected, return no selected AV ===
         if not execute_decision:
             self.ls_score.append(best_score)
+            self.agent.log_score(best_score)
             print(f"[SA-Gate] Reject candidate: {selected_av}, score={best_score:.3f}")
             return None, None, best_score, gate_input
 
@@ -539,6 +544,7 @@ class SplitAgentHandler:
                 "tsg_execute": gate_execute if 'gate_execute' in locals() else None,
             }
         self.ls_score.append(best_score)
+        self.agent.log_score(best_score)
 
         return selected_av, selected_state, best_score, gate_input
 

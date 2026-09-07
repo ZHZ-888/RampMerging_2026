@@ -38,6 +38,7 @@ class CollectAgentHandler:
         active_exp_name = exp_name if mode == 'train' else f"EVAL_{exp_name}"
 
         default_model = 'free_insert_score_model_260303_2333_second_version.pt'
+        # default_model = 'ce_test_260907_0018.pt'
         path_pt = os.path.join(project_root, 'rl_model', 'saved_models', default_model)
         # Initialize RL scoring agent
         self.agent = RLScoringAgent(traci, data_recorder,
@@ -163,6 +164,9 @@ class CollectAgentHandler:
 
             if lc_av in self.dic_score_reward:
                 self.dic_score_reward[lc_av].append(reward)
+                self.agent.log_score_reward(
+                    lc_av, self.dic_score_reward[lc_av][0], reward
+                )
             meta = self.dic_tsg_meta.pop(lc_av, None)
             if self.tsg_mode in ("predict", "audit") and self.tsg_manager and meta is not None:
                 self.tsg_manager.log_tsg_reward(
@@ -466,6 +470,7 @@ class CollectAgentHandler:
         # === If rejected ===
         if not execute_decision:
             self.ls_score.append(best_score)
+            self.agent.log_score(best_score)
             print(
                 f"[CA-Gate] Reject candidate: {selected_av}, "
                 f"score={best_score:.3f}"
@@ -481,6 +486,7 @@ class CollectAgentHandler:
                 "tsg_execute": gate_execute if 'gate_execute' in locals() else None,
             }
         self.ls_score.append(best_score)
+        self.agent.log_score(best_score)
 
         return selected_av, selected_state, best_score, gate_input
 

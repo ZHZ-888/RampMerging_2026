@@ -3,9 +3,16 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-import matplotlib.pyplot as plt  # Required for loss plotting
-import pandas as pd
+import matplotlib
 import os
+
+# Slurm compute nodes normally have no display server. Use a non-interactive
+# backend there so importing pyplot can never require X11/Tk.
+if os.environ.get("RUN_DIR"):
+    matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # Required for local plotting
+import pandas as pd
+import csv
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 from pathlib import Path
@@ -63,6 +70,7 @@ class RLScoringAgent:
         self.loss_history = []  # (global_epoch, simulation_step, epoch_loss)
         self.training_epoch = 0
         self.training_session = 0
+        self.score_log_index = 0
 
         self.IS_HPC = "RUN_DIR" in os.environ  # Simple check for HPC environment variable
         # **** Define project root (rl_model folder) ****
@@ -158,6 +166,11 @@ class RLScoringAgent:
             self.loss_history.append(
                 (self.training_epoch, current_step, avg_epoch_loss)
             )
+            self._append_csv_row(
+                "loss_log.csv",
+                ("epoch", "sim_step", "loss"),
+                (self.training_epoch, current_step, avg_epoch_loss)
+            )
             self.writer.add_scalar(
                 'Loss/Epoch_Training_Loss', avg_epoch_loss,
                 self.training_epoch
@@ -168,6 +181,32 @@ class RLScoringAgent:
         print(f"[Train] Fitted on {len(self.memory)} samples, at step {current_step}, Avg_loss = {avg_loss:.4f}")
         self.memory.clear()
         self.training_session += 1
+
+    def _append_csv_row(self, filename, fieldnames, values):
+        """Append one durable log row, writing the header only once."""
+        file_path = os.path.join(self.run_dir, filename)
+        file_exists = os.path.isfile(file_path) and os.path.getsize(file_path) > 0
+        with open(file_path, "a", newline="", encoding="utf-8") as csv_file:
+            writer = csv.writer(csv_file)
+            if not file_exists:
+                writer.writerow(fieldnames)
+            writer.writerow(values)
+
+    def log_score(self, score):
+        """Persist a predicted score as soon as the decision is made."""
+        self._append_csv_row(
+            "score_log.csv", ("index", "score"),
+            (self.score_log_index, float(score))
+        )
+        self.score_log_index += 1
+
+    def log_score_reward(self, vehicle_id, score, reward):
+        """Persist a completed delayed score/reward pair immediately."""
+        self._append_csv_row(
+            "score_reward_log.csv",
+            ("vehicle_id", "score", "reward"),
+            (vehicle_id, float(score), float(reward))
+        )
 
     def log_training_metrics(self, current_step):
         """
