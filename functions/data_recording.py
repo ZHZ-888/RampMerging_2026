@@ -156,13 +156,15 @@ class DataRecording:
         '''
         # tuple, all vehicles on simulation road on current step
         ls_vehid = self.traci.vehicle.getIDList()  # no order
+        set_vehid = set(ls_vehid) # search set() is much quicker than list()
+        set_m_leader_his = set(self.ls_m_leader_his_asc)
         self._build_step_cache(ls_vehid)
 
         # current leader on net from mainlane
         # m_leader on mainlane merging control section; self.ls_m_leader_his_asc, ls_ms_veh_up
         ls_m_leader_net_asc = [
             vid for vid in self.ls_m_leader_his_asc
-            if vid in ls_vehid]
+            if vid in set_vehid]
         # current veh on mainlane (inflow_highway_0, ih)
         tup_ih_veh_up = self.traci.lane.getLastStepVehicleIDs('inflow_highway_0')
         tup_ih_veh_up_asc = self._sort_by_pos(tup_ih_veh_up)
@@ -174,15 +176,17 @@ class DataRecording:
         ls_pf_veh_asc = [
             vid for vid in tup_ih_veh_up_asc
             if self.dic_pos.get(vid, -1.0) < self.length_ih - length_ms]
+        set_pf_veh = set(ls_pf_veh_asc)
         # leader on PFZ
         ls_pf_leader_asc = [
             vid for vid in self.ls_m_leader_his_asc
-            if vid in ls_pf_veh_asc]
+            if vid in set_pf_veh]
+
         ls_ms_leader_net_asc = [
             vid for vid in ls_m_leader_net_asc
             if vid not in ls_pf_leader_asc]
         # m leader Before merging
-        ls_ms_leader_up_asc = [vid for vid in ls_ms_veh_up_asc if vid in self.ls_m_leader_his_asc]
+        ls_ms_leader_up_asc = [vid for vid in ls_ms_veh_up_asc if vid in set_m_leader_his]
         ls_m_veh_net = [vid for vid in ls_vehid if 'm' in vid]
         ls_m_veh_net_asc = sorted(ls_m_veh_net, key=lambda x: int(''.join(filter(str.isdigit, x))))
 

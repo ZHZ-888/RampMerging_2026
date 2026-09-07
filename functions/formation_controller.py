@@ -22,7 +22,8 @@ FC_MODES = {
 class FormationController:
     def __init__(self, data_recorder, traci, sa_mode='predict', ca_mode='predict',
                  tsg_mode='off', exp_name='default_run', loss_rate=0, learning_rate=5e-4,
-                 train_interval=32, hidden_dims=(64, 64), max_team_size=12, fc_mode='full', comm_rng=None):
+                 train_interval=32, hidden_dims=(64, 64), max_team_size=12, fc_mode='full',
+                 comm_rng=None):
         '''
         Train split_agent, "sa_mode='train', ca_mode='off'"
         Train collect_agent, "sa_mode='off', ca_mode='train'

@@ -18,7 +18,7 @@ class PlatoonBasic:
         # Load Random Forest model for follower state prediction
         # fs_model_name = 'follower_state_prediction_model_251121_ndarray.pkl'
         # fs_model_name = 'follower_state_prediction_model_260715_ndarray.pkl'
-        fs_model_name = 'follower_state_prediction_model_260905_ndarray_updateAVtau.pkl'
+        fs_model_name = 'follower_state_prediction_model_260829_ndarray_final.pkl'
         self.fs_model = joblib.load(
             os.path.join(project_root, 'rf_models', fs_model_name))
 
@@ -32,14 +32,14 @@ class PlatoonBasic:
         self.dec_av = []
         self.dic_tags = {}
         self.recover_speed_map = {}
-        self.ls_speed_ok = []  # av_id that speed restore back to max (27.78 m/s)
-        self.ls_speed_level3 = []
+        self.set_speed_ok = set()  # av_id that speed restore back to max (27.78 m/s)
+        self.set_speed_level3 = set()
         self.dic_platoon_size = {}  # all leaderAV and its platoon size
         self.dic_platoon_members = {}  # all leaderAV and its members
 
         self.dic_AVroleChange = {}  # dic_AVroleChange = {AV_id: type, ...} record AV changed its role
-        self.ls_leader_fol_states_checked = []
-        self.ls_leader_fol_states_checked_sensor = [] # sensor measurement version
+        self.set_leader_fol_states_checked = set()
+        self.set_leader_fol_states_checked_sensor = set() # sensor measurement version
         self.ls_leader_AV = []
         self.ls_follower_AV = []
         self.ls_ihA_lastStep = []  # ls_upA (upstream AV) last Step
@@ -280,11 +280,11 @@ class PlatoonBasic:
         for vid in ls_av:
             if vid == 'm_av2847':
                 pass
-            if vid in self.ls_speed_ok:
+            if vid in self.set_speed_ok:
                 continue
             current_max = self.traci.vehicle.getMaxSpeed(vid)
             if current_max >= self.max_speed:
-                self.ls_speed_ok.append(vid)
+                self.set_speed_ok.add(vid)
                 continue
             self.traci.vehicle.setMaxSpeed(vid, self.max_speed)  # restore to 27.78 m/s
 
@@ -317,13 +317,13 @@ class PlatoonBasic:
         # NOTE: Ensure ls_leader is ordered from FRONT to BACK (Downstream to Upstream).
         for i, leader in enumerate(ls_leader):
             # If already at level3 speed, it doesn't block anyone behind it. Skip.
-            if leader in self.ls_speed_level3:
+            if leader in self.set_speed_level3:
                 continue
 
             current_max = self.traci.vehicle.getMaxSpeed(leader)
             # if current_max >= level3_speed and leader in self.dec_av:
             if current_max >= speed_level3 and leader in self.dec_av:
-                self.ls_speed_level3.append(leader)
+                self.set_speed_level3.add(leader)
                 continue
 
             # STRATEGY A: Merging Zone
@@ -378,7 +378,7 @@ class PlatoonBasic:
                     # self.traci.vehicle.setMaxSpeed(leader, speed_level3)
                     for fol in ls_followers: # record followers's state as '1' (following mode)
                         self.dic_follower_state[fol] = ['following_mode', leader]
-                    self.ls_leader_fol_states_checked.append(leader) # record this leader then no need to check its followers' state
+                    self.set_leader_fol_states_checked.add(leader) # record this leader then no need to check its followers' state
                     # record final platoon information and pass to merging controller for later use
                     self._get_final_platoon_info(step, self.dic_follower_state)
                 else:
@@ -428,9 +428,9 @@ class PlatoonBasic:
         # Take the most recently arrived leader
         leader_mc_newest = ls_mc_leaders[-1]
         # Ensure this leader is recorded only once
-        if leader_mc_newest in self.ls_leader_fol_states_checked:
+        if leader_mc_newest in self.set_leader_fol_states_checked:
             return self.dic_follower_state, self.dic_final_platoon_info
-        self.ls_leader_fol_states_checked.append(leader_mc_newest)
+        self.set_leader_fol_states_checked.add(leader_mc_newest)
         # 2. Retrieve all followers belonging to this leader's platoon
         platoon_followers = self.dic_platoon_members.get(leader_mc_newest, [])[1:]
         # 3. Record the state of each follower at the moment the leader enters 800m
@@ -466,9 +466,9 @@ class PlatoonBasic:
         # Take the most recently arrived leader
         leader_mc_newest = ls_mc_leaders[-1]
         # Ensure this leader is recorded only once
-        if leader_mc_newest in self.ls_leader_fol_states_checked_sensor:
+        if leader_mc_newest in self.set_leader_fol_states_checked_sensor:
             return self.dic_follower_state_sensor
-        self.ls_leader_fol_states_checked_sensor.append(leader_mc_newest)
+        self.set_leader_fol_states_checked_sensor.add(leader_mc_newest)
         # 2. Retrieve all followers belonging to this leader's platoon
         platoon_followers = self.dic_platoon_members.get(leader_mc_newest, [])[1:]
         # 3. Record the state of each follower at the moment the leader enters 800m

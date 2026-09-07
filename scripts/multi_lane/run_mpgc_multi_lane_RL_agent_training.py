@@ -117,6 +117,7 @@ def loop(traci, st, data_recorder,
          m0_dpt_type=None, m1_dpt_type=None):
     # START SIMULATION
     step = 0
+    history_cleanup_interval = 30000  # 3000 simulation seconds
     # scripts loop
     while step < st * 10:
         # checkpoint
@@ -131,6 +132,28 @@ def loop(traci, st, data_recorder,
         # main vehicle generation
         veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h
         veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
+
+        # cleaning up the history of platoon size for speed up training process
+        if step > 0 and step % history_cleanup_interval == 0:
+            active_ids = set(traci.vehicle.getIDList())
+            p_basic = formation_controller.p_basic
+            p_basic.dic_platoon_size = {
+                leader: size
+                for leader, size in p_basic.dic_platoon_size.items()
+                if leader in active_ids
+            }
+            p_basic.dic_platoon_members = {
+                leader: members
+                for leader, members in p_basic.dic_platoon_members.items()
+                if leader in active_ids
+            }
+            data_recorder.ls_m_leader_his_asc = list(
+                p_basic.dic_platoon_size.keys()
+            )
+            print(
+                f"[History Cleanup] step={step}, "
+                f"active_leaders={len(p_basic.dic_platoon_size)}"
+            )
 
         dic_follower_state, his_dic_platoon_size, dic_id_features = (
             formation_controller.step(st, step, lc))
