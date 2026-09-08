@@ -7,6 +7,11 @@
 #SBATCH --output=train-logs/lipr_eval_%A_%a.out
 #SBATCH --error=train-logs/lipr_eval_%A_%a.err
 
+# NOTE: sbatch \
+#  --array=0-4 \
+#  --export=ALL,TRAIN_ROOT=/nesi/nobackup/uoa04480/RL_Training_<训练JOB_ID> \
+#  slurm/LIPR_dual_expert_evaluation.slurm
+
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
 

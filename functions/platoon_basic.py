@@ -17,8 +17,8 @@ class PlatoonBasic:
         self.pass_recorder = pass_recorder
         # Load Random Forest model for follower state prediction
         # fs_model_name = 'follower_state_prediction_model_251121_ndarray.pkl'
-        # fs_model_name = 'follower_state_prediction_model_260715_ndarray.pkl'
-        fs_model_name = 'follower_state_prediction_model_260829_ndarray_final.pkl'
+        fs_model_name = 'follower_state_prediction_model_260715_ndarray.pkl'
+        # fs_model_name = 'follower_state_prediction_model_260829_ndarray_final.pkl'
         self.fs_model = joblib.load(
             os.path.join(project_root, 'rf_models', fs_model_name))
 
