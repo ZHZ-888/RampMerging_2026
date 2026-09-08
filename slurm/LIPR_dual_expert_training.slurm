@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=mpgc_training            # Job name for tracking
-#SBATCH --time=5:00:00                     # Increased time limit for longer simulation
+#SBATCH --time=7:00:00                     # Increased time limit for longer simulation
 #SBATCH --cpus-per-task=1                   # CPU cores per task for Torch/SUMO
 #SBATCH --mem=4G                            # Memory allocation for Replay Buffer
-#SBATCH --output=train-logs/out_%A_%a.txt   # Standard output log
-#SBATCH --error=train-logs/err_%A_%a.txt    # Error log
+#SBATCH --output=/nesi/nobackup/uoa04480/train-logs/out_%A_%a.txt # Standard output log
+#SBATCH --error=/nesi/nobackup/uoa04480/train-logs/err_%A_%a.txt # Error log
 #SBATCH --array=0-17
 # NOTE: 18 tasks = 2 agents * 3 learning rates * 3 update intervals
 

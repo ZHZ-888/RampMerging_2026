@@ -94,7 +94,8 @@ def mpgc_main(av_p=0.3, r_fr=0, m_fr=1000, seed=21, r_platoon_p=1,
         formation_controller = fc.FormationController(
             data_recorder, traci, sa_mode=SA_mode,
             ca_mode=CA_mode, exp_name=exp_name, learning_rate=lr,
-            train_interval=train_interval, hidden_dims=hidden_layer)
+            train_interval=train_interval,
+            expert_hidden_dims=hidden_layer)
 
         dic_follower_state, his_dic_platoon_size, dic_id_features = \
             loop(traci, st, data_recorder, veh_gen, formation_controller, lc,

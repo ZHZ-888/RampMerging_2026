@@ -48,13 +48,13 @@ def ensure_local_tsg_run_dir():
 
 def mpgc_main(av_p=0.3, r_fr=0, m_fr=1200, seed=21, r_platoon_p=1, loss_rate=0,
               gui=False, plot=False, display=False, lc=False, st=1000, train_model=None,
-              lr=0.0005, train_interval=32, hidden_layer=[64, 64]):
+              lr=0.0005, train_interval=32):
     '''
     SA: splitting agent; CA: collecting agent; TSG: target self-gating
-    LR: learning rate; batch_epoch: B, E; hidden_layer: HA, HB; seed: S
+    LR: learning rate; batch_epoch: B, E; seed: S
     '''
 
-    param_tag = f"LR{lr}_I{train_interval}_HA{hidden_layer[0]}HB{hidden_layer[1]}_S{seed}"
+    param_tag = f"LR{lr}_I{train_interval}__S{seed}"
     if train_model == 'TSG':
         exp_name = param_tag
     else:
@@ -126,8 +126,7 @@ def mpgc_main(av_p=0.3, r_fr=0, m_fr=1200, seed=21, r_platoon_p=1, loss_rate=0,
             raise ValueError(f"[Error] Unknown train_model parameter: {train_model}")
         formation_controller = fc.FormationController(data_recorder, traci, sa_mode=SA_mode,
         ca_mode=CA_mode, tsg_mode=TSG_mode, exp_name=exp_name,
-        learning_rate=lr, train_interval=train_interval,
-        hidden_dims=hidden_layer)  # Passes the unique folder name down
+        learning_rate=lr, train_interval=train_interval)  # Passes the unique folder name down
 
         (dic_follower_state, his_dic_platoon_size,
          dic_id_features) = \
@@ -186,10 +185,8 @@ def set_global_seed(seed, enable=True):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-def run_tsg_training_plan(st=12000, lr=0.0001, train_interval=16,
-                          hidden_layer=None, gui=False):
-    if hidden_layer is None:
-        hidden_layer = [64, 64]
+def run_tsg_training_plan(st=1500*10, lr=0.0001, train_interval=16,
+                          gui=False):
 
     start = time.time()
 
@@ -214,7 +211,6 @@ def run_tsg_training_plan(st=12000, lr=0.0001, train_interval=16,
             train_model='TSG',
             lr=lr,
             train_interval=train_interval,
-            hidden_layer=hidden_layer,
         )
 
     end = time.time()
@@ -235,7 +231,6 @@ def main(args=None, root=None):
         st=parsed_args.st,
         lr=parsed_args.lr,
         train_interval=parsed_args.train_interval,
-        hidden_layer=parsed_args.hidden_layer,
         gui=parsed_args.gui,
     )
 
@@ -250,11 +245,10 @@ if __name__ == '__main__':
         m_fr = 1000,
         seed = 30, # 29, 1200*60
         gui = False,
-        st = 1200*100,  # 50; 100
+        st = 1500*100,  # 50; 100
         train_model = 'TSG', # 'SA', 'CA', 'TSG', None
         lr = 0.0005,  # 0.0005
         train_interval = 16,  # default => train_interval (I): 32; batch_size (I/2): 16; epoch: 5
-        hidden_layer = [64, 64]  # default: [64, 64]
     )
     end = time.time()
     runtime = end - start

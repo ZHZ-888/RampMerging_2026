@@ -7,7 +7,7 @@ from rl_model.rl_module import SelfGateAgent
 
 class TSGManager:
     def __init__(self, tsg_mode="off", exp_name="default_run",
-                 lr=5e-4, train_interval=32, hidden_dims=(64, 64)):
+                 lr=5e-4, train_interval=32, hidden_dims=(16, 16)):
         self.tsg_mode = tsg_mode
         self.train_interval = train_interval
         self.next_save_step = 10000

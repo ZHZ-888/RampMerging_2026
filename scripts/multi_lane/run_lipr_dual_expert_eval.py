@@ -84,7 +84,7 @@ def run_evaluation(args):
             ca_mode="predict",
             tsg_mode="off",
             exp_name=f"PAIR{args.pair_id}_S{args.seed}",
-            hidden_dims=args.hidden_layer,
+            expert_hidden_dims=args.hidden_layer,
             max_team_size=args.max_team_size,
             fc_mode="full",
             se_model_path=str(se_model),

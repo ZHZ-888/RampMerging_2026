@@ -22,7 +22,8 @@ FC_MODES = {
 class FormationController:
     def __init__(self, data_recorder, traci, sa_mode='predict', ca_mode='predict',
                  tsg_mode='off', exp_name='default_run', loss_rate=0, learning_rate=5e-4,
-                 train_interval=32, hidden_dims=(64, 64), max_team_size=12, fc_mode='full',
+                 train_interval=32, expert_hidden_dims=(64, 64),
+                 gate_hidden_dims=(16, 16), max_team_size=12, fc_mode='full',
                  comm_rng=None, se_model_path=None, ce_model_path=None):
         '''
         Train split_agent, "sa_mode='train', ca_mode='off'"
@@ -76,21 +77,23 @@ class FormationController:
             exp_name=exp_name,
             lr=learning_rate,
             train_interval=train_interval,
-            hidden_dims=hidden_dims
+            hidden_dims=gate_hidden_dims,
         )
 
         self.split_agent = split_agent.SplitAgentHandler(
             traci, data_recorder, mode=sa_mode, tsg_mode=tsg_mode,
-            exp_name=exp_name, lr=learning_rate, hidden_dims=hidden_dims,
+            exp_name=exp_name, lr=learning_rate,
             gate_agent=self.tsg_manager.gate_agent,
             tsg_manager=self.tsg_manager,
-            model_path=se_model_path) if sa_mode !='off' else None
+            model_path=se_model_path,
+            hidden_dims=expert_hidden_dims) if sa_mode !='off' else None
         self.collect_agent = collect_agent.CollectAgentHandler(
             traci, data_recorder, self.p_basic, mode=ca_mode, tsg_mode=tsg_mode,
-            exp_name=exp_name, lr=learning_rate, hidden_dims=hidden_dims,
+            exp_name=exp_name, lr=learning_rate,
             gate_agent=self.tsg_manager.gate_agent,
             tsg_manager=self.tsg_manager,
-            model_path=ce_model_path) if ca_mode != 'off' else None
+            model_path=ce_model_path,
+            hidden_dims=expert_hidden_dims) if ca_mode != 'off' else None
 
     def platoon_initialise(self, ls_ihA_asc, ls_vehid, rf_model):
         # ******** PLATOON INITIALISATION ********

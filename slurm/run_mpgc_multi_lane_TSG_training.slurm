@@ -38,5 +38,4 @@ stdbuf -oL python -u run.py \
   --algo mpgc_multi_lane_TSG_training \
   --lr 0.0001 \
   --train_interval 16 \
-  --hidden_layer 64 64 \
   --st 6000
