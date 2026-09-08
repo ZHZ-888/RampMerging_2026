@@ -8,7 +8,8 @@ class StateBuilder:
     Inputs: candidate AV ID and target platoon info.
     Output: normalized state vector (8-dimensional).
     """
-    def __init__(self, traci, data_recorder, max_gap=100.0, max_lane_pos=1200.0):
+    def __init__(self, traci, data_recorder, max_gap=100.0,
+                 max_lane_pos=1200.0):
         self.traci = traci
         self.data_recorder = data_recorder
 

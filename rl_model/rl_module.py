@@ -360,31 +360,27 @@ class RLScoringAgent:
 
 class GateMLP(nn.Module):
     """
-    Self-gating executor network.
+    Shared dispatch network.
 
     Input:
-        gate_input =
         [
-            x_top(10 dims),
-
-            top_score,
-            score_gap,
+            q_top,
+            delta_q,
             n_candidate_norm,
-
-            task_collecting,
-            task_splitting
+            d_target_to_MCZ_norm,
+            phi_target,
+            expert_type
         ]
 
     Output:
-        2 logits:
-            [reject_logit, execute_logit]
+        [reject_logit, execute_logit]
     """
 
     def __init__(self, input_dim=6, hidden_dims=(16, 16)):
         super(GateMLP, self).__init__()
 
         layers = []
-        dims = [input_dim] + hidden_dims + [2]
+        dims = [input_dim] + list(hidden_dims) + [2]
 
         for i in range(len(dims) - 2):
             layers.append(nn.Linear(dims[i], dims[i + 1]))
@@ -407,10 +403,11 @@ class SelfGateAgent:
     should be executed or rejected.
     """
 
-    def __init__(self, exp_name, model_path=None, lr=5e-4, input_dim=6):
+    def __init__(self, exp_name, model_path=None, lr=5e-4, input_dim=6,
+                 hidden_dims=(16, 16)):
         self.device = torch.device("cpu")  # Keep consistent with RLScoringAgent
 
-        self.model = GateMLP(input_dim=input_dim).to(self.device)
+        self.model = GateMLP(input_dim=input_dim, hidden_dims=hidden_dims).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
 
         self.memory = []
@@ -440,6 +437,7 @@ class SelfGateAgent:
         run_root = os.environ.get("RUN_DIR", self.run_dir)
         os.makedirs(run_root, exist_ok=True)
         self.gate_training_csv = os.path.join(run_root, "gate_training_log.csv")
+        self.gate_transition_csv = os.path.join(run_root, "gate_transition_log.csv")
         if os.path.isfile(self.gate_training_csv):
             try:
                 old_log = pd.read_csv(
@@ -456,72 +454,100 @@ class SelfGateAgent:
         if model_path:
             self.load_model(model_path)
 
-    def task_onehot(self, task_name):
-        """
-        Convert task name to one-hot vector.
-
-        collecting -> [1, 0]
-        splitting  -> [0, 1]
-        """
-        if task_name == "collecting":
-            return np.array([1.0, 0.0], dtype=np.float32)
-        elif task_name == "splitting":
-            return np.array([0.0, 1.0], dtype=np.float32)
-        else:
-            raise ValueError(f"[SelfGateAgent] Unknown task_name: {task_name}")
-
-    def build_gate_input(
-            self,
-            x_top,
+    def build_gate_input(self,
             scores,
-            top_idx=None,
-            task_name="splitting",
+            top_idx,
+            task_name,
+            d_target_to_MCZ,
+            target_platoon_size=None,
+            n_free=None,
+            n_follower=None,
+            max_platoon_size=12,
+            length_pfz=1200,
             max_candidates=10,
-            d_target_to_MCZ_norm=0.0,
-            signed_insert_offset_norm=0.0
     ):
         """
-        Build one gate input vector.
+        Build the six-feature dispatch input:
 
-        Final gate input:
-            [
-                top_score,
-                n_candidate_norm,
-                d_target_to_MCZ_norm,
-                signed_insert_offset_norm,
-                task_collecting,
-                task_splitting
-            ]
+            [q_top,
+            delta_q,
+            n_candidate_norm,
+            d_target_to_MCZ_norm,
+            phi_target,
+            expert_type]
 
-        Total dimension = 6.
+        expert_type:
+            0.0 -> collecting expert (CE)
+            1.0 -> splitting expert (SE)
         """
-
-        scores = np.asarray(scores, dtype=np.float32).reshape(-1)
+        scores = np.asarray(scores,
+            dtype=np.float32).reshape(-1)
 
         if scores.size == 0:
             raise ValueError("[SelfGateAgent] scores cannot be empty.")
 
-        if top_idx is None:
-            top_idx = int(np.argmax(scores))
+        if top_idx < 0 or top_idx >= scores.size:
+            raise IndexError(f"[SelfGateAgent] Invalid top_idx={top_idx} "
+                f"for {scores.size} scores.")
 
-        n_candidate = scores.size
-        top_score = float(scores[top_idx])
-        n_candidate_norm = min(n_candidate, max_candidates) / max_candidates
+        # ===== Raw features =====
+        # 1. Highest score
+        q_top = float(scores[top_idx])
 
-        task_vec = self.task_onehot(task_name)
+        # 2. Score margin
+        if scores.size >= 2:
+            sorted_scores = np.sort(scores)
+            q_second = float(sorted_scores[-2])
+            delta_q = q_top - q_second
+        else:
+            delta_q = 0.0
 
-        d_target_to_MCZ_norm = float(np.clip(d_target_to_MCZ_norm, 0.0, 1.0))
-        signed_insert_offset_norm = float(np.clip(signed_insert_offset_norm, -1.0, 1.0))
+        # 3. Number of valid candidates
+        n_candidate = int(scores.size)
 
-        gate_input = np.concatenate([
-            np.array([
-                top_score,
-                n_candidate_norm,
-                d_target_to_MCZ_norm,
-                signed_insert_offset_norm
-            ], dtype=np.float32),
-            task_vec
-        ]).astype(np.float32)
+        # 4. Remaining distance of target leader to MCZ
+        d_target_to_MCZ = float(d_target_to_MCZ)
+
+        # 5 and 6. Target abnormality and expert type
+        if task_name == "collecting":
+            if n_free is None or n_follower is None:
+                raise ValueError("[SelfGateAgent] CE requires "
+                    "n_free and n_follower.")
+            phi_target = (float(n_free) / max(float(n_follower), 1.0))
+            expert_type = 0.0
+
+        elif task_name == "splitting":
+            if target_platoon_size is None:
+                raise ValueError("[SelfGateAgent] SE requires "
+                    "target_platoon_size.")
+            phi_target = ((float(target_platoon_size) - float(max_platoon_size))
+                          / max(float(max_platoon_size), 1.0))
+            expert_type = 1.0
+
+        else:
+            raise ValueError(f"[SelfGateAgent] Unknown task_name: "
+                f"{task_name}")
+
+        # ===== Normalisation =====
+        q_top_norm = float(np.clip(q_top,0.0,1.0))
+        delta_q_norm = float(np.clip(delta_q,0.0,1.0))
+        n_candidate_norm = float(np.clip(n_candidate / max(float(max_candidates), 1.0),
+            0.0,1.0))
+        d_target_to_MCZ_norm = float(np.clip(
+            d_target_to_MCZ / max(float(length_pfz), 1.0),
+            0.0,1.0))
+        phi_target_norm = float(np.clip(phi_target,
+            0.0,1.0))
+
+        # ===== Final gate input =====
+        gate_input = np.array([
+            q_top_norm,
+            delta_q_norm,
+            n_candidate_norm,
+            d_target_to_MCZ_norm,
+            phi_target_norm,
+            expert_type
+        ], dtype=np.float32)
 
         return gate_input
 
@@ -571,11 +597,34 @@ class SelfGateAgent:
         if task_name not in ("collecting", "splitting"):
             raise ValueError(f"[SelfGateAgent] Unknown task_name: {task_name}")
 
+        gate_input = np.asarray(gate_input, dtype=np.float32).reshape(-1)
+        reward = float(reward)
+
         self.memory.append({
-            "gate_input": np.asarray(gate_input, dtype=np.float32),
-            "reward": float(reward),
+            "gate_input": gate_input,
+            "reward": reward,
             "task_name": task_name
         })
+
+        transition_row = {
+            "task_name": task_name,
+            "q_top": float(gate_input[0]),
+            "delta_q": float(gate_input[1]),
+            "n_candidate_norm": float(gate_input[2]),
+            "d_target_to_MCZ_norm": float(gate_input[3]),
+            "phi_target": float(gate_input[4]),
+            "expert_type": float(gate_input[5]),
+            "reward": reward,
+            "label": int(reward > 0),
+            "sample_weight": 1.0 if reward <= 0 else abs(reward),
+        }
+        file_exists = os.path.isfile(self.gate_transition_csv)
+        pd.DataFrame([transition_row]).to_csv(
+            self.gate_transition_csv,
+            mode="a",
+            header=not file_exists,
+            index=False
+        )
 
     def train_on_recorded(self, current_step, epochs=5, batch_size=16):
         """
@@ -744,6 +793,7 @@ class SelfGateAgent:
         )
 
         self.memory.clear()
+
     def save_model(self, filename):
         """
         Save gate model.

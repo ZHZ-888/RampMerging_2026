@@ -7,7 +7,7 @@ from rl_model.rl_module import SelfGateAgent
 
 class TSGManager:
     def __init__(self, tsg_mode="off", exp_name="default_run",
-                 lr=5e-4, train_interval=32):
+                 lr=5e-4, train_interval=32, hidden_dims=(64, 64)):
         self.tsg_mode = tsg_mode
         self.train_interval = train_interval
         self.next_save_step = 10000
@@ -15,7 +15,7 @@ class TSGManager:
         # default_gate_model_path = (
         #         Path(__file__).resolve().parent
         #         / "saved_models"
-        #         / "task_self_gate_latest.pt"
+        #         / "task_self_gate_v2_latest.pt"
         # )
 
         self.run_root = Path(os.environ.get(
@@ -24,11 +24,11 @@ class TSGManager:
         ))
         self.run_root.mkdir(parents=True, exist_ok=True)
 
-        self.train_latest_model_path = self.run_root / "task_self_gate_latest.pt"
+        self.train_latest_model_path = self.run_root / "task_self_gate_v2_latest.pt"
         self.predict_model_path = (
                 Path(__file__).resolve().parent
                 / "saved_models"
-                / "task_self_gate_latest.pt" # task_self_gate_step10900.pt; task_self_gate_latest.pt
+                / "task_self_gate_v2_latest.pt"
         )
 
         if tsg_mode == "audit":
@@ -48,6 +48,7 @@ class TSGManager:
                 exp_name=f"SHARED_TSG_{exp_name}",
                 model_path=model_path,
                 input_dim=6,
+                hidden_dims=hidden_dims,
                 lr=lr
             )
 
@@ -126,7 +127,7 @@ class TSGManager:
 
         if step > self.next_save_step or step == st * 10 - 1:
             self.gate_agent.save_model_to_path(
-                self.run_root / f"task_self_gate_step{step}.pt"
+                self.run_root / f"task_self_gate_v2_step{step}.pt"
             )
             self.save_latest()
             self.next_save_step += 30000

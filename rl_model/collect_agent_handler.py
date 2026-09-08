@@ -18,7 +18,8 @@ class CollectAgentHandler:
 
     def __init__(self, traci, data_recorder, p_basic, scoring_interval=10,
                  mode='train', tsg_mode='off', exp_name='default_run',
-                 lr=5e-4, hidden_dims=(64, 64), gate_agent=None, tsg_manager=None):
+                 lr=5e-4, hidden_dims=(64, 64), gate_agent=None, tsg_manager=None,
+                 model_path=None):
         """
         Initialise the free-insert agent.
 
@@ -39,11 +40,13 @@ class CollectAgentHandler:
 
         # default_model = 'free_insert_score_model_260303_2333_second_version.pt'
         default_model = 'ce_test_260907_0018.pt'
-        path_pt = os.path.join(project_root, 'rl_model', 'saved_models', default_model)
+        default_path = os.path.join(
+            project_root, 'rl_model', 'saved_models', default_model)
+        score_model_path = (model_path or default_path) if mode == "predict" else None
         # Initialize RL scoring agent
         self.agent = RLScoringAgent(traci, data_recorder,
                                     exp_name=active_exp_name,
-                                    model_path=path_pt if mode == "predict" else None,
+                                    model_path=score_model_path,
                                     lr=lr, hidden_dims=hidden_dims) # 0.0005
 
         self.gate_agent = gate_agent
@@ -250,8 +253,6 @@ class CollectAgentHandler:
         penalty = -0.1
 
         try:
-            if lc_av == 'mb_av948':
-                pass
             # Check if AV is on correct lane
             lane_id = self.traci.vehicle.getLaneID(lc_av)
             if 'inflow_highway_0' not in lane_id:
@@ -294,60 +295,6 @@ class CollectAgentHandler:
             print(f"[FreeInsert] {lc_av} exception: {e}")
             return penalty
 
-    def _get_pos(self, veh_id, fallback=0.0):
-        try:
-            return float(self.data_recorder.get_vid_states(veh_id)['pos'])
-        except Exception:
-            return float(fallback)
-
-    def _build_tsg_timing_features_collecting(
-            self,
-            sparse_leader,
-            selected_av,
-            dic_platoon_members,
-            dic_sparse_platoons,
-            offset_scale=100.0
-    ):
-        """
-        Build timing-related TSG features for collecting/free-insert.
-
-        d_target_to_MCZ_norm:
-            normalized remaining distance of target sparse leader.
-
-        signed_insert_offset_norm:
-            signed distance from top AV to ideal insertion position,
-            normalized to [-1, 1].
-        """
-        d_target_raw = self._get_pos(sparse_leader)
-        d_target_norm = np.clip(d_target_raw / self.agent.state_builder.max_lane_pos, 0.0, 1.0)
-
-        try:
-            first_free = dic_sparse_platoons[sparse_leader]
-            members = dic_platoon_members.get(sparse_leader, [])
-
-            d_first = self._get_pos(first_free, fallback=d_target_raw)
-
-            if first_free in members:
-                idx = members.index(first_free)
-                if idx > 0:
-                    preceding_vehicle = members[idx - 1]
-                    d_prev = self._get_pos(preceding_vehicle, fallback=d_first)
-                    d_ideal = 0.5 * (d_first + d_prev)
-                else:
-                    d_ideal = d_first
-            else:
-                d_ideal = d_first
-
-            d_top = self._get_pos(selected_av, fallback=d_ideal)
-            offset_raw = d_top - d_ideal
-            offset_norm = np.clip(offset_raw / offset_scale, -1.0, 1.0)
-
-        except Exception:
-            offset_raw = 0.0
-            offset_norm = 0.0
-
-        return float(d_target_norm), float(offset_norm)
-
     def _evaluate_candidates(self, step, sparse_leader, dic_platoon_members,
                              dic_sparse_platoons,
                              ls_candidates, gating_value):
@@ -384,7 +331,6 @@ class CollectAgentHandler:
                     continue
 
                 score = self.agent.predict_score(state)
-
                 valid_candidates.append(av_id)
                 candidate_states.append(state)
                 scores.append(score)
@@ -406,23 +352,27 @@ class CollectAgentHandler:
         gate_input = None
 
         if self.tsg_mode in ("train", "predict", "audit"):
-            d_target_to_MCZ_norm, signed_insert_offset_norm = (
-                self._build_tsg_timing_features_collecting(
-                    sparse_leader=sparse_leader,
-                    selected_av=selected_av,
-                    dic_platoon_members=dic_platoon_members,
-                    dic_sparse_platoons=dic_sparse_platoons
-                )
-            )
+            leader_pos = float(self.data_recorder.get_vid_states(sparse_leader)['pos'])
+            d_target_to_MCZ = self.data_recorder.length_pfz - leader_pos
+
+            platoon_members = dic_platoon_members[sparse_leader]
+            first_free_follower = dic_sparse_platoons[sparse_leader]
+            first_free_idx = platoon_members.index(first_free_follower)
+
+            n_free = len(platoon_members) - first_free_idx
+            n_follower = len(platoon_members) - 1
 
             gate_input = self.gate_agent.build_gate_input(
-                x_top=selected_state,
                 scores=scores,
                 top_idx=top_idx,
                 task_name=self.task_name,
-                d_target_to_MCZ_norm=d_target_to_MCZ_norm,
-                signed_insert_offset_norm=signed_insert_offset_norm
+                d_target_to_MCZ=d_target_to_MCZ,
+                n_free=n_free,
+                n_follower=n_follower,
+                max_platoon_size=self.data_recorder.max_platoon_size,
+                length_pfz=self.data_recorder.length_pfz,
             )
+
         # === Decide whether to execute ===
         if self.tsg_mode == "train":
             # During TSG training, always execute top candidate to collect labels

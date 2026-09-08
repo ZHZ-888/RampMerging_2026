@@ -358,7 +358,7 @@ if __name__ == '__main__':
         lc = True, # if allow HV lane-changing; True
         fc_mode = 'full', # dla_only/dla_tsc/dla_tsc_lhr/dla_tsc_lhr_ce/full
         st = st, # 1200
-        tsg_mode = 'off', # off/fix/predict/train/audit
+        tsg_mode = 'predict', # off/fix/predict/train/audit
         max_team_size = max_team_size
     )
     end = time.time()
@@ -368,9 +368,12 @@ if __name__ == '__main__':
     hpc_utils.get_fc_detail(dic_follower_state, his_dic_platoon_size, max_size=max_team_size)
 
     tp, average_v, ttc_ratio_3, ttc_ratio_2, ttc_ratio_1, runtime = (
-        hpc_utils.get_mc_indicator(speed_log, tp, output_file_path['ssm_path'], runtime, max_time=st))
+        hpc_utils.get_mc_indicator(speed_log, tp,
+                                   output_file_path['ssm_path'], runtime, max_time=st))
     hpc_utils.get_delay_indicator(output_file_path['tripinfo_path'])
-    ramp_entry_count, _, ramp_entry_ids = hpc_utils.get_mrm_insertion_counts(output_file_path['xml_path'], hpc_utils.DEFAULT_WARMUP_TIME, st)
+    ramp_entry_count, _, ramp_entry_ids = (
+        hpc_utils.get_mrm_insertion_counts(output_file_path['xml_path'],
+                                           hpc_utils.DEFAULT_WARMUP_TIME, st))
     mr_ttc_ratio_3, mr_ttc_ratio_2, mr_ttc_ratio_1_5 = hpc_utils.get_mr_ttc_ratios(
         output_file_path['ssm_path'], ramp_entry_ids, max_time=st)
     print(f'ts_first_jam: {ts_first_jam}, ts_first_back_to_regular: {ts_first_back_to_regular}')

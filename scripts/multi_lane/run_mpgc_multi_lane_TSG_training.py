@@ -109,6 +109,7 @@ def mpgc_main(av_p=0.3, r_fr=0, m_fr=1200, seed=21, r_platoon_p=1, loss_rate=0,
         # ramp road veh depature schedule
         veh_gen = vg.VehGen(traci)  # function related to veh generation
         data_recorder = dr.DataRecording(traci)
+        data_recorder.max_platoon_size = 12
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
         # Configure isolation training logic
@@ -125,22 +126,23 @@ def mpgc_main(av_p=0.3, r_fr=0, m_fr=1200, seed=21, r_platoon_p=1, loss_rate=0,
             raise ValueError(f"[Error] Unknown train_model parameter: {train_model}")
         formation_controller = fc.FormationController(data_recorder, traci, sa_mode=SA_mode,
         ca_mode=CA_mode, tsg_mode=TSG_mode, exp_name=exp_name,
-        learning_rate=lr, train_interval=train_interval)  # Passes the unique folder name down
+        learning_rate=lr, train_interval=train_interval,
+        hidden_dims=hidden_layer)  # Passes the unique folder name down
 
-        (dic_score_reward, dic_follower_state, his_dic_platoon_size,
+        (dic_follower_state, his_dic_platoon_size,
          dic_id_features) = \
             loop(traci, st, data_recorder, veh_gen, formation_controller, lc,
                  m0_dpt_type, m1_dpt_type)
     finally:
         # Each scenario owns a fresh SUMO session, but TSG training should be
         # continuous across scenarios. Save the shared gate here so the next
-        # scenario can resume from task_self_gate_latest.pt.
+        # scenario can resume from task_self_gate_v2_latest.pt.
         if 'formation_controller' in locals() and formation_controller.tsg_mode == 'train':
             formation_controller.tsg_manager.save_latest()
 
         traci.close()
-    return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
-            xml_path)
+    return (dic_follower_state, his_dic_platoon_size,
+            dic_id_features, xml_path)
 
 def loop(traci, st, data_recorder,
          veh_gen, formation_controller, lc,
@@ -162,12 +164,12 @@ def loop(traci, st, data_recorder,
         veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/exp_names => 110km/h
         veh_gen.veh_gen_homo(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
 
-        (dic_score_reward, dic_follower_state, his_dic_platoon_size,
+        (dic_follower_state, his_dic_platoon_size,
          dic_id_features) = formation_controller.step(st, step, lc)
 
         data_recorder.record_tail_arrival(step)
         step += 1
-    return (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features)
+    return (dic_follower_state, his_dic_platoon_size, dic_id_features)
 
 def set_global_seed(seed, enable=True):
     """Fix all sources of randomness globally
@@ -241,8 +243,8 @@ if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
     ensure_local_tsg_run_dir()
-    (dic_score_reward, dic_follower_state, his_dic_platoon_size, dic_id_features,
-     xml_path) = mpgc_main(
+    (dic_follower_state, his_dic_platoon_size,
+     dic_id_features, xml_path) = mpgc_main(
         av_p = 0.1, # 0.3
         r_fr = 0,
         m_fr = 1000,

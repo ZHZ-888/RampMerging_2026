@@ -15,7 +15,8 @@ project_root = os.path.dirname(current_dir) # Get the parent directory as the pr
 class SplitAgentHandler:
     def __init__(self, traci, data_recorder, scoring_interval=10, mode='train',
                  tsg_mode='off', exp_name='default_run', lr=5e-4,
-                 hidden_dims=(64, 64), gate_agent=None, tsg_manager=None):
+                 hidden_dims=(64, 64), gate_agent=None, tsg_manager=None,
+                 model_path=None):
         self.traci = traci
         self.data_recorder = data_recorder
         self.mode = mode
@@ -25,8 +26,9 @@ class SplitAgentHandler:
 
         # default_model = 'split_score_model_251124_1900.pt'
         default_model = 'se_test_260907_0018.pt'
-        path_pt = os.path.join(project_root, 'rl_model', 'saved_models', default_model)
-        score_model_path = path_pt if mode == "predict" else None
+        default_path = os.path.join(
+            project_root, 'rl_model', 'saved_models', default_model)
+        score_model_path = (model_path or default_path) if mode == "predict" else None
         self.agent = RLScoringAgent(
             traci,
             data_recorder,
@@ -59,10 +61,15 @@ class SplitAgentHandler:
         self.payloads = []
         self.selected_avs_this_step = set()
 
-
-    def run_agent_decision(self, step, dic_platoon_members, dic_oversized_platoon_states,
-                           dic_leader_candidates, ls_upA_asc, gating_value=None):
+    def run_agent_decision(self, step, dic_platoon_members,
+                           dic_oversized_platoon_states,
+                           dic_leader_candidates, ls_upA_asc,
+                           gating_value=None):
         """
+        dic_oversized_platoon_states => {leader_AV : [head_pos,
+                                                    tail_pos,
+                                                    avg_speed,
+                                                    size]}
         Main function to handle AV insertion decisions.
         """
         self.payloads = []
@@ -124,7 +131,6 @@ class SplitAgentHandler:
                 self._execute_insertion(step, *payload)
 
             self.payloads.clear()
-
 
     def update_reward(self, current_step, st, dic_platoon_members, train_interval):
         """
@@ -347,72 +353,17 @@ class SplitAgentHandler:
             print(f"[Model-SA] Auto-saved at step {current_step}")
             self.next_save_step += save_interval  # set next checkpoint
 
-    def _get_pos(self, veh_id, fallback=0.0):
-        try:
-            return float(self.data_recorder.get_vid_states(veh_id)['pos'])
-        except Exception:
-            return float(fallback)
-
-    def _build_tsg_timing_features_splitting(
-            self,
-            leader_id,
-            selected_av,
-            dic_platoon_members,
-            offset_scale=100.0
-    ):
-        """
-        Build timing-related TSG features for splitting/split-insert.
-
-        d_target_to_MCZ_norm:
-            normalized remaining distance of target oversized leader.
-
-        signed_insert_offset_norm:
-            signed distance from top AV to ideal split insertion position,
-            normalized to [-1, 1].
-        """
-        d_target_raw = self._get_pos(leader_id)
-        d_target_norm = np.clip(d_target_raw / self.agent.state_builder.max_lane_pos, 0.0, 1.0)
-
-        try:
-            members = dic_platoon_members.get(leader_id, [])
-
-            if len(members) >= 2:
-                best_i = None
-                best_imbalance = None
-
-                for i in range(len(members) - 1):
-                    front_size = i + 1
-                    rear_size = len(members) - front_size
-                    imbalance = abs(front_size - rear_size)
-
-                    if best_imbalance is None or imbalance < best_imbalance:
-                        best_imbalance = imbalance
-                        best_i = i
-
-                d_front = self._get_pos(members[best_i], fallback=d_target_raw)
-                d_rear = self._get_pos(members[best_i + 1], fallback=d_front)
-                d_ideal = 0.5 * (d_front + d_rear)
-
-            elif len(members) == 1:
-                d_ideal = self._get_pos(members[0], fallback=d_target_raw)
-            else:
-                d_ideal = d_target_raw
-
-            d_top = self._get_pos(selected_av, fallback=d_ideal)
-            offset_raw = d_top - d_ideal
-            offset_norm = np.clip(offset_raw / offset_scale, -1.0, 1.0)
-
-        except Exception:
-            offset_raw = 0.0
-            offset_norm = 0.0
-
-        return float(d_target_norm), float(offset_norm)
-
     def _evaluate_candidates(self, step, leader_id,
                              dic_platoon_members, dic_leader_candidates,
                              dic_oversized_platoon_states, ls_upA_asc, gating_value):
         """
         Evaluate candidate AVs for a given leader.
+        Parameters:
+            dic_oversized_platoon_states => {leader_AV : [head_pos,
+                                                            tail_pos,
+                                                            avg_speed,
+                                                            size]}
+            platoon_states => [head_pos, tail_pos, avg_speed, size]
 
         Procedure:
             1. Score all candidate AVs using the pretrained scoring model.
@@ -469,21 +420,18 @@ class SplitAgentHandler:
         gate_input = None
 
         if self.tsg_mode in ("train", "predict", "audit"):
-            d_target_to_MCZ_norm, signed_insert_offset_norm = (
-                self._build_tsg_timing_features_splitting(
-                    leader_id=leader_id,
-                    selected_av=selected_av,
-                    dic_platoon_members=dic_platoon_members
-                )
-            )
+
+            leader_pos = float(self.data_recorder.get_vid_states(leader_id)['pos'])
+            d_target_to_MCZ = self.data_recorder.length_pfz - leader_pos
 
             gate_input = self.gate_agent.build_gate_input(
-                x_top=selected_state,
                 scores=scores,
                 top_idx=top_idx,
                 task_name=self.task_name,
-                d_target_to_MCZ_norm=d_target_to_MCZ_norm,
-                signed_insert_offset_norm=signed_insert_offset_norm
+                d_target_to_MCZ=d_target_to_MCZ,
+                target_platoon_size=float(platoon_states[3]),
+                max_platoon_size=self.data_recorder.max_platoon_size,
+                length_pfz=self.data_recorder.length_pfz,
             )
 
         # === Decide whether to execute ===
