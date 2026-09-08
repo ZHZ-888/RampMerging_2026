@@ -41,15 +41,35 @@ SEED=${SEEDS[$SEED_IDX]}
 CE_TASK=$PAIR_IDX
 SE_TASK=$((PAIR_IDX + 9))
 
+# Prefer final models.
 CE_MODEL=$(find "$TRAIN_ROOT" -type f \
   -path "*_task${CE_TASK}/models/final_CA.pt" -print -quit)
+
 SE_MODEL=$(find "$TRAIN_ROOT" -type f \
   -path "*_task${SE_TASK}/models/final_SA.pt" -print -quit)
+
+# If final_CA.pt is unavailable, select the checkpoint with the
+# lexicographically largest timestamp in its filename.
+if [[ -z "$CE_MODEL" ]]; then
+  CE_MODEL=$(find "$TRAIN_ROOT" -type f \
+    -path "*_task${CE_TASK}/models/free_insert_score_model_*.pt" \
+    | sort | tail -n 1)
+fi
+
+# If final_SA.pt is unavailable, select the largest SE checkpoint.
+if [[ -z "$SE_MODEL" ]]; then
+  SE_MODEL=$(find "$TRAIN_ROOT" -type f \
+    -path "*_task${SE_TASK}/models/sa_*.pt" \
+    | sort | tail -n 1)
+fi
 
 if [[ -z "$CE_MODEL" || -z "$SE_MODEL" ]]; then
   echo "Missing model: CE task $CE_TASK => $CE_MODEL; SE task $SE_TASK => $SE_MODEL" >&2
   exit 1
 fi
+
+echo "Selected CE model: $CE_MODEL"
+echo "Selected SE model: $SE_MODEL"
 
 export RUN_DIR="$RESULT_ROOT/logs/pair_${PAIR_IDX}_seed_${SEED}"
 mkdir -p "$RUN_DIR"
