@@ -19,18 +19,18 @@ from functions import hpc_utils
 TSG_TRAIN_SCENARIOS = [
     # av_p = 0.1, 5 runs
     (0.1, 21),
+    (0.1, 22),
     (0.1, 23),
+    (0.1, 24),
     (0.1, 25),
-    (0.1, 27),
-    (0.1, 29),
 
     # av_p = 0.2, 3 runs
-    (0.2, 22),
     (0.2, 26),
-    (0.2, 30),
+    (0.2, 27),
+    (0.2, 28),
 
     # av_p = 0.3, 2 runs
-    (0.3, 24),
+    (0.3, 29),
     (0.3, 28),
 ]
 
@@ -46,8 +46,9 @@ def ensure_local_tsg_run_dir():
         os.environ["RUN_DIR"] = str(run_dir)
         print(f"[TSG] RUN_DIR={os.environ['RUN_DIR']}")
 
-def mpgc_main(av_p=0.3, r_fr=0, m_fr=1200, seed=21, r_platoon_p=1, loss_rate=0,
-              gui=False, plot=False, display=False, lc=False, st=1000, train_model=None,
+def mpgc_main(av_p=0.3, r_fr=0, m_fr=1200, seed=21, r_platoon_p=1,
+              loss_rate=0, gui=False, plot=False, display=False,
+              lc=False, st=1000, train_model=None,
               lr=0.0005, train_interval=32):
     '''
     SA: splitting agent; CA: collecting agent; TSG: target self-gating
@@ -132,12 +133,28 @@ def mpgc_main(av_p=0.3, r_fr=0, m_fr=1200, seed=21, r_platoon_p=1, loss_rate=0,
          dic_id_features) = \
             loop(traci, st, data_recorder, veh_gen, formation_controller, lc,
                  m0_dpt_type, m1_dpt_type)
+
     finally:
         # Each scenario owns a fresh SUMO session, but TSG training should be
-        # continuous across scenarios. Save the shared gate here so the next
-        # scenario can resume from task_self_gate_v2_latest.pt.
-        if 'formation_controller' in locals() and formation_controller.tsg_mode == 'train':
-            formation_controller.tsg_manager.save_latest()
+        # continuous across scenarios.
+        if ('formation_controller' in locals()
+                and formation_controller.tsg_mode == 'train'):
+
+            tsg_manager = formation_controller.tsg_manager
+            gate_agent = tsg_manager.gate_agent
+
+            # Train completed transitions left below train_interval before
+            # starting the next simulation scenario.
+            if gate_agent is not None and gate_agent.memory:
+                remaining = len(gate_agent.memory)
+                gate_agent.train_on_recorded(
+                    current_step=int(st * 10),
+                    epochs=5,
+                    batch_size=max(1,
+                        min(int(train_interval / 2), remaining)))
+
+            # Save the updated model for the next scenario.
+            tsg_manager.save_latest()
 
         traci.close()
     return (dic_follower_state, his_dic_platoon_size,
