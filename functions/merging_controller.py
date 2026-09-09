@@ -16,10 +16,11 @@ from functions import merging_control_jam as mcj
 class MergingController:
     def __init__(self, data_recorder, traci, av_p, platoon_formation=False, ml=False,
                  loss_rate=0, mpc_interval=60, delta_t=15, warmup_time=0,
-                 comm_rng=None):  # ml: multi-lane
+                 comm_rng=None, comp_logger=None):  # ml: multi-lane
         self.traci = traci
         self.data_recorder = data_recorder
-        self.merge_regular = mcr.MergingControlRegular(traci, self.data_recorder, ml)
+        self.merge_regular = mcr.MergingControlRegular(traci, self.data_recorder, ml,
+                                                       comp_logger=comp_logger)
         self.action_mgr = act_mgr.ActionManager(
             self.data_recorder, self.merge_regular, loss_rate, comm_rng)
         self.merge_jam = mcj.MergingControlJam(traci, self.data_recorder, self.merge_regular, loss_rate,
@@ -47,6 +48,7 @@ class MergingController:
         :return:
         '''
         c_ts = round(step/10 + 0.1, 1)
+        self.merge_regular.current_step = step
 
         if not self.ls_r_dep_times:
             for key, value in r_dpt_type.items():

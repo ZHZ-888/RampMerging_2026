@@ -72,7 +72,7 @@ stdbuf -oL python -u run.py \
   --seed 21 \
   --train_interval "$UPDATE_INTERVAL" \
   --hidden_layer 64 64 \
-  --st 1000000 \
+  --st 900000 \
   --av_p "$AV_P" \
   --r_fr "$R_FR" \
   --m_fr "$M_FR"

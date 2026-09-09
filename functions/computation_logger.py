@@ -3,7 +3,7 @@
 import csv
 import os
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
 
@@ -99,3 +99,26 @@ class ComputationLogger:
                 cpu_ms=cpu_elapsed_ms,
                 **meta,
             )
+
+    @contextmanager
+    def measure_every(self, *, step, interval, module, phase="total", **meta):
+        """Measure only on selected steps; skip logging on all others."""
+        if interval <= 0 or step % interval != 0:
+            yield
+            return
+
+        with self.measure(module=module, phase=phase, step=step, **meta):
+            yield
+
+
+def measure_cycle(comp_logger, *, step, interval, module, sim_time_s, phase="total", **meta):
+    """Return a measurement context for a control cycle, or a no-op context."""
+    if comp_logger is None or interval <= 0 or step % interval != 0:
+        return nullcontext()
+    return comp_logger.measure(
+        module=module,
+        phase=phase,
+        step=step,
+        sim_time_s=sim_time_s,
+        **meta,
+    )

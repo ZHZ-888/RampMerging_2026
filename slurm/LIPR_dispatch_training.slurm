@@ -58,4 +58,4 @@ stdbuf -oL python -u run.py \
   --algo lipr_dispatch_train \
   --lr "$LR" \
   --train_interval "$TRAIN_INTERVAL" \
-  --st 6000*5
+  --st 30000

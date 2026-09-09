@@ -12,6 +12,7 @@ import joblib # model prediction
 import os
 import warnings
 from collections import deque # fixed length list
+from contextlib import nullcontext
 
 from functions import print_control as prc  # the shared fuction of print control
 from functions.optimisation_algo import GetBVCurve2  # Optimiser
@@ -26,7 +27,7 @@ fomula1 = '2*v0*t+2*a*t*t1-a*t1**2-2*D'  # self.D
 fomula2 = 'v0*t + 0.5*a*(t-t1)**2 - D'  # constant speed followed by deceleration
 
 class MergingControlRegular:
-    def __init__(self, traci, instance_dr, ml, optimizer=True):
+    def __init__(self, traci, instance_dr, ml, optimizer=True, comp_logger=None):
         self.traci = traci
         self.data_recorder = instance_dr  # Data_Recording
         self.sim_step = self.data_recorder.sim_step
@@ -38,6 +39,8 @@ class MergingControlRegular:
         self.ls_v0 = []
         self.ls_teR = []
         self.optimizer = optimizer
+        self.comp_logger = comp_logger
+        self.current_step = None
 
         self.dic_platoon_info = {} # {vid:[type, tail_id, length1, length2...]}
         self.dic_rm_leader_map = {} # the cor mavh of ravh
@@ -348,8 +351,21 @@ class MergingControlRegular:
             if self.optimizer:
                 # new add min speed
                 optm = GetBVCurve2(v0, t, dis=dis, min_speed=5, max_speed=25) # self.max_speed
-                # v_arrival: velocity of reaching moment
-                res, v_arrival = optm.optimize()  # res.x = (t1, a1, t3, a3)
+
+                timer = (
+                    self.comp_logger.measure(
+                        module="SLSQP",
+                        phase="solve",
+                        step=self.current_step,
+                        sim_time_s=self.current_step * self.sim_step,
+                    )
+                    if self.comp_logger is not None and self.current_step is not None
+                    else nullcontext()
+                )
+
+                with timer:
+                    # v_arrival: velocity of reaching moment
+                    res, v_arrival = optm.optimize()  # res.x = (t1, a1, t3, a3)
                 # res.x[3] < 0.01 updated 110824, to avoid stop at the end of ramp caused by conflict
                 if v_arrival < 1 or res.x[3] < 0.01:  # to avoid sudden stop; 241003update, avoid stop can start
                     prc.print_message("**Huge difference, NO WAY to avoid the conflict**")
