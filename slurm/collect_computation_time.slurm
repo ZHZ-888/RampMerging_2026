@@ -2,10 +2,10 @@
 #SBATCH --job-name=mpgc_ml_simulation       # Job name shown in the queue
 #SBATCH --time=00:20:00                     # Walltime limit (hh:mm:ss)
 #SBATCH --cpus-per-task=1                   # Number of CPU cores per task
-#SBATCH --mem=2G                            # Memory per task
+#SBATCH --mem=6G                            # Memory per task
 #SBATCH --output=output-logs/out_%A_%a.txt  # Standard output log
 #SBATCH --error=error-logs/err_%A_%a.txt    # Standard error log
-# NOTE: Submit with --array=0-389  (3 AV_Ps * 10 Seeds * 13 RAMPS = 390 jobs)
+# NOTE: Submit with --array=0-9  (1 AV_Ps * 10 Seeds * 1 RAMPS = 10 jobs)
 
 set -euo pipefail
 
@@ -41,14 +41,14 @@ echo "COMP_DIR=$COMP_DIR"
 # Experiment parameter grid
 # ================================
 MAINLINE=1500                                # Mainline demand (veh/h)
-AV_P_VALS=(0.1 0.2 0.3)                     # AV penetration
+AV_P_VALS=(0.3)                     # AV penetration
 SEEDS=(0 1 2 3 4 5 6 7 8 9)                      # Random seeds
-RAMPS=(200 300 400 500 600 700 800 900 1000 1100 1200 1300 1400) # Ramp demands
+RAMPS=(1400) # Ramp demands
 
-NAV=${#AV_P_VALS[@]}                        # Number of AV Settings (3)
+NAV=${#AV_P_VALS[@]}                        # Number of AV Settings (1)
 NS=${#SEEDS[@]}                             # Number of Seeds (10)
-NR=${#RAMPS[@]}                             # Number of Ramp Demands (13)
-NT=$((NAV * NS * NR))                       # Total Tasks (390)
+NR=${#RAMPS[@]}                             # Number of Ramp Demands (1)
+NT=$((NAV * NS * NR))                       # Total Tasks (10)
 
 # Check SLURM array task ID
 if [ -z "${SLURM_ARRAY_TASK_ID:-}" ]; then

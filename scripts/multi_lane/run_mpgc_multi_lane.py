@@ -65,7 +65,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1,
     trip_file_name = f'tripinfo_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{fc_mode}_{task_id}.xml'
     tripinfo_path = os.path.join(traj_dir, trip_file_name)
     # computation save location
-    comp_save_dir = Path(os.environ.get("TRAJ_DIR", ROOT / "data" / "computation_record"))
+    comp_save_dir = Path(os.environ.get("COMP_DIR", ROOT / "data" / "computation_record"))
     run_stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     comp_file_name = f"comp_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{fc_mode}_{task_id}_{run_stamp}.csv"
     comp_save_dir.mkdir(parents=True, exist_ok=True)

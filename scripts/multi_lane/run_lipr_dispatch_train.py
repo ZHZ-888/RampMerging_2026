@@ -31,7 +31,7 @@ TSG_TRAIN_SCENARIOS = [
 
     # av_p = 0.3, 2 runs
     (0.3, 29),
-    (0.3, 28),
+    (0.3, 30),
 ]
 
 def ensure_local_tsg_run_dir():
