@@ -55,7 +55,7 @@ export MKL_NUM_THREADS=1
 # Run shared TSG multi-scenario training
 # ================================
 stdbuf -oL python -u run.py \
-  --algo mpgc_multi_lane_TSG_training \
+  --algo lipr_dispatch_train \
   --lr "$LR" \
   --train_interval "$TRAIN_INTERVAL" \
-  --st 6000
+  --st 6000*5

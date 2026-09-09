@@ -20,6 +20,7 @@ from functions import data_recording as dr
 # Shared tools for arguments, KPIs, and CSV logging.// CLI and HPC
 from functions import hpc_utils
 from functions import merging_traffic_calibrator as mtc
+from functions.computation_logger import ComputationLogger
 from functions import accident_simulation
 
 def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1,
@@ -109,6 +110,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1,
         data_recorder = dr.DataRecording(traci)
         data_recorder.max_platoon_size = max_team_size
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
+        comp_logger = ComputationLogger(os.environ["RUN_DIR"])
 
         formation_controller = fc.FormationController(data_recorder, traci,
                                                       loss_rate=loss_rate, tsg_mode=tsg_mode,
@@ -124,7 +126,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1,
         (dic_follower_state, his_dic_platoon_size,
          dic_id_features, tp, speed_log, queue_log, ts_first_jam, ts_first_back_to_regular) = \
             loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller,
-                 lc, r_autoFollow_p, m0_dpt_type, m1_dpt_type, r_dpt_type)
+                 lc, r_autoFollow_p, m0_dpt_type, m1_dpt_type, r_dpt_type, comp_logger)
 
         split_reward_log = (
             {av_id: list(v) for av_id, v in formation_controller.split_agent.dic_score_reward.items()}
@@ -153,8 +155,10 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1,
             se_result, ce_result, ts_first_jam, ts_first_back_to_regular)
 
 def loop(traci, st, data_recorder,
-         veh_gen, formation_controller, merging_controller, lc,
-         r_autoFollow_p, m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None):
+         veh_gen, formation_controller,
+         merging_controller, lc, r_autoFollow_p,
+         m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None,
+         comp_logger=None):
     # START SIMULATION
     step = 0
     horizon_steps = st * 10
@@ -180,9 +184,13 @@ def loop(traci, st, data_recorder,
         veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p)
 
         # traffic_calibrator.update()
-
-        (dic_follower_state, his_dic_platoon_size,
-         dic_id_features) = formation_controller.step(st, step, lc)
+        with comp_logger.measure(
+                module="PF",
+                step=step,
+                sim_time_s=step / 10.0,
+        ):
+            (dic_follower_state, his_dic_platoon_size,
+             dic_id_features) = formation_controller.step(st, step, lc)
 
         (tp, queue_log, ts_first_jam,
          ts_first_back_to_regular) = merging_controller.step(st, step, r_dpt_type)

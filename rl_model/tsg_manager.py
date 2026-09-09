@@ -7,16 +7,11 @@ from rl_model.rl_module import SelfGateAgent
 
 class TSGManager:
     def __init__(self, tsg_mode="off", exp_name="default_run",
-                 lr=5e-4, train_interval=32, hidden_dims=(16, 16)):
+                 lr=5e-4, train_interval=32, hidden_dims=(16, 16),
+                 predict_model_path=None):
         self.tsg_mode = tsg_mode
         self.train_interval = train_interval
         self.next_save_step = 10000
-
-        # default_gate_model_path = (
-        #         Path(__file__).resolve().parent
-        #         / "saved_models"
-        #         / "task_self_gate_v2_latest.pt"
-        # )
 
         self.run_root = Path(os.environ.get(
             "RUN_DIR",
@@ -25,10 +20,16 @@ class TSGManager:
         self.run_root.mkdir(parents=True, exist_ok=True)
 
         self.train_latest_model_path = self.run_root / "task_self_gate_v2_latest.pt"
-        self.predict_model_path = (
+        default_predict_model_path = (
                 Path(__file__).resolve().parent
                 / "saved_models"
                 / "task_self_gate_v2_latest.pt"
+        )
+
+        self.predict_model_path = (
+            Path(predict_model_path)
+            if predict_model_path
+            else default_predict_model_path
         )
 
         if tsg_mode == "audit":
@@ -41,16 +42,21 @@ class TSGManager:
         self.gate_agent = None
         if tsg_mode in ("train", "predict", "audit"):
             if tsg_mode == 'train':
-                model_path = self.train_latest_model_path if self.train_latest_model_path.exists() else None
+                load_path = self.train_latest_model_path \
+                    if self.train_latest_model_path.exists() else None
             elif tsg_mode in ('predict', 'audit'):
-                model_path = self.predict_model_path if self.predict_model_path.exists() else None
+                if not self.predict_model_path.exists():
+                    raise FileNotFoundError(
+                        f"[TSG] Dispatch model not found: "
+                        f"{self.predict_model_path}")
+                load_path = self.predict_model_path
+
             self.gate_agent = SelfGateAgent(
                 exp_name=f"SHARED_TSG_{exp_name}",
-                model_path=model_path,
+                model_path=load_path,
                 input_dim=6,
                 hidden_dims=hidden_dims,
-                lr=lr
-            )
+                lr=lr)
 
     def _append_csv_row(self, path, row):
         file_exists = path.exists()

@@ -1,4 +1,4 @@
-# run_mpgc_multi_lane_RL_agent_training.py
+# run_lipr_dual_expert_train.py
 
 import os
 import time

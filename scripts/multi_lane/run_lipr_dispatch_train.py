@@ -1,4 +1,4 @@
-# run_mpgc_multi_lane_TSG_training.py
+# run_lipr_dispatch_train.py
 
 import os
 import time

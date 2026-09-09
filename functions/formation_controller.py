@@ -24,7 +24,7 @@ class FormationController:
                  tsg_mode='off', exp_name='default_run', loss_rate=0, learning_rate=5e-4,
                  train_interval=32, expert_hidden_dims=(64, 64),
                  gate_hidden_dims=(16, 16), max_team_size=12, fc_mode='full',
-                 comm_rng=None, se_model_path=None, ce_model_path=None):
+                 comm_rng=None, se_model_path=None, ce_model_path=None, tsg_model_path=None):
         '''
         Train split_agent, "sa_mode='train', ca_mode='off'"
         Train collect_agent, "sa_mode='off', ca_mode='train'
@@ -78,6 +78,7 @@ class FormationController:
             lr=learning_rate,
             train_interval=train_interval,
             hidden_dims=gate_hidden_dims,
+            predict_model_path=tsg_model_path,
         )
 
         self.split_agent = split_agent.SplitAgentHandler(
@@ -87,6 +88,7 @@ class FormationController:
             tsg_manager=self.tsg_manager,
             model_path=se_model_path,
             hidden_dims=expert_hidden_dims) if sa_mode !='off' else None
+
         self.collect_agent = collect_agent.CollectAgentHandler(
             traci, data_recorder, self.p_basic, mode=ca_mode, tsg_mode=tsg_mode,
             exp_name=exp_name, lr=learning_rate,

@@ -66,7 +66,7 @@ echo "------------------------------------------------"
 # Execution
 # ================================
 stdbuf -oL python -u run.py \
-  --algo mpgc_multi_lane_RL_agent_training \
+  --algo lipr_dual_expert_train \
   --train_agent "$AGENT_TYPE" \
   --lr "$LR" \
   --seed 21 \
