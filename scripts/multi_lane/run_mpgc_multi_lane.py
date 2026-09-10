@@ -373,16 +373,16 @@ if __name__ == '__main__':
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam, ts_first_back_to_regular) = mpgc_main(
         av_p = 0.1, # 0.1
-        r_fr = 0, # 1300
-        m_fr = 1000, # 1500
-        seed = 4, # 2 analysis
+        r_fr = 1400, # 1300
+        m_fr = 1500, # 1500
+        seed = 2, # 2 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 0.7, # percentage of rplatoon vehicles on ramp
         loss_rate = 0, # 0.15
         gui = False,
         plot = False,
         display = False,
-        lc = False, # if allow HV lane-changing; True
+        lc = True, # if allow HV lane-changing; True
         fc_mode = 'full', # dla_only/dla_tsc/dla_tsc_lhr/dla_tsc_lhr_ce/full
         st = st, # 1200
         tsg_mode = 'predict', # off/fix/predict/train/audit
