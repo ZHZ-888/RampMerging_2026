@@ -368,14 +368,14 @@ if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
     max_team_size = 12
-    st = 600 # 1500
+    st = 1500 # 1500
     (dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam, ts_first_back_to_regular) = mpgc_main(
         av_p = 0.1, # 0.1
         r_fr = 0, # 1300
         m_fr = 1000, # 1500
-        seed = 0, # 2 analysis
+        seed = 4, # 2 analysis
         r_autoFollow_p = 0,  # auto follow proportion
         r_platoon_p = 0.7, # percentage of rplatoon vehicles on ramp
         loss_rate = 0, # 0.15
@@ -385,7 +385,7 @@ if __name__ == '__main__':
         lc = False, # if allow HV lane-changing; True
         fc_mode = 'full', # dla_only/dla_tsc/dla_tsc_lhr/dla_tsc_lhr_ce/full
         st = st, # 1200
-        tsg_mode = 'off', # off/fix/predict/train/audit
+        tsg_mode = 'predict', # off/fix/predict/train/audit
         max_team_size = max_team_size
     )
     end = time.time()
