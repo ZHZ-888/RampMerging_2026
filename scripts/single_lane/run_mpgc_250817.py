@@ -15,7 +15,11 @@ from functions import print_control as prc # the shared function of print contro
 from functions import calc_ttc_sd_exposure
 from functions import data_recording as dr
 
-def main(av_p, r_fr, m_fr, seed, mpc_interval=70, delta_t=12, p_autoFollow=1, platoon_p=1, loss_rate=0,
+def main(*args, **kwargs):
+    raise SystemExit("Single-lane MF-MPGC is retired. Use --algo mpgc_multi_lane.")
+
+
+def _legacy_main(av_p, r_fr, m_fr, seed, mpc_interval=70, delta_t=12, p_autoFollow=1, platoon_p=1, loss_rate=0,
          gui=False, plot=False, display=False, st=1000):
     # SUMO SETTING
     # 250606 parameter updates (AV: tau=0.5, minGap=1.5; HV(default): tau=1, minGap=2.5)

@@ -88,8 +88,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
         print(f'***** evaluate {deploy_agent} *****')
         formation_controller = fc.FormationController(data_recorder, traci, splitting_agent=SA_mode,
                                                       collecting_agent=CA_mode, model_name=model_name)
-        merging_controller = mc.MergingController(data_recorder, traci, av_p,
-                                                  platoon_formation=True, ml=True)
+        merging_controller = mc.MergingController(data_recorder, traci, platoon_formation=True)
 
         (dic_score_reward, dic_follower_state, his_dic_platoon_size,
          dic_id_features, tp, speed_log, queue_log) = \

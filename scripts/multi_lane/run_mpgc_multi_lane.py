@@ -129,7 +129,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, loss_rate=0, gui=False,
                                                       fc_mode=fc_mode,
                                                       comm_rng=comm_rng) # fix/off/predict/train/audit
         merging_controller = mc.MergingController(data_recorder, traci,
-                                                  platoon_formation=True, ml=True,
+                                                  platoon_formation=True,
                                                   loss_rate=loss_rate,
                                                   warmup_time=hpc_utils.DEFAULT_WARMUP_TIME,
                                                   comm_rng=comm_rng, comp_logger=comp_logger,

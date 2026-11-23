@@ -27,7 +27,7 @@ fomula1 = '2*v0*t+2*a*t*t1-a*t1**2-2*D'  # self.D
 fomula2 = 'v0*t + 0.5*a*(t-t1)**2 - D'  # constant speed followed by deceleration
 
 class MergingControlRegular:
-    def __init__(self, traci, instance_dr, ml, optimizer=True, comp_logger=None):
+    def __init__(self, traci, instance_dr, optimizer=True, comp_logger=None):
         self.traci = traci
         self.data_recorder = instance_dr  # Data_Recording
         self.sim_step = self.data_recorder.sim_step
@@ -59,17 +59,10 @@ class MergingControlRegular:
         self.speed_control_released = set()
         self.new_leader_flag = False
 
-        self.ml = ml
-        # random forest arrival time prediction model
-        if self.ml:
-            self.speed_level3 = 25
-            # mr_arrival_prediction_model260905_ndarray.pkl ; mr_arrival_prediction_model260831_ndarray.pkl
-            self.rf_at_model = joblib.load(
-                os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model260831_ndarray.pkl'))  # mr_arrival_prediction_model260319_ndarray.pkl
-        else:
-            # model241128 is more accurate compare with model260125 in single lane
-            self.rf_at_model = joblib.load(
-                os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model241128_ndarray.pkl'))
+        self.speed_level3 = 25
+        self.rf_at_model = joblib.load(
+            os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model260831_ndarray.pkl')
+        )
 
 
     def update_platoon_et(self, step, ls_leader_up, m=True, interval=60):
@@ -612,7 +605,7 @@ class MergingControlRegular:
         :param D: distance
         :return: travel time
         """
-        max_speed = self.speed_level3 if self.ml else self.max_speed
+        max_speed = self.speed_level3
         t_acc = (max_speed - v0)/self.amax # reach max_speed's spending time
         d_acc = v0*t_acc + 0.5*self.amax*t_acc**2 # reach max_speed's needing dis
         if D == d_acc:

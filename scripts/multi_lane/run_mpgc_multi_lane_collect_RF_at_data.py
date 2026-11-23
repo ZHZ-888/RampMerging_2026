@@ -61,7 +61,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
 
         formation_controller = fc.FormationController(data_recorder, traci)
         merging_controller = mc.MergingController(data_recorder, traci,
-                                                  platoon_formation=True, ml=True)
+                                                  platoon_formation=True)
 
         dic_targets, ls_features = \
             loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller, lc,
