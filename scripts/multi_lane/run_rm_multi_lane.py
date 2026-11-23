@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from functions import vehicle_generation3 as vg
+from functions import ramp_platoon_generator as rpg
 from functions import data_recording as dr
 from functions import print_control as prc  # the shared function of print control
 # Shared tools for arguments, KPIs, and CSV logging.// CLI and HPC
@@ -17,7 +18,7 @@ from functions import merging_traffic_calibrator as mtc
 from comparsion_algo import ramp_metering_algo2 as rm
 
 def rm_main(av_p, r_fr, m_fr, seed,
-         gui=False, plot=False, display=False, st=1500):
+         gui=False, plot=False, display=False, st=1500, ramp_spr=0.7):
     """
     Main simulation logic
     """
@@ -40,18 +41,18 @@ def rm_main(av_p, r_fr, m_fr, seed,
                     "TRAJ_DIR",
                     ROOT / "data" / "multi_lane" / "algo"
                     ))  # default 'data/mpgc'
-    file_name = f"trj_rm_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
+    file_name = f"trj_rm_{r_fr}_{av_p}_{seed}_spr{ramp_spr}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     xml_path = os.path.join(traj_dir, file_name)
 
-    lc_file_name = f"lc_rm_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
+    lc_file_name = f"lc_rm_{r_fr}_{av_p}_{seed}_spr{ramp_spr}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     lc_path = os.path.join(traj_dir, lc_file_name)
 
-    ssm_file_name = f"ssm_rm_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
+    ssm_file_name = f"ssm_rm_{r_fr}_{av_p}_{seed}_spr{ramp_spr}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     ssm_path = traj_dir / ssm_file_name
     # delay indicators
-    trip_file_name = f"tripinfo_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
+    trip_file_name = f"tripinfo_rm_{r_fr}_{av_p}_{seed}_spr{ramp_spr}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     tripinfo_path = os.path.join(traj_dir, trip_file_name)
-    rm_debug_file_name = f"rm_debug_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    rm_debug_file_name = f"rm_debug_{r_fr}_{av_p}_{seed}_spr{ramp_spr}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     rm_debug_path = os.path.join(traj_dir, rm_debug_file_name)
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
                 "--seed", str(seed),
@@ -86,7 +87,12 @@ def rm_main(av_p, r_fr, m_fr, seed,
         av_p0, av_p1 = av_p, av_p
         m0_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p0, m_fr, seed)
         m1_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p1, m_fr, 100 - seed)
-        r_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p, r_fr, seed)
+        ramp_input = rpg.RampPlatoonGenerator(
+            st=st, av_p=av_p, fr=r_fr, ramp_spr=ramp_spr, seed=seed,
+        ).generate()
+        ramp_departures = {
+            round(row["dpt_ts"] * 10): row for row in ramp_input["schedule"]
+        }
 
         veh_gen = vg.VehGen(traci, seed)  # function related to veh generation
         rm_algo = rm.Func(traci)  # function related to ramp_metering algo
@@ -94,7 +100,7 @@ def rm_main(av_p, r_fr, m_fr, seed,
         output_file_path = {'xml_path': xml_path, 'ssm_path': ssm_path, 'tripinfo_path': tripinfo_path}
         speed_log, tp = \
             loop(traci, st, veh_gen, data_recorder, rm_algo, rm_debug_path,
-                 m0_dpt_type, m1_dpt_type, r_dpt_type)
+                 m0_dpt_type, m1_dpt_type, ramp_departures)
     finally:
         traci.close()
     return (speed_log, tp, output_file_path)
@@ -102,7 +108,7 @@ def rm_main(av_p, r_fr, m_fr, seed,
 
 def loop(traci, st, veh_gen,
          data_recorder, rm_algo, rm_debug_path,
-         m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None):
+         m0_dpt_type, m1_dpt_type, ramp_departures):
     # START SIMULATION
     step = 0
     horizon_steps = st * 10
@@ -130,7 +136,7 @@ def loop(traci, st, veh_gen,
         veh_gen.veh_gen_hetero(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h
         veh_gen.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
         # ramp vehicle generation
-        veh_gen.veh_gen_hetero(step, r_dpt_type, 'r', 'route_r', 10, '0')
+        veh_gen.ramp_schedule_gen(step, ramp_departures)
 
         traffic_calibrator.update()
 
@@ -200,7 +206,9 @@ def main(args=None, root=None):
     prc.PRINT_ENABLED = False
 
     # 1. Parse Args (HPC/CLI Mode)
-    parser = hpc_utils.standard_arg_parser()
+    parser = hpc_utils.standard_arg_parser(include_legacy_ramp=False)
+    parser.add_argument('--ramp_spr', type=float, default=0.7,
+                        help='Target fraction of ramp platoons classified as Standard')
     # Parse arguments passed from run.py
     parsed_args = parser.parse_args(args=args)
 
@@ -213,6 +221,7 @@ def main(args=None, root=None):
         m_fr=parsed_args.m_fr,
         seed=parsed_args.seed,
         gui=parsed_args.gui,
+        ramp_spr=parsed_args.ramp_spr,
         st=parsed_args.st
     )
     end = time.time()
@@ -235,6 +244,7 @@ def main(args=None, root=None):
             "ramp_demand": parsed_args.r_fr,
             "mainline_demand": parsed_args.m_fr,
             "seed": parsed_args.seed,
+            "ramp_spr": parsed_args.ramp_spr,
             "throughput": tp,
             "avg_speed": average_v,
             "ttc_ratio_3": ttc_ratio_3,
@@ -260,11 +270,11 @@ if __name__ == '__main__':
     start = time.time()
     st = 1500
     speed_log, tp, output_file_path = rm_main(
-        av_p = 0,
+        av_p = 0.1,
         r_fr = 800,
         m_fr = 1500,
-        seed = 10,
-        gui = True,
+        seed = 2,
+        gui = False,
         plot = False,
         display = False,
         st = st

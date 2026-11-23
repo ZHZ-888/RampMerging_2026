@@ -53,7 +53,7 @@ TSG_MODE=predict
 RAMP_DEMANDS=(200 300 400 500 600 700 800 900 1000 1100 1200 1300 1400)
 SEEDS=(0 1 2 3 4 5 6 7 8 9)
 FC_MODES=(dla_only)
-R_PLATOON_PS=(0.7)
+RAMP_SPRS=(0.7)
 
 NG=${#FC_MODES[@]}
 NR=${#RAMP_DEMANDS[@]}
@@ -80,14 +80,14 @@ r_idx=$(( remaining / NS ))
 s_idx=$(( remaining % NS ))
 
 FC_MODE=${FC_MODES[$group_idx]}
-R_PLATOON_P=${R_PLATOON_PS[$group_idx]}
+RAMP_SPR=${RAMP_SPRS[$group_idx]}
 R_FR=${RAMP_DEMANDS[$r_idx]}
 SEED=${SEEDS[$s_idx]}
 
 echo "=================================="
 echo "TASK_ID : $TASK_ID"
 echo "FC_MODE : $FC_MODE"
-echo "R_PLATOON_P: $R_PLATOON_P"
+echo "RAMP_SPR: $RAMP_SPR"
 echo "TSG_MODE: $TSG_MODE"
 echo "AV_P    : $AV_P"
 echo "SEED    : $SEED"
@@ -102,7 +102,7 @@ echo "=================================="
 # ================================
 mkdir -p data/raw/pf_mc_impact_exp
 
-OUT_CSV="data/raw/pf_mc_impact_exp/pf_mc_${FC_MODE}_rp${R_PLATOON_P}_av${AV_P}_m${M_FR}_r${R_FR}_seed${SEED}.csv"
+OUT_CSV="data/raw/pf_mc_impact_exp/pf_mc_${FC_MODE}_spr${RAMP_SPR}_av${AV_P}_m${M_FR}_r${R_FR}_seed${SEED}.csv"
 
 # ================================
 # Run simulation
@@ -117,7 +117,7 @@ python run.py \
     --max_team_size "$MAX_TEAM_SIZE" \
     --tsg_mode "$TSG_MODE" \
     --fc_mode "$FC_MODE" \
-    --r_platoon_p "$R_PLATOON_P" \
+    --ramp_spr "$RAMP_SPR" \
     --lc \
     --out_csv "$OUT_CSV"
 

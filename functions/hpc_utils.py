@@ -20,7 +20,7 @@ import numpy as np
 DEFAULT_WARMUP_TIME = 180
 
 
-def standard_arg_parser():
+def standard_arg_parser(include_legacy_ramp=True):
     """Returns a parser with the standard arguments for your experiments."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--r_fr", type=float, default=800)
@@ -42,12 +42,13 @@ def standard_arg_parser():
         default="predict",
         choices=["off", "train", "predict", "audit", "fix"],
     )
-    parser.add_argument(
-        "--r_platoon_p",
-        type=float,
-        default=0.7,
-        help="Proportion of standard ramp platoons",
-    )
+    if include_legacy_ramp:
+        parser.add_argument(
+            "--r_platoon_p",
+            type=float,
+            default=0.7,
+            help="Proportion of standard ramp platoons",
+        )
     return parser
 
 def training_arg_parser():

@@ -70,7 +70,8 @@ echo "TASK_ID=$TASK_ID | AV_P=$AV_P | ramp=$RAMP | mainline=$MAINLINE | seed=$SE
 # Per-task CSV output (safe for parallel jobs)
 # Each task writes to its own CSV file
 # ================================
-OUT_CSV="data/raw/tmp/fifo_task_${TASK_ID}.csv"
+RAMP_SPR=${RAMP_SPR:-0.7}
+OUT_CSV="data/raw/tmp/fifo_spr${RAMP_SPR}_task_${TASK_ID}.csv"
 mkdir -p data/raw/tmp
 
 # ================================
@@ -83,4 +84,5 @@ python run.py \
   --m_fr "$MAINLINE" \
   --seed "$SEED" \
   --st 1500 \
+  --ramp_spr "$RAMP_SPR" \
   --out_csv "$OUT_CSV"

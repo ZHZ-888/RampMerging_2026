@@ -155,13 +155,11 @@ class SplitAgentHandler:
                 reward = self._evaluate_insertion_reward(
                     lc_av,
                     platoon_snapshot,
-                    dic_platoon_members
-                )
+                    dic_platoon_members)
 
                 self.dic_score_reward[lc_av].append(reward)
                 self.agent.log_score_reward(
-                    lc_av, self.dic_score_reward[lc_av][0], reward
-                )
+                    lc_av, self.dic_score_reward[lc_av][0], reward)
                 meta = self.dic_tsg_meta.pop(lc_av, None)
                 if self.tsg_mode in ("predict", "audit") and self.tsg_manager and meta is not None:
                     self.tsg_manager.log_tsg_reward(

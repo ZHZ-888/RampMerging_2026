@@ -60,7 +60,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1, loss_rate
         data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
 
         formation_controller = fc.FormationController(data_recorder, traci)
-        merging_controller = mc.MergingController(data_recorder, traci, av_p,
+        merging_controller = mc.MergingController(data_recorder, traci,
                                                   platoon_formation=True, ml=True)
 
         dic_targets, ls_features = \

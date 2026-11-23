@@ -707,7 +707,8 @@ class MergingControlJam:
         if not m_leader:
             return self.dic_m_leader_action_params
 
-        if self.data_recorder.ms_exit_speed < 19.44:
+        if (self.data_recorder.ms_exit_speed and
+                self.data_recorder.ms_exit_speed < 19.44):
             # if latest veihcle's speed exit MS is too low, no action
             return self.dic_m_leader_action_params
 
@@ -895,12 +896,11 @@ class MergingControlJam:
         return queue_log
 
 class ShiftMode:
-    def __init__(self, traci, instance_dr, av_p):
+    def __init__(self, traci, instance_dr):
         self.regular_mode = True
         self.jam_mode = False
         self.traci = traci
         self.data_recorder = instance_dr
-        self.av_p = av_p
 
         self.length_ih = self.traci.lane.getLength('inflow_highway_0')
         self.length_ws0 = self.traci.lane.getLength('ws_0')

@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from functions import vehicle_generation3 as vg
+from functions import ramp_platoon_generator as rpg
 from functions import print_control as prc  # the shared function of print control
 from functions import data_recording as dr
 # Shared tools for arguments, KPIs, and CSV logging.// CLI and HPC
@@ -15,7 +16,7 @@ from functions import hpc_utils
 from functions import merging_traffic_calibrator as mtc
 
 def fifo_main(av_p, r_fr, m_fr, seed,
-              gui=False, plot=False, display=False, st=1500):
+              gui=False, plot=False, display=False, st=1500, ramp_spr=0.7):
     """
     Main simulation logic
     """
@@ -35,14 +36,14 @@ def fifo_main(av_p, r_fr, m_fr, seed,
     sumo_bin = 'sumo-gui' if gui else 'sumo'
     # Construct the SUMO command and options
     traj_dir = Path(os.environ.get("TRAJ_DIR", ROOT / "data" / "multi_lane" / "algo")) # default 'data/mpgc'
-    file_name = f"trj_fifo_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
+    file_name = f"trj_fifo_{r_fr}_{av_p}_{seed}_spr{ramp_spr}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     xml_path = os.path.join(traj_dir, file_name)
-    lc_file_name = f"lc_fifo_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
+    lc_file_name = f"lc_fifo_{r_fr}_{av_p}_{seed}_spr{ramp_spr}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     lc_path = os.path.join(traj_dir, lc_file_name)
-    ssm_file_name = f"ssm_fifo_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
+    ssm_file_name = f"ssm_fifo_{r_fr}_{av_p}_{seed}_spr{ramp_spr}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     ssm_path = traj_dir / ssm_file_name
     # delay indicators
-    trip_file_name = f"tripinfo_{r_fr}_{av_p}_{seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
+    trip_file_name = f"tripinfo_fifo_{r_fr}_{av_p}_{seed}_spr{ramp_spr}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
     tripinfo_path = os.path.join(traj_dir, trip_file_name)
 
     sumo_cmd = [sumo_bin, "-c", str(sumo_config_path),
@@ -78,7 +79,12 @@ def fifo_main(av_p, r_fr, m_fr, seed,
         av_p0, av_p1 = av_p, av_p
         m0_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p0, m_fr, seed)
         m1_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p1, m_fr, 100 - seed)
-        r_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p, r_fr, seed)
+        ramp_input = rpg.RampPlatoonGenerator(
+            st=st, av_p=av_p, fr=r_fr, ramp_spr=ramp_spr, seed=seed,
+        ).generate()
+        ramp_departures = {
+            round(row["dpt_ts"] * 10): row for row in ramp_input["schedule"]
+        }
         # ramp road veh depature schedule
         vgvg = vg.VehGen(traci, seed)  # function related to veh generation
         data_recorder = dr.DataRecording(traci)
@@ -86,13 +92,13 @@ def fifo_main(av_p, r_fr, m_fr, seed,
         # run loop
         speed_log, tp = \
             loop(traci, st, vgvg, data_recorder,
-                 m0_dpt_type, m1_dpt_type, r_dpt_type)
+                 m0_dpt_type, m1_dpt_type, ramp_departures)
     finally:
         traci.close()
     return (speed_log, tp, output_file_path)
 
 def loop(traci, st, vgvg, data_recorder,
-         m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None):
+         m0_dpt_type, m1_dpt_type, ramp_departures):
     # START SIMULATION
     step = 0
     horizon_steps = st * 10
@@ -117,7 +123,7 @@ def loop(traci, st, vgvg, data_recorder,
         vgvg.veh_gen_hetero(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')  # 30m/s => 110km/h
         vgvg.veh_gen_hetero(step, m0_dpt_type, 'm', 'route_m', 27.5, '0')  # 25m/s => 90km/h; ori 29.5
         # ramp vehicle generation
-        vgvg.veh_gen_hetero(step, r_dpt_type, 'r', 'route_r', 10, '0')
+        vgvg.ramp_schedule_gen(step, ramp_departures)
 
         traffic_calibrator.update()
         # performance indicator
@@ -151,7 +157,9 @@ def main(args=None, root=None):
     prc.PRINT_ENABLED = False
 
     # 1. Parse Args (HPC/CLI Mode)
-    parser = hpc_utils.standard_arg_parser()
+    parser = hpc_utils.standard_arg_parser(include_legacy_ramp=False)
+    parser.add_argument('--ramp_spr', type=float, default=0.7,
+                        help='Target fraction of ramp platoons classified as Standard')
     # Parse arguments passed from run.py
     parsed_args = parser.parse_args(args=args)
 
@@ -164,6 +172,7 @@ def main(args=None, root=None):
         m_fr=parsed_args.m_fr,
         seed=parsed_args.seed,
         gui=parsed_args.gui,
+        ramp_spr=parsed_args.ramp_spr,
         st=parsed_args.st
     )
     end = time.time()
@@ -185,6 +194,7 @@ def main(args=None, root=None):
             "ramp_demand": parsed_args.r_fr,
             "mainline_demand": parsed_args.m_fr,
             "seed": parsed_args.seed,
+            "ramp_spr": parsed_args.ramp_spr,
             "throughput": tp,
             "avg_speed": average_v,
             "ttc_ratio_3": ttc_ratio_3,
@@ -210,11 +220,11 @@ if __name__ == '__main__':
     start = time.time()
     st = 1500
     speed_log, tp, output_file_path = fifo_main(
-        av_p = 0.3,
-        r_fr = 1400, # 1300
+        av_p = 0.1,
+        r_fr = 800, # 1300
         m_fr = 1500,
-        seed = 1,
-        gui = False,
+        seed = 2,
+        gui = True,
         plot = False,
         display = False,
         st = st

@@ -23,11 +23,11 @@ from functions import hpc_utils
 from functions import merging_traffic_calibrator as mtc
 from functions.computation_logger import ComputationLogger, measure_cycle
 from functions import accident_simulation
+from functions import ramp_platoon_generator as rpg
 
-def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1,
-              loss_rate=0, gui=False, plot=False, display=False,
+def mpgc_main(av_p, r_fr, m_fr, seed, loss_rate=0, gui=False,
               lc=True, st=1500, tsg_mode='predict', max_team_size=12,
-              fc_mode='full'):
+              fc_mode='full', ramp_spr=0.7, oversized_shared_count=None):
     set_global_seed(seed, enable=True)  # set global random seed (especially for RL training)
     comm_rng = random.Random(seed + 100)
     # SUMO SETTING
@@ -36,8 +36,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1,
         / "road_network"
         / "multi_lane_motorway"
         / "real"
-        / "cfg_multi_lane_merge.sumocfg"
-    )
+        / "cfg_multi_lane_merge.sumocfg")
     # Simulation step length
     sim_step = 0.1
     # Determine the SUMO binary based on whether GUI is needed
@@ -53,7 +52,9 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1,
     '''
     traj_dir = Path(os.environ.get("TRAJ_DIR", ROOT / "data" / "multi_lane" / "algo"))
     task_id = os.environ.get("SLURM_ARRAY_TASK_ID", "local")
-    size_tag = f"mts{max_team_size}"
+    size_tag = f"mts{max_team_size}_spr{ramp_spr}"
+    if oversized_shared_count is not None:
+        size_tag += f"_oversized_shared{oversized_shared_count}"
     file_name = f"trj_{r_fr}_{av_p}_{seed}_{loss_rate}_{size_tag}_{fc_mode}_{task_id}.xml"
     xml_path = os.path.join(traj_dir, file_name)
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -86,55 +87,58 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1,
                 "--device.ssm.thresholds", "3", # record 3s; output (default) 1.5s, see calc_ttc_sd_exposure.py
                 "--device.ssm.trajectories", "true",
                 "--device.ssm.write-lane-positions", "true",
-                "--no-warnings"]  #
+                "--no-warnings"]
     sumo_options = ["--step-length", str(sim_step)]
 
-    # If GUI is enabled, set the GUI view schema
+    import libsumo as traci
+    traci.start(sumo_cmd + sumo_options)
     if gui:
-        import traci
-        traci.start(sumo_cmd + sumo_options)
-
         print("SUMO engine:", traci.getVersion())
         print("SUMO binary:", sumo_bin)
-
         available_views = traci.gui.getIDList()
         print("Available Views:", available_views)
-    else:
-        import libsumo as traci
-        # import traci
-        traci.start(sumo_cmd + sumo_options)
+
     try:
         # VEHICLE GENERATOR
         # scripts road veh depature schedule (lane0 and lane1)
-        max_attempts = 7
         av_p0, av_p1 = av_p, av_p
         m0_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p0, m_fr, seed)
         m1_dpt_type = vg.generate_entry_arrivals_shifted_exp(st, av_p1, m_fr, 100 - seed)
-        r_dpt_type = vg.get_schedule2(st, av_p, r_fr, r_platoon_p,
-                                      max_attempts, plot, seed, display)
+        ramp_input = rpg.RampPlatoonGenerator(
+            st=st, av_p=av_p, fr=r_fr, ramp_spr=ramp_spr, seed=seed,
+            oversized_shared_count=oversized_shared_count
+        ).generate()
+        rpg.print_ramp_platoon_manifest(ramp_input["manifest"], "Sparse")
+        rpg.print_ramp_platoon_manifest(ramp_input["manifest"], "Oversized")
+        schedule = ramp_input["schedule"]
+        ramp_departures = {round(row["dpt_ts"] * 10): row for row in schedule}
+        ramp_departure_times_s = [row["dpt_ts"] for row in schedule]
+
         # ramp road veh depature schedule
         veh_gen = vg.VehGen(traci, seed)  # function related to veh generation
         data_recorder = dr.DataRecording(traci)
         data_recorder.max_platoon_size = max_team_size
-        data_recorder.get_avhid_ptype(r_dpt_type = r_dpt_type)  # here only have r_dpt_type
-
-
+        data_recorder.dic_leader_ptype.update({
+            platoon["leader_id"]: platoon["platoon_type"]
+            for platoon in ramp_input["manifest"]
+        })
 
         formation_controller = fc.FormationController(data_recorder, traci,
                                                       loss_rate=loss_rate, tsg_mode=tsg_mode,
                                                       max_team_size=max_team_size,
                                                       fc_mode=fc_mode,
                                                       comm_rng=comm_rng) # fix/off/predict/train/audit
-        merging_controller = mc.MergingController(data_recorder, traci, av_p,
+        merging_controller = mc.MergingController(data_recorder, traci,
                                                   platoon_formation=True, ml=True,
                                                   loss_rate=loss_rate,
                                                   warmup_time=hpc_utils.DEFAULT_WARMUP_TIME,
-                                                  comm_rng=comm_rng, comp_logger=comp_logger)
+                                                  comm_rng=comm_rng, comp_logger=comp_logger,
+                                                  ramp_departure_times_s=ramp_departure_times_s)
 
         (dic_follower_state, his_dic_platoon_size,
          dic_id_features, tp, speed_log, queue_log, ts_first_jam, ts_first_back_to_regular) = \
             loop(traci, st, data_recorder, veh_gen, formation_controller, merging_controller,
-                 lc, r_autoFollow_p, m0_dpt_type, m1_dpt_type, r_dpt_type, comp_logger,
+                 lc, m0_dpt_type, m1_dpt_type, ramp_departures, comp_logger,
                  sim_step=sim_step)
 
         split_reward_log = (
@@ -165,8 +169,7 @@ def mpgc_main(av_p, r_fr, m_fr, seed, r_autoFollow_p=0, r_platoon_p=1,
 
 def loop(traci, st, data_recorder,
          veh_gen, formation_controller,
-         merging_controller, lc, r_autoFollow_p,
-         m0_dpt_type=None, m1_dpt_type=None, r_dpt_type=None,
+         merging_controller, lc, m0_dpt_type, m1_dpt_type, ramp_departures,
          comp_logger=None, sim_step=0.1):
     # START SIMULATION
     step = 0
@@ -190,7 +193,7 @@ def loop(traci, st, data_recorder,
         # veh_gen.veh_gen_homo(step, m1_dpt_type, 'm', 'route_m', 27.5, '1')
 
         # ramp vehicle generation
-        veh_gen.platoon_gen(step, r_dpt_type, 'r', r_autoFollow_p)
+        veh_gen.ramp_schedule_gen(step, ramp_departures)
 
         # traffic_calibrator.update()
         with measure_cycle(
@@ -211,7 +214,7 @@ def loop(traci, st, data_recorder,
                 sim_time_s=step * sim_step,
         ):
             (tp, queue_log, ts_first_jam,
-             ts_first_back_to_regular) = merging_controller.step(st, step, r_dpt_type)
+             ts_first_back_to_regular) = merging_controller.step(st, step)
 
         # accident_simulation.sudden_accident(traci, step, data_recorder)
 
@@ -225,7 +228,7 @@ def loop(traci, st, data_recorder,
         traffic_calibrator.update()
         data_recorder.record_multi_lane_info()
         formation_controller.step(st, step, lc)
-        merging_controller.step(st, step, r_dpt_type)
+        merging_controller.step(st, step)
         step += 1
 
     del merging_controller.speed_log[st*10+1:]
@@ -243,7 +246,11 @@ def main(args=None, root=None):
     prc.PRINT_ENABLED = False
 
     # 1. Parse Args (HPC/CLI Mode)
-    parser = hpc_utils.standard_arg_parser()
+    parser = hpc_utils.standard_arg_parser(include_legacy_ramp=False)
+    parser.add_argument('--ramp_spr', type=float, default=0.7,
+                        help='Target fraction of ramp platoons classified as Standard')
+    parser.add_argument('--oversized_shared_count', type=int,
+                        help='Keep this many Oversized sizes paired and favour larger sizes beyond them')
     parser.add_argument('--fc_mode', choices=fc.FC_MODES,
                         default='full', help='Platoon formation ablation mode')
     parser.add_argument('--lc', action=argparse.BooleanOptionalAction,
@@ -253,7 +260,6 @@ def main(args=None, root=None):
     parsed_args = parser.parse_args(args=args)
 
     # 2. Run simulation
-    # Call the original algorithm
     start = time.time()
     (dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, output_file_path,
@@ -262,7 +268,8 @@ def main(args=None, root=None):
         r_fr=parsed_args.r_fr, # default 800
         m_fr=parsed_args.m_fr, # default 1500; parsed_args.m_fr
         seed=parsed_args.seed,
-        r_platoon_p=parsed_args.r_platoon_p,
+        ramp_spr=parsed_args.ramp_spr,
+        oversized_shared_count=parsed_args.oversized_shared_count,
         loss_rate=parsed_args.loss_rate,
         gui=parsed_args.gui,
         lc=parsed_args.lc,
@@ -296,7 +303,8 @@ def main(args=None, root=None):
             "mainline_demand": parsed_args.m_fr,
             "seed": parsed_args.seed,
             "max_team_size": parsed_args.max_team_size,
-            "r_platoon_p": parsed_args.r_platoon_p,
+            "ramp_spr": parsed_args.ramp_spr,
+            "oversized_shared_count": parsed_args.oversized_shared_count,
             "loss_rate": parsed_args.loss_rate,
             "CFR": res["cfr"],
             "SPR": res["spr"],
@@ -347,23 +355,6 @@ def set_global_seed(seed, enable=True):
     torch.backends.cudnn.benchmark = False
     torch.use_deterministic_algorithms(True)
 
-def _set_dynamic_traffic(step, start_t, r_dpt_type, dynamic=True):
-    '''
-    set dynamic traffic. For example: default r_demands=720 veh/h; start_t=5 min, new_fr=180 veh/h;
-                                      after 5 min simulation, 720 veh/h => 180 veh/h
-    '''
-    # 100324update: new ramp flow rate after 350
-    start_t = 300
-    dynamic = False
-    if step == start_t * 10 and dynamic:
-        p = 0.3
-        new_fr = 180
-        seed = 1
-        new_r_dpt_type = vg.get_schedule_startT(start_t, p, new_fr, max_attempts=1, seed=seed)  # after start_t
-        r_dpt_type = {key: value for key, value in r_dpt_type.items() if key <= start_t}  # before start_t
-        r_dpt_type.update(new_r_dpt_type)  # merge together
-    return r_dpt_type
-
 if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
@@ -372,16 +363,13 @@ if __name__ == '__main__':
     (dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam, ts_first_back_to_regular) = mpgc_main(
-        av_p = 0.1, # 0.1
-        r_fr = 1400, # 1300
+        av_p = 0.1, # 0.1xinazai
+        r_fr = 800, # 1300
         m_fr = 1500, # 1500
         seed = 2, # 2 analysis
-        r_autoFollow_p = 0,  # auto follow proportion
-        r_platoon_p = 0.7, # percentage of rplatoon vehicles on ramp
+        ramp_spr = 0.3,
         loss_rate = 0, # 0.15
-        gui = False,
-        plot = False,
-        display = False,
+        gui = True,
         lc = True, # if allow HV lane-changing; True
         fc_mode = 'full', # dla_only/dla_tsc/dla_tsc_lhr/dla_tsc_lhr_ce/full
         st = st, # 1200

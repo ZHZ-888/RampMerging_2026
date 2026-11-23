@@ -131,7 +131,8 @@ def _generate_type_num4(av_p, fr, st,
     print(f'result_leaderAV_num: {result_leaderAV_num}, result_followerAV_num: {result_followerAV_num}')
     return sorted_distribution, result_followerAV_num, expect_free_hv_num
 
-def generate_dt(dic_type_num, simulation_time, interval=0, seed=None):
+def generate_dt(dic_type_num, simulation_time,
+                interval=0, seed=None):
     '''
     new version
     update 2024.5.24
@@ -343,7 +344,8 @@ def recombine(dic_dpt_type, n=5):
     dic_dpt_type2[start_time] = temp_team
     return dic_dpt_type2
 
-def plot_departure_times3(dic, p, fr, st, seed, display=False, interval_per_vehicle=1):
+def plot_departure_times3(dic, p, fr, st, seed,
+                          display=False, interval_per_vehicle=1):
     """
     Plot departure times of platoons and free HVs, with fleet type distributions.
 
@@ -599,7 +601,8 @@ def count_vehicle_types(dic):
     print(f" - AV followers: {AV_follower}")
     print(f" - Free HVs:     {free_HV}")
 
-def get_schedule2(st, av_p, fr, platoon_p=1, max_attempts=5, plot=False, seed=None, display=False):
+def get_schedule2(st, av_p, fr, platoon_p=1, max_attempts=5,
+                  plot=False, seed=None, display=False):
     """
     combine above function
     :param st:
@@ -772,7 +775,7 @@ class VehGen:
         self.traci = traci
         self.rng = random.Random(seed)
 
-    def add_vehicle(self, vehicle_id, route_id, dp_v, type_id="idm", dp_lane='0'):
+    def _add_vehicle(self, vehicle_id, route_id, dp_v, type_id="idm", dp_lane='0'):
         '''
         SET SPEEDMODE
         self.traci.vehicle.setSpeedMode(vehicle_id, 0b010111)  # ingnore the right of way
@@ -785,7 +788,6 @@ class VehGen:
             self.traci.vehicle.setSpeedMode(vehicle_id, 0b010111)
         else:
             self.traci.vehicle.setSpeedMode(vehicle_id, 0b011111)  # default, consider all inspection
-
 
     def get_schedule_startT(start_t, p, fr, max_attempts, plot=False, seed=None, display=False):
         '''
@@ -812,6 +814,14 @@ class VehGen:
             plot_departure_times(updated_result, display)
         print(f'dic_dpt_type:{updated_result}')
         return updated_result
+
+    def ramp_schedule_gen(self, step, departures):
+        """Insert a precomputed ramp row; do not pass its manifest to controllers."""
+        row = departures.get(step)
+        if row is not None:
+            if row['dpt_ts'] in [55.0, 317.0, 932.0, 1104.0, 1179.0]:
+                pass
+            self._add_vehicle(row['vehicle_id'], 'route_r', 10, row['vehicle_type'])
 
     def platoon_gen(self, step, dp_times_dict, id_prefix, p_auto=0):
         '''
@@ -867,10 +877,9 @@ class VehGen:
                         vehicle_type = self.rng.choices(
                             list(dic_prob.keys()),
                             weights=list(dic_prob.values()),
-                            k=1
-                        )[0]
+                            k=1)[0]
                         id_suffix = f"{id_prefix}{id_body}{step}"
-                        self.add_vehicle(id_suffix, veh_route, dp_v, vehicle_type)
+                        self._add_vehicle(id_suffix, veh_route, dp_v, vehicle_type)
                         self.traci.vehicle.setColor(id_suffix, (150, 150, 150, 255)) # gray
                         # self.traci.vehicle.setSpeedMode(id_suffix, 0b011111) # set as default
                         continue  # only one vehicle, no need to continue inner loop
@@ -888,11 +897,10 @@ class VehGen:
                             vehicle_type = self.rng.choices(
                                 list(dic_prob.keys()),
                                 weights=list(dic_prob.values()),
-                                k=1
-                            )[0]
+                                k=1)[0]
 
                     id_suffix = f"{id_prefix}{id_body}{step}"
-                    self.add_vehicle(id_suffix, veh_route, dp_v, vehicle_type)
+                    self._add_vehicle(id_suffix, veh_route, dp_v, vehicle_type)
 
     def veh_gen_homo(self, step, dp_times_dict, id_prefix, \
                      veh_route, dp_v, dp_lane='0', hv_type='idm'):
@@ -926,7 +934,7 @@ class VehGen:
                 id = f"{id_prefix}b{vehicle_type}{step}" # use b indicate lane_1
             else:
                 id = f"{id_prefix}{vehicle_type}{step}"
-            self.add_vehicle(id, veh_route, dp_v, mode, dp_lane)
+            self._add_vehicle(id, veh_route, dp_v, mode, dp_lane)
 
     def veh_gen_hetero(self, step, dp_times_dict, id_prefix, \
                        veh_route, dp_v, dp_lane='0'):
@@ -965,7 +973,7 @@ class VehGen:
                 id = f"{id_prefix}b_{vehicle_type}{step}"  # use b indicate lane_1
             else:
                 id = f"{id_prefix}_{vehicle_type}{step}"
-            self.add_vehicle(id, veh_route, dp_v, vehicle_type, dp_lane)
+            self._add_vehicle(id, veh_route, dp_v, vehicle_type, dp_lane)
 
     def veh_gen_hv2(self, step, ls_departure_time, id_prefix, veh_route, dp_speed):
         '''
@@ -992,8 +1000,8 @@ class VehGen:
                 veh_id = f"{id_prefix}{int(st)}_{hv_type}"
 
                 # Add the vehicle to the simulation
-                # Note: Ensure that add_vehicle() supports 'veh_type' as a parameter
-                self.add_vehicle(veh_id, veh_route, dp_speed, hv_type)
+                # Note: Ensure that _add_vehicle() supports 'veh_type' as a parameter
+                self._add_vehicle(veh_id, veh_route, dp_speed, hv_type)
 
 
 if __name__ == '__main__':

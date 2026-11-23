@@ -14,9 +14,9 @@ from functions import merging_control_jam as mcj
 
 
 class MergingController:
-    def __init__(self, data_recorder, traci, av_p, platoon_formation=False, ml=False,
+    def __init__(self, data_recorder, traci, platoon_formation=False, ml=False,
                  loss_rate=0, mpc_interval=60, delta_t=15, warmup_time=0,
-                 comm_rng=None, comp_logger=None):  # ml: multi-lane
+                 comm_rng=None, comp_logger=None, ramp_departure_times_s=None):  # ml: multi-lane
         self.traci = traci
         self.data_recorder = data_recorder
         self.merge_regular = mcr.MergingControlRegular(traci, self.data_recorder, ml,
@@ -25,18 +25,20 @@ class MergingController:
             self.data_recorder, self.merge_regular, loss_rate, comm_rng)
         self.merge_jam = mcj.MergingControlJam(traci, self.data_recorder, self.merge_regular, loss_rate,
                                                ml, comm_rng)  # vehicle control during_jame3
-        self.mode_switch = mcj.ShiftMode(traci, self.data_recorder, av_p)
+        self.mode_switch = mcj.ShiftMode(traci, self.data_recorder)
         self.mpc_interval = mpc_interval
         self.delta_t = delta_t
         self.warmup_time = warmup_time
-        self.ls_r_dep_times = []  # list of ramp veh depature time; [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 58, 59, 60]
+        self.ls_r_dep_times = (
+            None if ramp_departure_times_s is None else list(ramp_departure_times_s)
+        )
         self.pf = platoon_formation
         self.speed_log = []  # [step, avg_speed, True/False], True/False Jam
 
         self.ts_first_jam = None
         self.ts_first_back_to_regular = None
 
-    def step(self, st, step, r_dpt_type):
+    def step(self, st, step, r_dpt_type=None):
         '''
 
         :param st: total simulation time
@@ -50,9 +52,12 @@ class MergingController:
         c_ts = round(step/10 + 0.1, 1)
         self.merge_regular.current_step = step
 
-        if not self.ls_r_dep_times:
-            for key, value in r_dpt_type.items():
-                self.ls_r_dep_times.extend(range(key, key + len(value)))
+        if self.ls_r_dep_times is None:
+            self.ls_r_dep_times = [
+                departure
+                for head, members in (r_dpt_type or {}).items()
+                for departure in range(head, head + len(members))
+            ]
 
         # === 1. Unpack veh info ===
         dic_vid_groups = (
