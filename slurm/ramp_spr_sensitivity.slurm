@@ -10,9 +10,9 @@
 # python -m tools.ramp_spr_sensitivity preflight data/raw/ramp_spr_sensitivity/preflight.csv
 # mkdir -p output-logs error-logs
 # sbatch --array=0-649%30 slurm/ramp_spr_sensitivity.slurm
-# python -m tools.ramp_spr_sensitivity summarize data/raw/ramp_spr_sensitivity/JOB_ID
-# Retry failed task IDs with RESULT_DIR set to the original job's result directory.
-# RESULT_DIR=data/raw/ramp_spr_sensitivity/JOB_ID sbatch --array=ID_LIST%30 slurm/ramp_spr_sensitivity.slurm
+# python -m tools.ramp_spr_sensitivity summarize data/raw/ramp_spr_sensitivity
+# Retry selected task IDs into the same results directory:
+# sbatch --array=ID_LIST%30 slurm/ramp_spr_sensitivity.slurm
 
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
@@ -23,9 +23,8 @@ export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 
 TASK_ID=${SLURM_ARRAY_TASK_ID:?Submit this job as an array}
-JOB_ID=${SLURM_ARRAY_JOB_ID:?Submit this job as an array}
-RESULT_DIR=${RESULT_DIR:-data/raw/ramp_spr_sensitivity/$JOB_ID}
-TRAJ_BASE=${RAMP_SPR_TRAJ_BASE:-/nesi/nobackup/uoa04480/traj/ramp_spr_sensitivity}
+RESULT_DIR=${RESULT_DIR:-data/raw/ramp_spr_sensitivity}
+export TRAJ_DIR=${RAMP_SPR_TRAJ_BASE:-/nesi/nobackup/uoa04480/traj/ramp_spr_sensitivity}
 
 RAMP_SPRS=(0.1 0.3 0.5 0.7 0.9)
 RAMP_DEMANDS=(200 300 400 500 600 700 800 900 1000 1100 1200 1300 1400)
@@ -43,13 +42,12 @@ R_FR=${RAMP_DEMANDS[$(((TASK_ID / NS) % NR))]}
 SEED=${SEEDS[$((TASK_ID % NS))]}
 
 export PYTHONHASHSEED="$SEED"
-export TRAJ_DIR="$TRAJ_BASE/$JOB_ID/$TASK_ID"
 export COMP_DIR="$TRAJ_DIR/computation"
 mkdir -p "$RESULT_DIR" "$TRAJ_DIR"
 OUT_CSV="$RESULT_DIR/task_$TASK_ID.csv"
-TEMP_CSV="$RESULT_DIR/task_${TASK_ID}_job_${JOB_ID}.tmp.csv"
-# The original runner appends to its output, so a retry needs a fresh path.
-rm -f -- "$TEMP_CSV"
+TEMP_DIR=$(mktemp -d "$RESULT_DIR/.task_${TASK_ID}.XXXXXX")
+TEMP_CSV="$TEMP_DIR/result.csv"
+trap 'rm -f -- "$TEMP_CSV"; rmdir -- "$TEMP_DIR"' EXIT
 
 if python run.py \
     --algo mpgc_multi_lane \
@@ -58,10 +56,11 @@ if python run.py \
     --max_team_size 12 --loss_rate 0 --lc \
     --out_csv "$TEMP_CSV"; then
     mv -- "$TEMP_CSV" "$OUT_CSV"
+    rm -f -- "$RESULT_DIR/failure_$TASK_ID.txt"
     echo "Finished TASK_ID=$TASK_ID"
 else
     status=$?
     printf 'Exit status %s. See error-logs/ramp_spr_sensitivity_%s_%s.err\n' \
-        "$status" "$JOB_ID" "$TASK_ID" > "$RESULT_DIR/failure_$TASK_ID.txt"
+        "$status" "${SLURM_ARRAY_JOB_ID:-unknown}" "$TASK_ID" > "$RESULT_DIR/failure_$TASK_ID.txt"
     exit "$status"
 fi

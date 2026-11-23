@@ -507,7 +507,7 @@ class MergingControlJam:
                 if speed < 0.8:
                     final_rp_type += rp_type
                     final_rp_number = len(final_rp_type)
-                    cum_rp_pass_time = self._get_R_MTW_duration.get(final_rp_number, float('inf'))  # accumulate ramp passing time
+                    cum_rp_pass_time = self._get_R_MTW_duration(final_rp_number)  # accumulate ramp passing time
                     if cum_rp_pass_time < max_interval + self.delta_t:
                         ls_pass_rid.append(rp_leader)
                         if rp_leader not in self.ls_skip_stop and i != 0:
