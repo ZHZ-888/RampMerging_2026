@@ -118,6 +118,10 @@ def mpgc_main(av_p, r_fr, m_fr, seed, loss_rate=0, gui=False,
         veh_gen = vg.VehGen(traci, seed)  # function related to veh generation
         data_recorder = dr.DataRecording(traci)
         data_recorder.max_platoon_size = max_team_size
+        ramp_tails = {row["platoon_id"]: row["vehicle_id"] for row in schedule}
+        data_recorder.dic_ramp_tail_id = {
+            p["leader_id"]: ramp_tails[p["platoon_id"]] for p in ramp_input["manifest"]
+        }
         data_recorder.dic_leader_ptype.update({
             platoon["leader_id"]: platoon["platoon_type"]
             for platoon in ramp_input["manifest"]

@@ -47,6 +47,7 @@ class MergingControlRegular:
         self.dic_leader_action = {} # {leader: ls_action, ..., }
         self.dic_rm_leader_actor = {} # actor: selected r_leader or m_leader to take action, {(r_leader: m_leader): r_leader, ...}
         self.dic_m_leader_followup_action = {} # spacing creation action of mavh
+        self.dic_ramp_followup = {}  # {r_leader: m_leader leaving space for it}
         self.ls_action_leader = [] # leader need to take action
         self.ls_m_leaders_followup = [] # m_leader need to take Spacing control action
 
@@ -147,7 +148,7 @@ class MergingControlRegular:
             if prev_tail is not None and head <= prev_tail:
                 delta = prev_tail - head + gap
                 val[1] = head + delta  # shift head
-                val[2] = tail + delta  # shift tail
+                val[2] = tail + delta/2  # shift tail
             prev_tail = val[2]
         return dict(items)
 
@@ -416,15 +417,14 @@ class MergingControlRegular:
                                         if v in ls_action_leader_filtered}
 
         for (r_leader, m_leader), action_leader in dic_rm_leader_actor_filtered.items():
+            if action_leader == r_leader and self.dic_ramp_followup.get(r_leader) == m_leader:
+                continue  # This mainline leader is already yielding to this ramp platoon.
             if 'm' in action_leader:
                 ls_acc_profile = self._get_action_params_upper_level(c_ts, r_leader, m_leader, action_leader, gap)
                 if ls_acc_profile and ls_acc_profile[0] is None and (r_leader in ls_r_leader_up_asc):
-                    prc.print_message(f"m_leader {m_leader} action failed, trying R_leader {r_leader} instead")
-                    # Fallback to r_leader
-                    action_leader = r_leader
-                    ls_acc_profile = self._get_action_params_upper_level(c_ts, r_leader, m_leader, action_leader, gap)
-                    if ls_acc_profile and ls_acc_profile[0] is not None:
-                        self.ls_m_leaders_followup.append(m_leader)
+                    if self.dic_ramp_followup.get(r_leader) != m_leader:
+                        prc.print_message(f"m_leader {m_leader} action failed, trying R_leader {r_leader} instead")
+                        self._get_action_params_upper_level(c_ts, r_leader, m_leader, r_leader, gap)
             else: # 'r' in action_leader
                 ls_acc_profile = self._get_action_params_upper_level(c_ts, r_leader, m_leader, action_leader, gap)
 
@@ -447,9 +447,6 @@ class MergingControlRegular:
             ts_tail = self.dic_mplatoon_et[m_leader][2]
         else:
             ts_tail = self.dic_rplatoon_et[r_leader][2]
-            # 241210updated: if m_leader in ls_action_leader, then should remove m_leader from ls_m_leaders_followup
-            self.ls_m_leaders_followup.remove(m_leader) if m_leader in self.ls_m_leaders_followup else None
-            self.dic_m_leader_followup_action.pop(m_leader, None)
         ts_head_adj = ts_tail + gap # ts_head_desired
         # (t1, a1, t3, a3, v_arrival)
         ls_acc_profile = self.get_action_params(ts_head_adj - c_ts, dis_action_leader, v_action_leader)  # acc strategy
@@ -473,33 +470,57 @@ class MergingControlRegular:
         dic_vid_groups = self.data_recorder.dic_vid_groups
         c_ts = round(step / 10 + 0.1, 1)
         ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']
-        ls_mr_leader_up = dic_vid_groups['ls_mr_leader_up']  # all av id that before merging
-        ls_action_r_leader = [vid for vid in self.ls_action_leader if 'r' in vid]
-        ls_action_r_leader_up = [vid for vid in ls_action_r_leader if vid in ls_mr_leader_up]
-        for r_leader in ls_action_r_leader_up:
+        ls_r_leader_up = dic_vid_groups['ls_r_leader_up']
+        for r_leader in ls_r_leader_up:
             m_leader = self.dic_rm_leader_map.get(r_leader)
-            if m_leader is None:
+            action = self.dic_leader_action.get(r_leader)
+            if r_leader in self.dic_ramp_followup or not m_leader or not action or action[-1] != c_ts:
                 continue
-            m_leader_next = None # the next m_leader of this m_leader
-            for vid in ls_m_leader_up_asc:
-                if self._extract_number(vid) > self._extract_number(m_leader):
-                    m_leader_next = vid
-                    self.ls_m_leaders_followup.append(m_leader_next)
-                    break
-            if m_leader_next is None:
+            if m_leader in ls_m_leader_up_asc:
+                following = ls_m_leader_up_asc[ls_m_leader_up_asc.index(m_leader) + 1:]
+                m_next = following[0] if following else None
+            else:
+                m_next = next((vid for vid in ls_m_leader_up_asc
+                               if self._extract_number(vid) > self._extract_number(m_leader)), None)
+            if m_next is not None:
+                self.dic_ramp_followup[r_leader] = m_next
+
+        targets = {}
+        for r_leader, m_leader in list(self.dic_ramp_followup.items()):
+            tail_id = self.data_recorder.dic_ramp_tail_id.get(r_leader)
+            if tail_id is None:
+                platoon_type, tail_id = self.dic_platoon_info.get(r_leader, [['', None]])[0]
+                if platoon_type == 'A':
+                    tail_id = r_leader
+            tail = self.data_recorder.get_vid_states(tail_id)
+            lane = tail['lane'] or ''
+            arrival = self.data_recorder.dic_tail_arrived_ws.get(r_leader)
+            # The ramp head can leave the control area while its tail still needs space.
+            if (m_leader not in ls_m_leader_up_asc or lane.startswith(('ws_', 'center_'))
+                    or (arrival and (tail_id is None or arrival[0] == tail_id))):
+                del self.dic_ramp_followup[r_leader]
                 continue
-            # get new tail time of r_leader
-            r_ts_tail = self.dic_rplatoon_et[r_leader][2]
-            # get m_leader_next info
-            dis = self.data_recorder.get_vid_states(m_leader_next)['dis']
-            v = self.data_recorder.get_vid_states(m_leader_next)['v']
-            # through into optimiser
-            ls_acc_profile = self.get_action_params(r_ts_tail-c_ts+gap, dis, v)
-            ls_acc_profile.append(c_ts)
-            self.dic_m_leader_followup_action[m_leader_next] = ls_acc_profile
-        self.ls_m_leaders_followup = sorted(self.ls_m_leaders_followup, key=lambda x: int(''.join(filter(str.isdigit, x))), reverse=True)
-        self.ls_m_leaders_followup = list(dict.fromkeys(self.ls_m_leaders_followup)) # remove duplicates
-        return(self.dic_m_leader_followup_action, self.ls_m_leaders_followup)
+            tail_eta = self.dic_rplatoon_et[r_leader][2]
+            if r_leader not in ls_r_leader_up and tail_id in dic_vid_groups['ls_r_veh_up']:
+                tail_eta = max(tail_eta, c_ts + tail['dis'] / max(tail['v'], 5.0))
+            targets[m_leader] = max(targets.get(m_leader, 0), tail_eta + gap)
+
+        actions = {}
+        for m_leader, target in targets.items():
+            primary = self.dic_leader_action.get(m_leader)
+            if primary and primary[0] is not None and primary[-1] == c_ts:
+                target = max(target, self.dic_mplatoon_et[m_leader][1])
+            state = self.data_recorder.get_vid_states(m_leader)
+            profile = self.get_action_params(target - c_ts, state['dis'], state['v'])
+            if profile and profile[0] is not None:
+                actions[m_leader] = profile + [c_ts]
+            else:
+                previous = self.dic_m_leader_followup_action.get(m_leader)
+                if previous and c_ts < previous[-1] + previous[0] + previous[2]:
+                    actions[m_leader] = previous
+        self.dic_m_leader_followup_action = actions
+        self.ls_m_leaders_followup = sorted(actions, key=self._extract_number, reverse=True)
+        return self.dic_m_leader_followup_action, self.ls_m_leaders_followup
 
     def apply_leader_action(self, step, dic_leader_action):
         '''
@@ -809,9 +830,6 @@ class MergingControlRegular:
                     # r_leader take action
                     # dic_rm_leader_actor: # {(r_leader: m_leader): r_leader, ...}, which one as actor
                     self.dic_rm_leader_actor[(r_leader, m_leader)] = r_leader
-                    # 241211update: if r_leader take action, corresponding m_leader should not take any action, drop it from ls_m_leaders_followup and dic_m_leader_followup_action
-                    self.ls_m_leaders_followup.remove(m_leader) if m_leader in self.ls_m_leaders_followup else None
-                    self.dic_m_leader_followup_action.pop(m_leader, None)
                 else: # m_give < r_give
                     # m_leader take action
                     self.dic_rm_leader_actor[(r_leader, m_leader)] = m_leader

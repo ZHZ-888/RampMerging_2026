@@ -62,6 +62,7 @@ class DataRecording:
         self.ls_features = []
         self.leader_record_counter = defaultdict(int)
         self.dic_tail_arrived_ws = {} # {leader_id: [tail_id, arrival_time]}
+        self.dic_ramp_tail_id = {}  # Planned tail ID, even before it enters the network.
         self.dic_platoon_info = {} # {vid:[type, tail_id, length1, length2...]}
         self.ms_exit_speed = None # the last pass vehicle speed that detected by 'ms_exit' detector
         self.max_platoon_size = None

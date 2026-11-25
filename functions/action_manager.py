@@ -70,7 +70,9 @@ class ActionManager:
             dic_leader_action, ls_action_leader = self.merge_regular.get_leader_action(step)
             dic_m_leader_followup_action, ls_m_leaders_followup = self.merge_regular.get_m_leader_followup_action(step)
             self._print_decision(dic_rm_leader_actor, ls_m_leaders_followup)
-            update_payload = (dic_leader_action, dic_m_leader_followup_action)
+            leader_actions = {vid: action for vid, action in dic_leader_action.items()
+                              if vid not in dic_m_leader_followup_action}
+            update_payload = (leader_actions, dic_m_leader_followup_action)
         return update_payload
 
     def _get_action_disturbed(self, step, interval=60):
