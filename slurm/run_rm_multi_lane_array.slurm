@@ -1,94 +1,50 @@
 #!/bin/bash
-#SBATCH --job-name=rm_ml_array            # Job name shown in the queue
-#SBATCH --time=00:20:00                  # Walltime limit (hh:mm:ss)
-#SBATCH --cpus-per-task=1                # Number of CPU cores per task
-#SBATCH --mem=2G                         # Memory per task
-#SBATCH --output=output-logs/out_%A_%a.txt   # Standard output log
-#SBATCH --error=error-logs/err_%A_%a.txt    # Standard error log
-# NOTE: --array is specified at submission time
+#SBATCH --job-name=rm_ml_array
+#SBATCH --time=00:20:00
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=2G
+#SBATCH --output=output-logs/out_%A_%a.txt
+#SBATCH --error=error-logs/err_%A_%a.txt
 
+# From the project root, create output-logs and error-logs before submission.
+# sbatch --array=0-389%30 slurm/run_rm_multi_lane_array.slurm
 set -euo pipefail
-
-# Ensure relative paths are resolved from the submission directory
 cd "$SLURM_SUBMIT_DIR"
 
-# ================================
-# Load Python environment
-# ================================
-module load Python/3.11.3-gimkl-2022a
-source /nesi/project/uoa04480/myenv/bin/activate
-
-# Create log directories if not exist
-mkdir -p output-logs error-logs
-
-# ================================
-# Trajectory (XML) output directory
-# Use nobackup due to large file size
-# Read by Python via environment variable TRAJ_DIR
-# ================================
-export TRAJ_DIR="/nesi/nobackup/uoa04480/traj"
-mkdir -p "$TRAJ_DIR"
-echo "TRAJ_DIR=$TRAJ_DIR"
-
-# ================================
-# Experiment parameter grid
-# ================================
-MAINLINE=1500
-AV_P_VALS=(0.1 0.2 0.3)                     # AV penetration
+AV_PS=(0.1 0.2 0.3)
 RAMPS=(200 300 400 500 600 700 800 900 1000 1100 1200 1300 1400)
-SEEDS=(0 1 2 3 4 5 6 7 8 9)   # Random seeds (10 seeds)
-
-NAV=${#AV_P_VALS[@]}                        # Number of AV Settings (3)
+SEEDS=(0 1 2 3 4 5 6 7 8 9)
+TASK_ID=${SLURM_ARRAY_TASK_ID:?Submit as an array}
 NR=${#RAMPS[@]}
 NS=${#SEEDS[@]}
-NT=$((NAV * NR * NS))   # 390 tasks
-
-# Check SLURM array task ID
-if [ -z "${SLURM_ARRAY_TASK_ID:-}" ]; then
-  echo "Error: SLURM_ARRAY_TASK_ID is not set. Submit with --array=0-$((NT-1))"
-  exit 1
+NT=$((${#AV_PS[@]} * NR * NS))
+if (( TASK_ID < 0 || TASK_ID >= NT )); then
+    echo "Task ID must be in 0..$((NT - 1))." >&2
+    exit 1
 fi
+AV_P=${AV_PS[$((TASK_ID / (NR * NS)))]}
+RAMP=${RAMPS[$(((TASK_ID / NS) % NR))]}
+SEED=${SEEDS[$((TASK_ID % NS))]}
 
-TASK_ID=${SLURM_ARRAY_TASK_ID}
+module load Python/3.11.3-gimkl-2022a
+source /nesi/project/uoa04480/myenv/bin/activate
+export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONHASHSEED="$SEED"
 
-# Validate task ID range
-if [ "$TASK_ID" -lt 0 ] || [ "$TASK_ID" -ge "$NT" ]; then
-  echo "Error: TASK_ID=$TASK_ID out of range (valid 0..$((NT-1)))"
-  exit 1
+RESULT_DIR=${COMPARISON_RESULT_DIR:-data/raw/ramp_platoon_comparison}
+export TRAJ_DIR="${COMPARISON_TRAJ_ROOT:-/nesi/nobackup/uoa04480/traj/ramp_platoon_comparison}/rm"
+DETECTOR="road_network/multi_lane_motorway/real/rm_detector.add.xml"
+if [[ ! -r "$DETECTOR" ]]; then
+    echo "Missing RM detector configuration: $DETECTOR" >&2
+    exit 1
 fi
+mkdir -p "$RESULT_DIR" "$TRAJ_DIR"
+OUT_CSV="$RESULT_DIR/rm_task_${TASK_ID}.csv"
+TEMP_DIR=$(mktemp -d "$RESULT_DIR/.rm_${TASK_ID}.XXXXXX")
+TEMP_CSV="$TEMP_DIR/result.csv"
+trap 'rm -f -- "$TEMP_CSV"; rmdir -- "$TEMP_DIR"' EXIT
 
-# Map array task ID to (av_p, ramp demand, seed)
-av_idx=$(( TASK_ID / (NS * NR) ))
-remaining=$(( TASK_ID % (NS * NR) ))
-r_idx=$(( remaining / NS ))
-s_idx=$(( remaining % NS ))
-
-AV_P=${AV_P_VALS[$av_idx]}
-RAMP=${RAMPS[$r_idx]}
-SEED=${SEEDS[$s_idx]}
-
-# Fix Python string/set hash order for reproducible runs.
-export PYTHONHASHSEED="$SEED"
-
-echo "TASK_ID=$TASK_ID | AV_P=$AV_P | ramp=$RAMP | mainline=$MAINLINE | seed=$SEED"
-
-# ================================
-# Per-task CSV output (safe for parallel jobs)
-# Each task writes to its own CSV file
-# ================================
-RAMP_SPR=${RAMP_SPR:-0.7}
-OUT_CSV="data/raw/tmp/rm_spr${RAMP_SPR}_task_${TASK_ID}.csv"
-mkdir -p data/raw/tmp
-
-# ================================
-# Run RM multi-lane simulation
-# ================================
-python run.py \
-  --algo rm_multi_lane \
-  --av_p "$AV_P" \
-  --r_fr "$RAMP" \
-  --m_fr "$MAINLINE" \
-  --seed "$SEED" \
-  --st 1500 \
-  --ramp_spr "$RAMP_SPR" \
-  --out_csv "$OUT_CSV"
+echo "task=$TASK_ID av_p=$AV_P r_fr=$RAMP seed=$SEED"
+python run.py --algo rm_multi_lane --av_p "$AV_P" --r_fr "$RAMP" \
+    --m_fr 1500 --seed "$SEED" --st 1500 \
+    --out_csv "$TEMP_CSV"
+mv -f -- "$TEMP_CSV" "$OUT_CSV"
