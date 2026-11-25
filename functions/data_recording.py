@@ -177,11 +177,9 @@ class DataRecording:
         ls_pf_veh_asc = [
             vid for vid in tup_ih_veh_up_asc
             if self.dic_pos.get(vid, -1.0) < self.length_ih - length_ms]
-        set_pf_veh = set(ls_pf_veh_asc)
         # leader on PFZ
         ls_pf_leader_asc = [
-            vid for vid in self.ls_m_leader_his_asc
-            if vid in set_pf_veh]
+            vid for vid in ls_pf_veh_asc if vid in set_m_leader_his]
 
         ls_ms_leader_net_asc = [
             vid for vid in ls_m_leader_net_asc
@@ -331,6 +329,8 @@ class DataRecording:
         self.dic_vid_groups['ls_m_leader_net_asc'] = ls_ms_leader_net_asc  # small => big
         self.dic_vid_groups['ls_m_leader_up_asc'] = ls_ms_leader_up_asc
         self.dic_vid_groups['ls_m_veh_up_asc'] = ls_ms_veh_up_asc
+        self.dic_vid_groups['ls_pf_veh_asc'] = ls_pf_veh_asc
+        self.dic_vid_groups['ls_pf_leader_asc'] = ls_pf_leader_asc
         self.dic_vid_groups['ls_m_veh_net'] = ls_m_veh_net
         self.dic_vid_groups['ls_m_veh_net_asc'] = ls_m_veh_net_asc
 

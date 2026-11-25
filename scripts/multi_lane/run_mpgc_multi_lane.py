@@ -182,7 +182,7 @@ def loop(traci, st, data_recorder,
     # scripts loop
     while step < horizon_steps:
         # checkpoint
-        if step > 546 * 10:
+        if step > 1400 * 10:
              pass
         traci.simulationStep()  # start simulation
 
@@ -360,7 +360,7 @@ def set_global_seed(seed, enable=True):
     torch.use_deterministic_algorithms(True)
 
 if __name__ == '__main__':
-    prc.PRINT_ENABLED = True
+    prc.PRINT_ENABLED = False
     start = time.time()
     max_team_size = 12
     st = 1500 # 1500
@@ -373,7 +373,7 @@ if __name__ == '__main__':
         seed = 3, # 2 analysis
         ramp_spr = 0.7,
         loss_rate = 0, # 0.15
-        gui = True,
+        gui = False,
         lc = True, # if allow HV lane-changing; True
         fc_mode = 'full', # dla_only/dla_tsc/dla_tsc_lhr/dla_tsc_lhr_ce/full
         st = st, # 1200

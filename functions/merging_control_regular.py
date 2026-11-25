@@ -59,6 +59,9 @@ class MergingControlRegular:
 
         self.speed_control_released = set()
         self.new_leader_flag = False
+        self.first_pfz_leader = None
+        self.first_pfz_leader_changed = False
+        self.first_pfz_leader_arrival_ts = None
 
         self.speed_level3 = 25
         self.rf_at_model = joblib.load(
@@ -66,7 +69,8 @@ class MergingControlRegular:
         )
 
 
-    def update_platoon_et(self, step, ls_leader_up, m=True, interval=60):
+    def update_platoon_et(self, step, ls_leader_up, m=True, interval=60,
+                          first_pfz_leader=None, pfz_target=None):
         '''
         Params:
             m: mainline; else: ramp
@@ -77,6 +81,17 @@ class MergingControlRegular:
         :return:
             dic_mplatoon_et ={m_vid, [platoon_type, ts_head, ts_tail, c_ts]}
         '''
+        if m:
+            self.first_pfz_leader_changed = first_pfz_leader != self.first_pfz_leader
+            self.first_pfz_leader = first_pfz_leader
+            self.first_pfz_leader_arrival_ts = pfz_target
+            if first_pfz_leader and pfz_target is None:
+                state = self.data_recorder.get_vid_states(first_pfz_leader)
+                if (state["lane"] == "inflow_highway_0" and state["v"] is not None
+                        and state["dis"] is not None and state["dis"] > 0):
+                    current_time = round(step / 10 + 0.1, 1)
+                    travel_time = self.estimate_travel_time(state["v"], state["dis"])
+                    self.first_pfz_leader_arrival_ts = current_time + travel_time
         key = '_prev_ls_m_leader_up' if m else '_prev_ls_r_leader_up'
         prev_set = getattr(self, key, set())
         curr_set = set(ls_leader_up)
@@ -312,7 +327,7 @@ class MergingControlRegular:
         self.dic_rm_leader_actor = self._compare_delay_loss()
         return self.dic_rm_leader_map, self.dic_rm_leader_actor
 
-    def get_action_params(self, t, dis, v0):
+    def get_action_params(self, t, dis, v0, require_feasible=False):
         '''
 
         Parameters
@@ -362,6 +377,12 @@ class MergingControlRegular:
                 with timer:
                     # v_arrival: velocity of reaching moment
                     res, v_arrival = optm.optimize()  # res.x = (t1, a1, t3, a3)
+                if require_feasible:
+                    if not res.success:
+                        return None
+                    finite_profile = np.isfinite([*res.x, v_arrival]).all()
+                    if not finite_profile:
+                        return None
                 # res.x[3] < 0.01 updated 110824, to avoid stop at the end of ramp caused by conflict
                 if v_arrival < 1 or res.x[3] < 0.01:  # to avoid sudden stop; 241003update, avoid stop can start
                     prc.print_message("**Huge difference, NO WAY to avoid the conflict**")
@@ -522,7 +543,7 @@ class MergingControlRegular:
         self.ls_m_leaders_followup = sorted(actions, key=self._extract_number, reverse=True)
         return self.dic_m_leader_followup_action, self.ls_m_leaders_followup
 
-    def apply_leader_action(self, step, dic_leader_action):
+    def apply_leader_action(self, step, dic_leader_action, extra_mainline_leader=None):
         '''
 
         Parameters
@@ -544,7 +565,11 @@ class MergingControlRegular:
 
         ls_mr_leader_up = dic_vid_groups['ls_mr_leader_up'] # all AVid that before merging
         # action_before Merging
-        dic_leader_up_action = {leader: v for leader, v in dic_leader_action.items() if leader in ls_mr_leader_up}
+        dic_leader_up_action = {
+            leader: v for leader, v in dic_leader_action.items()
+            if leader in ls_mr_leader_up or
+            (extra_mainline_leader is not None and leader == extra_mainline_leader)
+        }
 
         for leader, ls_action in dic_leader_up_action.items():
             if leader == 'm_av5112':
@@ -571,16 +596,19 @@ class MergingControlRegular:
                 if elapsed < t1: # ls_action[-1] => the action start time
                     dec_st = ls_action[-1] # dec start time
                     if c_ts % 1 == 0:
-                        prc.print_message(f"{leader} in dec_phase!\n a1:{a1}, start_time:{dec_st}, current_time:{c_ts}")
+                        prc.print_message(f"{leader} in dec_phase!\n a1:{a1}, "
+                                          f"start_time:{dec_st}, current_time:{c_ts}")
                     self._apply_acceleration(leader, a1)
                 elif elapsed < t1 + t3:
                     acc_st = action_start + t1
                     if c_ts % 1 == 0:
-                        prc.print_message(f"{leader} in acc_phase!\n a3:{a3}, start_time:{acc_st}, current_time:{c_ts}") #\n => line break
+                        prc.print_message(f"{leader} in acc_phase!\n a3:{a3}, "
+                                          f"start_time:{acc_st}, current_time:{c_ts}") #\n => line break
                     self._apply_acceleration(leader, a3)
                 else:
                     if c_ts % 1 == 0:
-                        prc.print_message(f"{leader} action finished!\n a3:{a3}, start_time:{action_start}, current_time:{c_ts}")
+                        prc.print_message(f"{leader} action finished!\n a3:{a3}, "
+                                          f"start_time:{action_start}, current_time:{c_ts}")
                     self.traci.vehicle.setSpeed(leader, -1)
                     self.dic_leader_action_emerged.pop(leader, None)
                     self.dic_leader_action_updated.pop(leader, None)

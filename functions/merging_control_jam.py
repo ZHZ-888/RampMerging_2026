@@ -3,6 +3,8 @@ merging_control_jam.py
 TODO: call traci to get time many times, maybe once is enough
 '''
 
+from math import isfinite
+
 from functions import print_control as prc
 from functions import v2x_disturbance as v2x
 
@@ -28,12 +30,19 @@ class MergingControlJam:
 
         self.ls_skip_stop = [] # those r_leader can pass with it's preceding r_leader platoon doesn't need to stop
         self.m_leader_action_dic = {} # the action dic of m_leader
+        self.legacy_action_ramp_leader = None
+        self.legacy_yield = None
+        self.refresh_legacy_gap = False
         self.dic_desire_reach_ts = {} # drt => desire reaching timestamp
         # m_leader and its action parameters; self.dic_mavh_actionP => self.dic_m_leader_action_params
         self.dic_m_leader_action_params = {'':[]}
         self.ls_r_leader_pre_stop = [] # list of ramp leader before stop point
         self.ls_r_proper = [] # list of ramp veh before acc
         self.dic_max_interval = {} # {m_leader: max_interval}
+        self.legacy_max_interval = {}
+        self.pfz_gap_leader = None
+        self.pfz_yield = None
+        self.last_pfz_yield_pair = None
 
         self.loss_rate = loss_rate
         self.action_buffer = v2x.UpdateDelayBuffer(loss_rate=self.loss_rate, rng=comm_rng)
@@ -256,7 +265,8 @@ class MergingControlJam:
                 re_t2 = self.dic_mplatoon_et[leader_id][2]-c_ts
         return re_t2, dis
 
-    def _find_timing6(self, step, m_leader, action_m_leader, max_interval, rp_pass_time):
+    def _find_timing6(self, step, m_leader,
+                      action_m_leader, max_interval, rp_pass_time):
         """
         find the resume timing for ramp leader
         :param
@@ -271,7 +281,7 @@ class MergingControlJam:
         :return:
         """
         c_ts = round(step/10 + 0.1, 1)
-        if action_m_leader == 'mb_av5634':
+        if action_m_leader == 'm_av11137':
             pass
 
         ls_m_veh_up_asc = self.dic_vid_groups.get('ls_m_veh_up_asc', None)  # ['mavh680', 'mhv690', 'mhv700', ] all veh on inflow_highway
@@ -282,6 +292,13 @@ class MergingControlJam:
             if c_ts - self.first_ramp_stop_ts < self.cooldown_dur:
                 self.timing = False
                 return self.timing
+        if self.pfz_yield or (m_leader and m_leader == self.pfz_gap_leader):
+            timing = self._find_pfz_timing(c_ts, m_leader, action_m_leader, rp_pass_time)
+            return timing
+        # An ongoing trajectory may outlast the ramp platoon it was scheduled for.
+        action_for_ramp = self.m_leader_acting and (
+            self.loss_rate != 0 or (
+                self.r_leader_stop is not None and self.r_leader_stop == self.legacy_action_ramp_leader))
         # S1
         # if (self.stop_state
         #         and len(ls_m_veh_up_asc) > 0
@@ -306,7 +323,7 @@ class MergingControlJam:
 
         # S6: another common situation, m_leader need to take action, and m_leader has a leader on inflow_highway
         # if self.stop_state and len(ls_m_veh_up_asc) > 0 and m_leader and m_leader_acting is True:
-        if self.stop_state and len(ls_m_veh_up_asc) > 0 and action_m_leader and self.m_leader_acting is True:
+        if self.stop_state and len(ls_m_veh_up_asc) > 0 and action_m_leader and action_for_ramp:
             if action_m_leader == 'm_av4936':
                 pass
             pv_info = self.traci.vehicle.getLeader(action_m_leader, self.length_mcz)
@@ -334,7 +351,7 @@ class MergingControlJam:
 
 
         # S2: Most common situation without m_leader action
-        if self.stop_state and len(ls_m_veh_up_asc) > 0 and m_leader and self.m_leader_acting is False:
+        if self.stop_state and len(ls_m_veh_up_asc) > 0 and m_leader and not action_for_ramp:
             pv_info = self.traci.vehicle.getLeader(m_leader, self.length_mcz)
             if pv_info is not None:  # condition 6
                 pv_id = pv_info[0]
@@ -353,7 +370,7 @@ class MergingControlJam:
                 return self.timing
 
         # S5: 100624updated, m_leader has no leader on inflow_highway
-        if self.stop_state and len(ls_m_veh_up_asc) > 0 and m_leader and self.m_leader_acting is False:
+        if self.stop_state and len(ls_m_veh_up_asc) > 0 and m_leader and not action_for_ramp:
             pv_info = self.traci.vehicle.getLeader(m_leader, self.length_mcz)
             if pv_info is not None:  # condition 6
                 pv_id = pv_info[0]
@@ -381,9 +398,23 @@ class MergingControlJam:
 
         '''
 
-        if step % 10 != 0:
-            return self.dic_max_interval
+        pfz_leader = self.merge_regular.first_pfz_leader
         c_ts = round(step / 10 + 0.1, 1)
+        front_tail = None
+        if pfz_leader:
+            front_tail = self._get_prev_platoon_tail_at_ts(c_ts, pfz_leader)
+        pfz_arrival = self.merge_regular.first_pfz_leader_arrival_ts
+        valid_pfz_gap = False
+        if ls_m_veh_up_asc and ls_m_leader_up_asc and front_tail is not None and pfz_arrival is not None:
+            arrival_is_finite = isfinite(pfz_arrival)
+            valid_pfz_gap = arrival_is_finite and pfz_arrival > c_ts
+        gap_leader = None
+        if valid_pfz_gap:
+            gap_leader = pfz_leader
+        if step % 10 != 0 and gap_leader == self.pfz_gap_leader and not self.refresh_legacy_gap:
+            return self.dic_max_interval
+        self.refresh_legacy_gap = False
+        self.pfz_gap_leader = gap_leader
 
         # 1. no vehicles on the merging section
         if len(ls_m_veh_up_asc) == 0:
@@ -437,12 +468,24 @@ class MergingControlJam:
             # get the max thw
             m_leader, max_thw = max(headway_differences.items(), key=lambda x: x[1])
         # last veh on inflow_highway
-        self.dic_max_interval = {m_leader: [max_thw]} # dic_result (self.dic_max_interval)
+        self.legacy_max_interval = {m_leader: [max_thw]}
+        if valid_pfz_gap:
+            headway_differences[pfz_leader] = pfz_arrival - max(front_tail, c_ts + self.r_leader_acc_dur)
+            m_leader, max_thw = max(headway_differences.items(), key=lambda x: x[1])
+        self.dic_max_interval = {m_leader: [max_thw]}
         return self.dic_max_interval
 
     def _get_prev_platoon_tail_at_ts(self, c_ts, this_leader):
-        prev_leader = list(self.dic_mplatoon_et.keys())[
-            list(self.dic_mplatoon_et.keys()).index(this_leader) - 1]
+        if this_leader and this_leader == self.merge_regular.first_pfz_leader:
+            mcz_leaders = self.dic_vid_groups.get("ls_m_leader_up_asc", ())
+            if not mcz_leaders:
+                return None
+            front_leader = mcz_leaders[-1]
+            tail_ts = self._get_pfz_preceding_tail(this_leader, front_leader)
+            return tail_ts
+        mcz_leaders = list(self.dic_mplatoon_et)
+        leader_index = mcz_leaders.index(this_leader)
+        prev_leader = mcz_leaders[leader_index - 1]
 
         prev_platoon_size = len(self.dic_mplatoon_et[prev_leader][0])
         if prev_platoon_size > 100:  # if previous platoon size is too big, use on-board sensor value to predict
@@ -454,6 +497,51 @@ class MergingControlJam:
         else:  # if normal platoon size, use prediction model
             ts_prev_tail = self.dic_mplatoon_et[prev_leader][2]
         return ts_prev_tail
+
+    def _get_pfz_preceding_tail(self, leader, front_leader):
+        lanes = self.data_recorder.dic_lane
+        leader_lane = lanes.get(leader)
+        if leader_lane != "inflow_highway_0":
+            return None
+        preceding = self.traci.vehicle.getLeader(leader, float("inf"))
+        if not preceding:
+            return None
+        preceding_id = preceding[0]
+        preceding_lane = lanes.get(preceding_id)
+        if preceding_lane != "inflow_highway_0":
+            return None
+        preceding_leader = self.data_recorder.dic_member_to_leader.get(preceding_id, preceding_id)
+        if preceding_leader != front_leader:
+            return None
+        entry = self.dic_mplatoon_et.get(front_leader)
+        if not entry:
+            return None
+        tail_ts = entry[2]
+        if tail_ts is None:
+            return None
+        tail_is_finite = isfinite(tail_ts)
+        if not tail_is_finite:
+            return None
+        return tail_ts
+
+    def _find_pfz_timing(self, c_ts, leader, action_leader, ramp_duration):
+        plan = self.pfz_yield
+        if plan:
+            if (action_leader != plan["leader"] or self.r_leader_stop != plan["ramp"]
+                    or plan["ramp"] in self.first_resume_recorded):
+                return False
+            front_tail = self._get_pfz_preceding_tail(plan["leader"], plan["front"])
+            arrival, ramp_duration = plan["arrival"], plan["ramp_duration"]
+        else:
+            front_tail = self._get_prev_platoon_tail_at_ts(c_ts, leader)
+            arrival = self.merge_regular.first_pfz_leader_arrival_ts
+        ramp_arrival = c_ts + self.r_leader_acc_dur
+        self.timing = (
+            self.stop_state and front_tail is not None and arrival is not None and ramp_duration is not None
+            and front_tail + self.buffer <= ramp_arrival
+            and ramp_arrival + ramp_duration + self.buffer <= arrival
+        )
+        return self.timing
 
     def _get_ramp_platoon_merge_duration(self, dic_platoon_info):
         # _get_r_traveltime3
@@ -488,10 +576,20 @@ class MergingControlJam:
                 dic_r_platoon_travel_time: {r_leader: [platoon_type, tail_id, rp_pass_time], ...}
         :return: final_rp_pass_time: final ramp passing time (accumulate ramp passing time)
         """
+        if self.pfz_yield:
+            return self.pfz_yield["leader"], None, self.pfz_yield["ramp_duration"]
         if dic_max_interval and dic_r_platoon_travel_time and self.stop_state:
             # find the biggest interval and corresponding m_leader
             m_leader = list(dic_max_interval.keys())[0]
+            if m_leader == 'm_av11137':
+                pass
             max_interval = dic_max_interval[m_leader][-1]
+            if m_leader == self.pfz_gap_leader and m_leader is not None:
+                ramp = dic_r_platoon_travel_time.get(self.r_leader_stop)
+                if not ramp:
+                    return None, None, None
+                ramp_duration = ramp[2]
+                return m_leader, max_interval, ramp_duration
             num_ramp_platoon = len(dic_r_platoon_travel_time) # number of ramp platoons
             cum_rp_pass_time = 0 # Cumulative time
             final_rp_type = '' # the final combined ramp platoon type
@@ -528,7 +626,7 @@ class MergingControlJam:
         else:
             return None, None, None
 
-    def _restart_ramp_fleet(self, step, first_r_leader, timing):
+    def _restart_ramp_fleet(self, step, first_r_leader, timing, gap_leader=None):
         """
         250613 update, avoid r_leader stopped before stop point (self.stop_pos = 203.5)
         :param dic_mavhb_hinfo:
@@ -553,6 +651,15 @@ class MergingControlJam:
                 if first_r_leader == 'ravh5450':
                     pass
                 self.traci.vehicle.resume(first_r_leader)
+                if self.pfz_yield or (gap_leader and gap_leader == self.pfz_gap_leader):
+                    successor = self.pfz_gap_leader
+                    if self.pfz_yield:
+                        successor = self.pfz_yield["leader"]
+                    self.ls_skip_stop.clear()
+                    prc.print_message(
+                        f"[PFZ jam] t={c_ts:.1f} released_ramp={first_r_leader} "
+                        f"gap_leader={successor} active_yield={self.pfz_yield is not None}"
+                    )
                 self.first_resume_recorded.append(first_r_leader)
                 self.r_leader_stop = None
                 self.resume_times[first_r_leader] = c_ts
@@ -581,26 +688,38 @@ class MergingControlJam:
             => self.dic_m_leader_action_params = {m_leader: [, c_ts]}
         """
         c_ts = round(step / 10 + 0.1, 1)
+        if self.pfz_yield:
+            return self.dic_m_leader_action_params
+        is_pfz = m_leader is not None and m_leader == self.pfz_gap_leader
         allowable_error = self.delta_t  # 0, 2, 4, 6, 8, 10
         last_stop_ts = list(self.stop_times.items())[-1][-1] if self.stop_times else None
         if self.first_ramp_stop_ts is not None:
             # in cooldown period, not action
             if c_ts - self.first_ramp_stop_ts < self.cooldown_dur:
+                if is_pfz:
+                    return {}
                 return self.dic_m_leader_action_params
 
         if not (step % mpc_interval == 0 or
                 (last_stop_ts is not None and c_ts == last_stop_ts + 0.1) or
-                self.merge_regular.new_leader_flag):
+                self.merge_regular.new_leader_flag or
+                (is_pfz and self.merge_regular.first_pfz_leader_changed)):
             # *10 because sim_step=0.1
             # move forward only if in mpc_interval or just after stop
             # or just new m_leader emerged in MCZ-M
+            if is_pfz:
+                return {}
             return self.dic_m_leader_action_params
+
+        if is_pfz:
+            action_params = self._get_pfz_yield_action(c_ts, first_r_leader, rp_pass_dur, m_leader, max_interval)
+            return action_params
 
         if not m_leader:
             return self.dic_m_leader_action_params
 
         if (self.data_recorder.ms_exit_speed and
-                self.data_recorder.ms_exit_speed < 19.44):
+                self.data_recorder.ms_exit_speed < 16.67): # 19.44
             # if latest veihcle's speed exit MS is too low, no action
             return self.dic_m_leader_action_params
 
@@ -650,7 +769,136 @@ class MergingControlJam:
         action_params.append(c_ts)  # (t1, a1, t3, a3, v_reach, c_ts)
         self.m_leader_action_dic[m_leader] = action_params
         self.dic_m_leader_action_params = {m_leader: action_params}
+        self.legacy_action_ramp_leader = first_r_leader
         return self.dic_m_leader_action_params
+
+    def _get_pfz_yield_action(self, c_ts, ramp,
+                              ramp_duration, leader, gap):
+        if (leader, ramp) == self.last_pfz_yield_pair:
+            return {}
+        tail = self._get_prev_platoon_tail_at_ts(c_ts, leader)
+        arrival = self.merge_regular.first_pfz_leader_arrival_ts
+        if tail is None or arrival is None or ramp_duration is None:
+            return {}
+
+        # Keep both legacy buffers and budget enough time for the ramp to start moving.
+        desired = max(tail, c_ts + self.r_leader_acc_dur) + ramp_duration + 2 * self.buffer
+        shortage = desired - arrival
+        stop = self.stop_times.get(ramp)
+        waiting = 0
+        if stop is not None:
+            waiting = c_ts - stop
+            if stop == self.first_ramp_stop_ts:
+                waiting -= self.cooldown_dur
+        allowable_error = self.delta_t
+        if waiting > 30:
+            allowable_error += 10
+        exit_speed = self.data_recorder.ms_exit_speed
+        profile = None
+        if self.stop_state and stop is not None and ramp == self.r_leader_stop:
+            ramp_speed = self.data_recorder.dic_speed.get(ramp, float("inf"))
+            if (ramp_speed <= 0 and exit_speed is not None and exit_speed >= 19.44
+                    and 0 < shortage <= allowable_error):
+                state = self.data_recorder.get_vid_states(leader)
+                if state["dis"] is not None and state["dis"] > 0 and state["v"] is not None:
+                    profile = self.merge_regular.get_action_params(
+                        desired - c_ts, state["dis"], state["v"], require_feasible=True
+                    )
+        generated = False
+        if profile:
+            profile_size = len(profile)
+            generated = profile_size == 5 and profile[0] > 0 and profile[1] < 0
+        prc.print_message(
+            f"[PFZ jam] t={c_ts:.1f} selected={leader} first_pfz=True "
+            f"original_gap={arrival - tail:.2f} usable_gap={gap:.2f} "
+            f"required={ramp_duration + 2 * self.buffer:.2f} shortage={shortage:.2f} "
+            f"generated={generated} desired_arrival={desired:.2f} ramp={ramp}"
+        )
+        if not generated:
+            return {}
+
+        front = self.dic_vid_groups["ls_m_leader_up_asc"][-1]
+        params = [*profile, c_ts]
+        self.pfz_yield = dict(leader=leader, front=front, ramp=ramp, arrival=desired,
+                              ramp_duration=ramp_duration)
+        self.last_pfz_yield_pair = (leader, ramp)
+        self.merge_regular.first_pfz_leader_arrival_ts = desired
+        self.m_leader_action_dic[leader] = params
+        self.dic_m_leader_action_params = {leader: params}
+        return self.dic_m_leader_action_params
+
+    def clear_pfz_yield(self):
+        if self.pfz_yield is None:
+            return
+        leader = self.pfz_yield["leader"]
+        self.pfz_yield = None
+        self.m_leader_acting = False
+        self.dic_m_leader_action_params.pop(leader, None)
+        self.m_leader_action_dic.pop(leader, None)
+        self.merge_regular.dic_leader_action_emerged.pop(leader, None)
+        self.merge_regular.dic_leader_action_updated.pop(leader, None)
+        leader_lane = self.data_recorder.dic_lane.get(leader)
+        if leader_lane == "inflow_highway_0":
+            self.traci.vehicle.setSpeed(leader, -1)
+        if leader == self.merge_regular.first_pfz_leader:
+            self.merge_regular.first_pfz_leader_arrival_ts = None
+
+    def clear_legacy_yield(self):
+        if not self.legacy_yield:
+            return
+        leader = self.legacy_yield["leader"]
+        self.legacy_yield = None
+        self.legacy_action_ramp_leader = None
+        self.m_leader_acting = False
+        self.refresh_legacy_gap = True
+        self.dic_m_leader_action_params.pop(leader, None)
+        self.m_leader_action_dic.pop(leader, None)
+        self.merge_regular.dic_leader_action_emerged.pop(leader, None)
+        self.merge_regular.dic_leader_action_updated.pop(leader, None)
+        leader_lane = self.data_recorder.dic_lane.get(leader)
+        if leader_lane == "inflow_highway_0":
+            self.traci.vehicle.setSpeed(leader, -1)
+
+    def _check_legacy_yield(self, step, mcz_leaders):
+        plan = self.legacy_yield
+        if not plan:
+            return
+        leader = plan["leader"]
+        ramp = self.legacy_action_ramp_leader
+        now = round(step / 10 + 0.1, 1)
+        lane = self.data_recorder.dic_lane.get(leader)
+        finished = now >= plan["end"]
+        if leader not in mcz_leaders or lane != "inflow_highway_0" or finished:
+            self.clear_legacy_yield()
+            return
+        if ramp in self.first_resume_recorded:
+            return
+        if self.r_leader_stop != ramp:
+            self.clear_legacy_yield()
+            return
+        preceding = self.traci.vehicle.getLeader(leader, self.length_mcz)
+        if not preceding:
+            self.clear_legacy_yield()
+            return
+        preceding_road = self.traci.vehicle.getRoadID(preceding[0])
+        if preceding_road != "inflow_highway":
+            self.clear_legacy_yield()
+
+    def _lock_legacy_yield(self, leader, ramp, gap, ramp_duration):
+        if self.pfz_yield or not leader or not ramp or ramp != self.legacy_action_ramp_leader:
+            return
+        profile = self.merge_regular.dic_leader_action_updated.get(leader)
+        if not profile:
+            return
+        profile_size = len(profile)
+        if profile_size != 6 or profile[0] <= 0 or profile[1] >= 0:
+            return
+        finite_profile = all(isfinite(value) for value in profile)
+        if not finite_profile:
+            return
+        end = profile[-1] + profile[0] + profile[2]
+        self.legacy_yield = dict(leader=leader, end=end, gap=gap, ramp_duration=ramp_duration)
+        prc.print_message(f"[Legacy yield] locked leader={leader} ramp={ramp} until={end:.2f}")
 
     def _apply_m_leader_control(self, step, dic_m_leader_action_params):
         '''
@@ -659,13 +907,21 @@ class MergingControlJam:
             format => {'mavh1630': [14.3, -1.1, 14.6, 1.1, 24.9, 168.1]}
         :return: the list of action_m_leader
         '''
-        ls_m_leader_up_asc = self.dic_vid_groups.get('ls_m_leader_up_asc', None)
+        ls_m_leader_up_asc = self.dic_vid_groups.get('ls_m_leader_up_asc', ())
+        controllable = set(ls_m_leader_up_asc)
+        if self.merge_regular.first_pfz_leader:
+            controllable.add(self.merge_regular.first_pfz_leader)
         action_m_leader = next(iter(dic_m_leader_action_params or {}), None)
         self.m_leader_acting = False # should be m_leader_acting
         if (action_m_leader in self.m_leader_action_dic
-            and action_m_leader in ls_m_leader_up_asc):
+            and action_m_leader in controllable):
             # apply action
-            self.merge_regular.apply_leader_action(step, dic_m_leader_action_params)
+            if self.pfz_yield and action_m_leader == self.pfz_yield["leader"]:
+                self.merge_regular.apply_leader_action(
+                    step, dic_m_leader_action_params, extra_mainline_leader=action_m_leader
+                )
+            else:
+                self.merge_regular.apply_leader_action(step, dic_m_leader_action_params)
             # flash
             self.merge_regular.flashing_merging(step, [action_m_leader])
             self.m_leader_acting = True
@@ -714,9 +970,47 @@ class MergingControlJam:
         :return:
         '''
         self.dic_vid_groups = dic_vid_groups
+        plan = self.pfz_yield
+        if plan:
+            leader = plan["leader"]
+            now = round(step / 10 + 0.1, 1)
+            leader_lane = self.data_recorder.dic_lane.get(leader)
+            if (leader_lane != "inflow_highway_0"
+                    or (leader not in ls_m_leader_up_asc and leader != self.merge_regular.first_pfz_leader)
+                    or now >= plan["arrival"]):
+                self.clear_pfz_yield()
+            elif plan["ramp"] not in self.first_resume_recorded:
+                tail = self._get_pfz_preceding_tail(leader, plan["front"])
+                latest_ramp_arrival = plan["arrival"] - plan["ramp_duration"] - self.buffer
+                cancel_plan = tail is None or self.r_leader_stop != plan["ramp"]
+                if not cancel_plan:
+                    earliest_ramp_arrival = max(tail + self.buffer, now + self.r_leader_acc_dur)
+                    cancel_plan = earliest_ramp_arrival > latest_ramp_arrival + 1e-8
+                if cancel_plan:
+                    prc.print_message(f"[PFZ jam] t={now:.1f} cancelled={leader} ramp={plan['ramp']}")
+                    self.clear_pfz_yield()
         prc.print_message('**in jam mode**')
         first_r_leader = self._stop_ramp_fleet3(dic_platoon_info)  # Stop first ramp leader
         self._check_resume_state4(dic_platoon_info) # 241003update
+        self._check_legacy_yield(step, ls_m_leader_up_asc)
+        timing = False
+        if self.legacy_yield:
+            plan = self.legacy_yield
+            m_leader = plan["leader"]
+            action_m_leader = self._apply_m_leader_control(step, self.dic_m_leader_action_params)
+            if first_r_leader and first_r_leader == self.legacy_action_ramp_leader:
+                timing = self._find_timing6(step, m_leader, action_m_leader, plan["gap"], plan["ramp_duration"])
+        else:
+            m_leader, timing = self._select_clean_jam_action(
+                step, first_r_leader, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up_asc, mpc_interval
+            )
+        ls_r_proper = self._get_r_proper()
+        queue_log = self.data_recorder.get_queue_length(step, ls_r_proper, ls_r_dep_times)
+        self._restart_ramp_fleet(step, first_r_leader, timing, gap_leader=m_leader)
+        return queue_log
+
+    def _select_clean_jam_action(self, step, first_r_leader, dic_platoon_info,
+                                 ls_m_leader_up_asc, ls_m_veh_up_asc, mpc_interval):
         # Get Ramp Platoon travel Time (from stop to pass intersection)
         dic_r_platoon_travel_time = self._get_ramp_platoon_merge_duration(dic_platoon_info)
         dic_max_interval = self._get_max_interval(step, ls_m_leader_up_asc, ls_m_veh_up_asc)
@@ -725,15 +1019,23 @@ class MergingControlJam:
         dic_m_leader_action_params = self._get_m_leader_action(step, first_r_leader, final_rp_pass_time,
                                                                m_leader, max_interval,
                                                                mpc_interval)
+        use_legacy_gap = False
+        if m_leader and m_leader == self.pfz_gap_leader and not self.pfz_yield:
+            pfz_timing = self._find_timing6(step, m_leader, None, max_interval, final_rp_pass_time)
+            use_legacy_gap = not pfz_timing
+        if use_legacy_gap:
+            # A larger PFZ gap may be unusable now. Keep the original release opportunity.
+            m_leader, max_interval, final_rp_pass_time = self._compare3(
+                self.legacy_max_interval, dic_r_platoon_travel_time
+            )
+            dic_m_leader_action_params = self._get_m_leader_action(
+                step, first_r_leader, final_rp_pass_time, m_leader, max_interval, mpc_interval
+            )
         action_m_leader = self._apply_m_leader_control(step, dic_m_leader_action_params)
+        if self.m_leader_acting and action_m_leader == m_leader:
+            self._lock_legacy_yield(m_leader, first_r_leader, max_interval, final_rp_pass_time)
         timing = self._find_timing6(step, m_leader, action_m_leader, max_interval, final_rp_pass_time)
-        if timing:
-            pass
-        ls_r_proper = self._get_r_proper()
-        # record ramp queue length
-        queue_log = self.data_recorder.get_queue_length(step, ls_r_proper, ls_r_dep_times)
-        self._restart_ramp_fleet(step, first_r_leader, timing) # Resume r_leader
-        return queue_log
+        return m_leader, timing
 
     def _jam_control_disturbed(self, step, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up_asc,
                                dic_vid_groups, ls_r_dep_times, mpc_interval):
@@ -992,6 +1294,7 @@ class ShiftMode:
 
         ls_veh_c1_0_0 = self.traci.lane.getLastStepVehicleIDs(':c1_0_0')
         ls_r_leader_up = self.data_recorder.dic_vid_groups['ls_r_leader_up']
+
         num_leader_ramp_proper = len(ls_r_leader_up)
         num_leader_c1_0_0 = sum(1 for vid in ls_veh_c1_0_0 if 'ravh' in vid)
         num_leader_wsA = len(ls_r_leader_wsA_asc)
@@ -1012,17 +1315,15 @@ class ShiftMode:
             self.regular_mode = False
             self.jam_mode = True
 
-        ls_ihA_av_asc = self.data_recorder.dic_vid_groups['ls_ihA_av_asc']
+        ls_ihA_asc = self.data_recorder.dic_vid_groups['ls_ihA_asc']
         mainline_clear = (
-                len(ls_ihA_av_asc) == 0
-                and not any(vid.startswith("m") for vid in ls_wsB_av_asc)
-        )
+                len(ls_ihA_asc) == 0
+                and not any(vid.startswith("m") for vid in ls_wsB_av_asc))
 
         normal_recover = (
                 num_leader_ramp_ws < 1
                 and all(speed > v_jam for speed in ws0_av_speeds)
-                and all(speed > v_jam for speed in ws1_av_speeds)
-        )
+                and all(speed > v_jam for speed in ws1_av_speeds))
 
         recover_condition = normal_recover or mainline_clear
 

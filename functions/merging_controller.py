@@ -89,12 +89,25 @@ class MergingController:
         tp = self.data_recorder.record_throughput(
             st, ls_veh_id, 'center', warmup_time=self.warmup_time)  # throughput
 
+        # Only the clean legacy jam controller uses PFZ candidates.
+        first_pfz_leader = None
+        if self.merge_jam.loss_rate == 0:
+            pfz_leaders = dic_vid_groups.get("ls_pf_leader_asc", ())
+            if pfz_leaders:
+                first_pfz_leader = pfz_leaders[0]
+        pfz_yield = self.merge_jam.pfz_yield
+        pfz_target = None
+        if pfz_yield and pfz_yield["leader"] == first_pfz_leader:
+            pfz_target = pfz_yield["arrival"]
+
         # Update mainline platoon ET
         dic_mplatoon_et, new_leader_flag = self.merge_regular.update_platoon_et(
             step,
             ls_m_leader_up_asc,
             m=True,
-            interval=self.mpc_interval)
+            interval=self.mpc_interval,
+            first_pfz_leader=first_pfz_leader,
+            pfz_target=pfz_target)
 
         # === 3. Determine mode: regular / jam ===
         # regular_mode, jam_mode = self.mode_switch.determine_mode4(
@@ -117,6 +130,9 @@ class MergingController:
         # self.merge_regular.set_veh_color()
 
         # === 4. Apply corresponding control logic ===
+        if not jam_mode:
+            self.merge_jam.clear_pfz_yield()
+            self.merge_jam.clear_legacy_yield()
         if jam_mode:
             if self.ts_first_jam is None:
                 self.ts_first_jam = c_ts
