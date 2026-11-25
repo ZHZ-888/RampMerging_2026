@@ -1,10 +1,13 @@
 #%%
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 
 
-def plot_following_state_cm(cm, accuracy, free_recall, macro_f1, save_path=None, dpi=600, figsize=(5, 4)):
+def plot_following_state_cm(cm, accuracy, free_recall, macro_f1,
+                            save_path=None, dpi=600, figsize=(5, 4)):
     cm = np.asarray(cm)
     cm_norm = cm.astype(float) / cm.sum(axis=1, keepdims=True)
 
@@ -48,7 +51,12 @@ def plot_following_state_cm(cm, accuracy, free_recall, macro_f1, save_path=None,
     plt.tight_layout()
 
     if save_path is not None:
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+        save_path = Path(save_path).with_suffix(".tiff")
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(
+            save_path, format="tiff", dpi=dpi, bbox_inches="tight",
+            pil_kwargs={"compression": "tiff_lzw"},
+        )
 
     plt.show()
 
@@ -60,6 +68,17 @@ accuracy = 0.9718393068137062
 free_recall = 0.959
 macro_f1 = 0.962   # 换成你实际计算出的完整值
 
-save_path = "/home/zzha/PycharmProjects/RampMerging_2026/figures/rf_following_states_norm.pdf"
-
-plot_following_state_cm(cm, accuracy, free_recall, macro_f1, save_path=save_path) # , save_path=save_path
+if __name__ == "__main__":
+    if "__file__" in globals():
+        root = Path(__file__).resolve().parents[2]
+    else:
+        cwd = Path.cwd()
+        root = next(
+            (folder for folder in (cwd, *cwd.parents)
+             if (folder / "run.py").is_file() and (folder / "plot").is_dir()),
+            None,
+        )
+        if root is None:
+            raise FileNotFoundError("Open the IPython console in the project folder or one of its subfolders.")
+    save_path = root / "plot" / "plot_figures" / "following_state_rf.tiff"
+    plot_following_state_cm(cm, accuracy, free_recall, macro_f1, save_path=save_path)

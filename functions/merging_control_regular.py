@@ -279,13 +279,15 @@ class MergingControlRegular:
         dic_mplatoon_tail_et = {m_leader: ls_ts[2] for m_leader, ls_ts in dic_mplatoon_et_valid.items()}
 
         for r_leader in dic_rplatoon_et_valid.keys():
-            if r_leader in ('ravh7310'):
+            if r_leader in ('ravh5100'):
                 pass
             r_ts_head = dic_rplatoon_et_valid[r_leader][1] # ramp platoon head timestamp
             dic_mplatoon_tail_et_asc = sorted(dic_mplatoon_tail_et.items(),
                                               key=lambda x: x[1])  # min => max by tail time
             for index in range(len(dic_mplatoon_tail_et_asc)):
                 m_leader, m_ts_tail = dic_mplatoon_tail_et_asc[index]
+                if m_leader == 'm_av4654':
+                    pass
                 if index == 0 and r_ts_head < m_ts_tail:
                     self.dic_rm_leader_map[r_leader] = m_leader
                     # prc.print_message(f'r_leader:{r_leader}, m_leader:{m_leader}')

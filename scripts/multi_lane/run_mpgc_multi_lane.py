@@ -178,7 +178,7 @@ def loop(traci, st, data_recorder,
     # scripts loop
     while step < horizon_steps:
         # checkpoint
-        if step > 600 * 10:
+        if step > 546 * 10:
              pass
         traci.simulationStep()  # start simulation
 
@@ -356,7 +356,7 @@ def set_global_seed(seed, enable=True):
     torch.use_deterministic_algorithms(True)
 
 if __name__ == '__main__':
-    prc.PRINT_ENABLED = False
+    prc.PRINT_ENABLED = True
     start = time.time()
     max_team_size = 12
     st = 1500 # 1500
@@ -364,9 +364,9 @@ if __name__ == '__main__':
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam, ts_first_back_to_regular) = mpgc_main(
         av_p = 0.1, # 0.1xinazai
-        r_fr = 800, # 1300
+        r_fr = 1000, # 1300
         m_fr = 1500, # 1500
-        seed = 2, # 2 analysis
+        seed = 3, # 2 analysis
         ramp_spr = 0.7,
         loss_rate = 0, # 0.15
         gui = True,

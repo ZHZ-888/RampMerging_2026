@@ -54,16 +54,27 @@ print(f"R-squared Score: {r2:.4f}")
 
 
 #%% Plot
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+# Reproduce the original held-out evaluation figure from its paired results.
+plot_data_path = Path('/home/zzha/PycharmProjects/RampMerging_2026/data/rf_arrival_time.csv')
+plot_data = pd.read_csv(plot_data_path)
+plot_pred = plot_data['y_pred'].to_numpy()
+plot_true = plot_data['y_test'].to_numpy()
+plot_rmse = mean_squared_error(plot_true, plot_pred) ** 0.5
+plot_mae = mean_absolute_error(plot_true, plot_pred)
+plot_r2 = r2_score(plot_true, plot_pred)
 
 # Create figure and axis
 fig, ax = plt.subplots(figsize=(5, 4), dpi=600)
 
 textstr = (
-    f"{'RMSE':<4}: 1.693 s\n"
-    f"{'MAE':<4}: 0.792 s\n"
-    f"{'R²':<4}: 0.973  "
+    f"{'RMSE':<4}: {plot_rmse:.3f} s\n"
+    f"{'MAE':<4}: {plot_mae:.3f} s\n"
+    f"{'R²':<4}: {plot_r2:.3f}"
 )
 
 ax.text(
@@ -74,13 +85,14 @@ ax.text(
     fontfamily='monospace',   # ✅ 核心
     horizontalalignment='right',
     verticalalignment='bottom',
+    multialignment='left',
     # bbox=dict(boxstyle='round', facecolor='white', alpha=0.8)
 )
 
 # Scatter plot: predicted vs true values
 ax.scatter(
-    y_pred,
-    y_test,
+    plot_pred,
+    plot_true,
     s=25,
     edgecolor='blue',
     facecolor='none',
@@ -88,12 +100,12 @@ ax.scatter(
 )
 
 # Linear regression (first-order polynomial fit)
-coefficients = np.polyfit(y_pred, y_test, 1)
+coefficients = np.polyfit(plot_pred, plot_true, 1)
 fit_line = np.poly1d(coefficients)
 
 # Determine plotting range automatically
-min_val = min(y_pred.min(), y_test.min())
-max_val = max(y_pred.max(), y_test.max())
+min_val = min(plot_pred.min(), plot_true.min())
+max_val = max(plot_pred.max(), plot_true.max())
 upper = np.ceil(max_val / 10) * 10  # Round up to nearest 10 for better visualization
 
 ax.set_xlim(0, 55)
@@ -119,34 +131,14 @@ ax.set_ylabel('True value (s)')
 # Legend
 ax.legend()
 
-# Save figure as a PDF (vector format, suitable for publications)
-plt.savefig(
-    "/home/zzha/PycharmProjects/RampMerging_2026/figures/rf_arrival_times.pdf",
-    format="pdf",
-    bbox_inches="tight"
+# Save the main figure as a 600 DPI LZW-compressed TIFF.
+save_path = plot_data_path.parents[1] / "plot" / "plot_figures" / "rf_arrival_times2.tiff"
+save_path.parent.mkdir(parents=True, exist_ok=True)
+fig.savefig(
+    save_path, format="tiff", dpi=600, bbox_inches="tight",
+    pil_kwargs={"compression": "tiff_lzw"},
 )
-# plt.savefig("/home/zzha/PycharmProjects/RampMerging_2026/figures/rf_arrival_times.svg",
-#             format="svg", bbox_inches="tight")
 
 # Display the figure
-plt.show()
-
-
-#%% Add a zoomed inset
-ax_inset = inset_axes(plt.gca(), width="35%", height="35%", loc='lower right', borderpad=2)  # Adjust size and location
-ax_inset.scatter(y_pred, y_test, s=30, edgecolor='blue', facecolor='none')  # Replot the scatter points in the inset
-ax_inset.plot([10, 14], [10, 14], 'r-', label='Diagonal line')  # Diagonal in zoomed view
-ax_inset.plot(x_fit, y_fit, 'r')  # Fit curve in zoomed view
-
-# Set limits for the inset
-ax_inset.set_xlim(10, 14)
-ax_inset.set_ylim(10, 14)
-# ax_inset.grid(True)
-# Synchronize ticks with the scripts plot
-# Customize ticks for the inset
-ax_inset.set_xticks(np.arange(10, 15, 2))  # Custom x-axis ticks (5 to 15 with step 2)
-ax_inset.set_yticks(np.arange(10, 15, 2))  # Custom y-axis ticks (5 to 15 with step 2)
-
-# figure
 plt.show()
 
