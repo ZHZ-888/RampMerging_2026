@@ -40,8 +40,6 @@ def mpgc_main(av_p, r_fr, m_fr, seed, loss_rate=0, gui=False,
     # Simulation step length
     sim_step = 0.1
     # Determine the SUMO binary based on whether GUI is needed
-    # sumo_bin = 'sumo-gui' if gui else 'sumo'
-
     sumo_home = "/home/zzha/opt/sumo-1.19.0-src"
     os.environ["SUMO_HOME"] = sumo_home
     sumo_bin = os.path.join(sumo_home, "bin", "sumo-gui" if gui else "sumo",)
@@ -83,8 +81,8 @@ def mpgc_main(av_p, r_fr, m_fr, seed, loss_rate=0, gui=False,
                 # SSM output for TTC conflicts
                 "--device.ssm.probability", "1",
                 "--device.ssm.file", str(ssm_path),
-                "--device.ssm.measures", "TTC",
-                "--device.ssm.thresholds", "3", # record 3s; output (default) 1.5s, see calc_ttc_sd_exposure.py
+                "--device.ssm.measures", "TTC DRAC",
+                "--device.ssm.thresholds", "3 3", # record 3s; output (default) 1.5s, see calc_ttc_sd_exposure.py
                 "--device.ssm.trajectories", "true",
                 "--device.ssm.write-lane-positions", "true",
                 "--no-warnings"]
@@ -182,7 +180,7 @@ def loop(traci, st, data_recorder,
     # scripts loop
     while step < horizon_steps:
         # checkpoint
-        if step > 1400 * 10:
+        if step > 600 * 10:
              pass
         traci.simulationStep()  # start simulation
 
@@ -363,14 +361,14 @@ if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
     max_team_size = 12
-    st = 1500 # 1500
+    st = 800 # 1500
     (dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam, ts_first_back_to_regular) = mpgc_main(
         av_p = 0.1, # 0.1xinazai
-        r_fr = 1000, # 1300
+        r_fr = 1200, # 1300
         m_fr = 1500, # 1500
-        seed = 3, # 2 analysis
+        seed = 4, # 2 analysis
         ramp_spr = 0.7,
         loss_rate = 0, # 0.15
         gui = False,

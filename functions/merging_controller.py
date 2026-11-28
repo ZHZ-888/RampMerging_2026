@@ -180,7 +180,6 @@ class MergingController:
         # If neither regular nor jam_mode, jam_mode is False by default.
         return tp, queue_log, self.ts_first_jam, self.ts_first_back_to_regular
 
-
     def reset_jam_mode(self):
         # for cooldown function: reset jam_mode parameters
         if not self.merge_jam.r_leader_stop:

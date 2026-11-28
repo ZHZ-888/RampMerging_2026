@@ -29,12 +29,13 @@ fomula2 = 'v0*t + 0.5*a*(t-t1)**2 - D'  # constant speed followed by deceleratio
 class MergingControlRegular:
     def __init__(self, traci, instance_dr, optimizer=True, comp_logger=None):
         self.traci = traci
-        self.data_recorder = instance_dr  # Data_Recording
+        self.data_recorder = instance_dr
         self.sim_step = self.data_recorder.sim_step
         self.dic_id_speed = self.data_recorder.dic_speed
         self.length_mcz = self.data_recorder.length_mcz # length of merging control length
 
         self.amax = 2.6
+        self.t_buffer = 1.5
         self.max_speed = self.data_recorder.max_speed  # ??? 23
         self.ls_v0 = []
         self.ls_teR = []
@@ -47,8 +48,10 @@ class MergingControlRegular:
         self.dic_leader_action = {} # {leader: ls_action, ..., }
         self.dic_rm_leader_actor = {} # actor: selected r_leader or m_leader to take action, {(r_leader: m_leader): r_leader, ...}
         self.dic_m_leader_followup_action = {} # spacing creation action of mavh
-        self.dic_ramp_followup = {}  # {r_leader: m_leader leaving space for it}
-        self.ls_action_leader = [] # leader need to take action
+        # r_leader has a corresponding m_leader; the next m_leader of this m_leader is m_leader_next
+        self.dic_ramp_followup = {}  # self.dic_ramp_followup: {r_leader: m_leader_next}
+
+        self.ls_action_leader = [] # leaders need to take action
         self.ls_m_leaders_followup = [] # m_leader need to take Spacing control action
 
         self.dic_rplatoon_et = {}  # ramp platoon estimate time// {leader_id : [platoon_type, ts_head, ts_tail, update_time]}
@@ -68,16 +71,15 @@ class MergingControlRegular:
             os.path.join(project_root, 'rf_models', 'mr_arrival_prediction_model260831_ndarray.pkl')
         )
 
-
-    def update_platoon_et(self, step, ls_leader_up, m=True, interval=60,
-                          first_pfz_leader=None, pfz_target=None):
+    def update_platoon_et(self, step, ls_leader_up, m=True,
+                          interval=60, first_pfz_leader=None, pfz_target=None):
         '''
         Params:
             m: mainline; else: ramp
         calls self._get_features()
               self.rf_at_model
         update the estimate arrival time of platoon leader and tail
-        ls_leader_up: list of pre merging (upstream) ramp av leader or mainlane av leader
+        ls_leader_up: list of pre_merging (upstream) ramp av leader or mainlane av leader
         :return:
             dic_mplatoon_et ={m_vid, [platoon_type, ts_head, ts_tail, c_ts]}
         '''
@@ -98,12 +100,12 @@ class MergingControlRegular:
         new_leaders = curr_set - prev_set
         new_leader_flag = len(new_leaders) > 0
         self.new_leader_flag = new_leader_flag
-        if new_leader_flag:
-            pass
 
         if step % interval == 0 or new_leader_flag:
             c_ts = round(step / 10 + 0.1, 1)
             for leader in ls_leader_up:
+                if leader == 'ravh6020':
+                    pass
                 platoon_type = self.data_recorder.dic_leader_ptype.get(leader, "A")
                 if platoon_type is None:
                     continue  # pass
@@ -129,14 +131,14 @@ class MergingControlRegular:
                     ts_tail = travel_time + c_ts
                 if m:
                     self.dic_mplatoon_et[leader] = [platoon_type, ts_head, ts_tail, c_ts]
-                    self.dic_mplatoon_et = self._fix_platoon_schedule(step, self.dic_mplatoon_et, gap=1)
+                    self.dic_mplatoon_et = self._fix_platoon_schedule(step, self.dic_mplatoon_et)
                 else:
                     self.dic_rplatoon_et[leader] = [platoon_type, ts_head, ts_tail, c_ts]
-                    self.dic_rplatoon_et = self._fix_platoon_schedule(step, self.dic_rplatoon_et, gap=1)
+                    self.dic_rplatoon_et = self._fix_platoon_schedule(step, self.dic_rplatoon_et)
         setattr(self, key, curr_set)
         return (self.dic_mplatoon_et, new_leader_flag) if m else (self.dic_rplatoon_et, new_leader_flag)
 
-    def _fix_platoon_schedule(self, step, dic_et, gap=1):
+    def _fix_platoon_schedule(self, step, dic_et):
         '''
         Enforce temporal consistency of platoon arrivals under congested conditions by
         correcting unrealistic free-flow predictions
@@ -144,28 +146,32 @@ class MergingControlRegular:
         Parameters
         ----------
         dic_et: {leader_id: [platoon_type, ts_head, ts_tail, update_time]}
-        gap: minimum time gap to maintain between platoons (in seconds)
+        et: estimate arrival time of platoon leader and tail
         '''
-        c_ts = round(step / 10 + 0.1, 1)
         # Sort by predicted leader arrival time
         # items = sorted(dic_et.items(), key=lambda x: x[1][1])
-        items = dic_et.items()
-
+        c_ts = round(step / 10 + 0.1, 1)
+        veh_on_network = set(self.data_recorder.dic_vid_groups['ls_vehid'])
         prev_tail = None  # Tail arrival time of the previous valid platoon
-        for key, val in items:
-            head = val[1]
-            tail = val[2]
+        for leader, val in dic_et.items():
+            if leader in ['mb_av4913', 'm_av5482']:
+                pass
+            if leader not in veh_on_network:
+                continue
+            ts_head = val[1]
+            ts_tail = val[2]
             # Skip past or ongoing platoons (do not modify)
-            if tail <= c_ts:
-                prev_tail = tail  # still need to update reference
+            if ts_tail <= c_ts:
+                # prev_tail = ts_tail  # still need to update reference
                 continue
             # Only apply correction to future platoons
-            if prev_tail is not None and head <= prev_tail:
-                delta = prev_tail - head + gap
-                val[1] = head + delta  # shift head
-                val[2] = tail + delta/2  # shift tail
+            if prev_tail is not None and ts_head <= prev_tail:
+                delta = prev_tail - ts_head + self.t_buffer
+                val[1] = ts_head + delta  # shift ts_head
+                val[2] = ts_tail + delta/2  # shift ts_tail
+                val[2] = max(val[2], val[1] + self.t_buffer)
             prev_tail = val[2]
-        return dict(items)
+        return dic_et.copy()
 
     def find_r_leader(self, ls_r_veh_net_asc, ls_r_veh_net_last_asc):
         '''
@@ -224,54 +230,6 @@ class MergingControlRegular:
         self.data_recorder.dic_platoon_info = self.dic_platoon_info
         return self.dic_platoon_info
 
-    def get_platoon_info2_ori(self):
-        """
-        IMPORTANT: recording platoon information
-        240929update: fixed length of platoon info
-        240622update: add tail_id
-
-        :param
-                ls_r_leader_up:
-                m_dpt_type: scripts lane veh departure schedule; {4: 'AHHHHHHHHH', 31: 'AHHHHHHHHHHH'}
-                r_dpt_type: ramp lane veh departure schedule; {4: 'AHHHHHHHHH', 58: 'AHHHHHHHHHHH'}
-        :return: dic_platoon_info:
-                {'mavh70': [['AHH', 'mhv90'], deque([platoon_length1, platoon_length2], maxlen=10)]}
-        """
-        # get info at this moment
-        dic_vid_groups = self.data_recorder.dic_vid_groups
-
-        ls_m_leader_net = dic_vid_groups['ls_m_leader_net_asc']
-        ls_r_leader_net = dic_vid_groups['ls_r_leader_net']
-        ls_mr_leader_net = ls_m_leader_net + ls_r_leader_net
-
-        for leader in ls_mr_leader_net:
-            platoon_type = self.data_recorder.dic_leader_ptype.get(leader)
-            if platoon_type is None:
-                continue  # jump
-            if leader not in self.dic_platoon_info:
-                # Part A: [platoon_type, tail_id];
-                # Part B: deque(maxlen=10) (fixed length is 10)
-                self.dic_platoon_info[leader] = [[platoon_type, None], deque(maxlen=10)]
-            veh_num = len(platoon_type)
-            # SPECIAL CASE: type 'A', no tail vehicle, no platoon length
-            if veh_num == 1:
-                self.dic_platoon_info[leader][0] = [platoon_type, None]
-                continue
-            tail_id = self._get_tail_id(dic_vid_groups, platoon_type, leader)
-            if tail_id in dic_vid_groups['ls_vehid']:
-                self.dic_platoon_info[leader][0] = [platoon_type, tail_id]
-                if tail_id not in self.data_recorder.ls_tail_ids:
-                    self.data_recorder.ls_tail_ids.append(tail_id) # ls_tail_ids (purpose? record tail id then record tail arrival time)
-                # dic_head_states = self.data_recorder.get_vid_states(leader)
-                # dic_tail_states = self.data_recorder.get_vid_states(tail_id)
-                # pos_head = dic_head_states['pos']
-                # pos_tail = dic_tail_states['pos']
-                # platoon_length = pos_head-pos_tail
-                # record length
-                # self.dic_platoon_info[leader][1].append(platoon_length)
-        self.data_recorder.dic_platoon_info = self.dic_platoon_info
-        return self.dic_platoon_info
-
     def find_rm_leader_map(self, step):
         """
         Decide the action_leader (r_leader or m_leader) to take action
@@ -295,21 +253,22 @@ class MergingControlRegular:
         dic_mplatoon_tail_et = {m_leader: ls_ts[2] for m_leader, ls_ts in dic_mplatoon_et_valid.items()}
 
         for r_leader in dic_rplatoon_et_valid.keys():
-            if r_leader in ('ravh5100'):
+            if r_leader in ('ravh6020'):
                 pass
             r_ts_head = dic_rplatoon_et_valid[r_leader][1] # ramp platoon head timestamp
+            match_ts = r_ts_head - self.t_buffer
             dic_mplatoon_tail_et_asc = sorted(dic_mplatoon_tail_et.items(),
                                               key=lambda x: x[1])  # min => max by tail time
             for index in range(len(dic_mplatoon_tail_et_asc)):
                 m_leader, m_ts_tail = dic_mplatoon_tail_et_asc[index]
                 if m_leader == 'm_av4654':
                     pass
-                if index == 0 and r_ts_head < m_ts_tail:
+                if index == 0 and match_ts < m_ts_tail:
                     self.dic_rm_leader_map[r_leader] = m_leader
                     # prc.print_message(f'r_leader:{r_leader}, m_leader:{m_leader}')
                     break
-                elif index > 0 and dic_mplatoon_tail_et_asc[index - 1][1] <= r_ts_head < m_ts_tail:
-                    # r_ts_head is between m_ts_tail(index-1) and m_ts_tail(index)
+                elif index > 0 and dic_mplatoon_tail_et_asc[index - 1][1] <= match_ts < m_ts_tail:
+                    # match_ts is between the two mainline tail ETAs
                     self.dic_rm_leader_map[r_leader] = m_leader
                     # prc.print_message(f'r_leader:{r_leader}, m_leader:{m_leader}')
                     break
@@ -327,6 +286,62 @@ class MergingControlRegular:
         self.dic_rm_leader_actor = self._compare_delay_loss()
         return self.dic_rm_leader_map, self.dic_rm_leader_actor
 
+    def get_leader_action(self, step):
+        """
+        calls 'self._get_action_params_upper_level'
+        both R_LEADER and M_LEADER may take action.
+        Note: there may have special situation, one value with multiple keys
+        :param
+               gap: T_buffer
+               self.dic_rm_leader_actor: # actor: selected r_leader or m_leader to take action,
+                                         # {(r_leader: m_leader): actor, ...}
+               ls_acc_profile: [t1, a1, t3, a3, v_arrival]
+               dic_rm_leader_actor_filtered
+               self.dic_rm_leader_map
+
+        :return: self.dic_leader_action = {leader: [ls_r, c_ts]}
+        """
+        c_ts = round(step / 10 + 0.1, 1)
+        # m_leader and r_leader before merging
+        dic_vid_groups = self.data_recorder.dic_vid_groups
+        ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']
+        ls_r_leader_up_asc = dic_vid_groups['ls_r_leader_up_asc']
+        ls_action_leader = self.dic_rm_leader_actor.values()
+        # only keep action leaders in control area
+        ls_action_leader_filtered = [
+            v for v in ls_action_leader
+            if ('r' in v and v in ls_r_leader_up_asc) or ('m' in v and v in ls_m_leader_up_asc)]
+        dic_rm_leader_actor_filtered = {k: v for k, v in self.dic_rm_leader_actor.items()
+                                        if v in ls_action_leader_filtered}
+
+        original_eta = {}
+        for (r_leader, m_leader), action_leader in dic_rm_leader_actor_filtered.items():
+            if action_leader == 'ravh5660':
+                pass
+            if action_leader == r_leader and self.dic_ramp_followup.get(r_leader) == m_leader:
+                continue  # This mainline leader is already yielding to this ramp platoon.
+            if 'm' in action_leader:
+                ls_acc_profile = self._get_action_params_upper_level(
+                    c_ts, r_leader, m_leader, action_leader, self.t_buffer, original_eta)
+                if (ls_acc_profile and ls_acc_profile[0] is None
+                        and (r_leader in ls_r_leader_up_asc)
+                        and self.dic_ramp_followup.get(r_leader) != m_leader):
+                    prc.print_message(f"m_leader {m_leader} action failed, "
+                                      f"try R_leader {r_leader} instead")
+                    if r_leader == 'ravh5660':
+                        pass
+                    self._get_action_params_upper_level(
+                        c_ts, r_leader, m_leader, r_leader, self.t_buffer, original_eta)
+            else: # 'r' in action_leader
+                self._get_action_params_upper_level(
+                    c_ts, r_leader, m_leader, action_leader, self.t_buffer, original_eta)
+
+        self.ls_action_leader = sorted(
+            self.ls_action_leader, key=lambda x: int(''.join(filter(str.isdigit, x))), reverse=True)
+        # drop duplicate
+        self.ls_action_leader = list(dict.fromkeys(self.ls_action_leader))
+        return (self.dic_leader_action, self.ls_action_leader)
+
     def get_action_params(self, t, dis, v0, require_feasible=False):
         '''
 
@@ -343,7 +358,7 @@ class MergingControlRegular:
         -------
         ls_acc_profile : list
             the acc/dec strategy.
-            (t1, a1, t3, a3, v_arrival) or (T, a) v_arrival => velocity of reaching moment
+            (t1, a1, t3, a3, v_arrival) or (T, a) v_arrival => arrival speed
         '''
 
         t_v0_vmax = (self.max_speed - v0) / self.amax  # duration to accelerate to peak velocity
@@ -357,22 +372,19 @@ class MergingControlRegular:
             prc.print_message(
                 f"CASE 1: this leader will arrive MS within {t:.2f} s "
                 f"(e.g., r_platoon will encounter with m_platoon),\n"
-                f"        max_travel_dis_in_t {dis_sum:.2f} m >= current_dis_to_WS {dis:.2f} m"
-            )
+                f"        max_travel_dis_in_t {dis_sum:.2f} m >= current_dis_to_WS {dis:.2f} m")
             if self.optimizer:
                 # new add min speed
-                optm = GetBVCurve2(v0, t, dis=dis, min_speed=5, max_speed=25) # self.max_speed
+                optm = GetBVCurve2(v0, t, dis=dis, min_speed=5, max_speed=27.78) # self.max_speed
 
                 timer = (
                     self.comp_logger.measure(
                         module="SLSQP",
                         phase="solve",
                         step=self.current_step,
-                        sim_time_s=self.current_step * self.sim_step,
-                    )
+                        sim_time_s=self.current_step * self.sim_step,)
                     if self.comp_logger is not None and self.current_step is not None
-                    else nullcontext()
-                )
+                    else nullcontext())
 
                 with timer:
                     # v_arrival: velocity of reaching moment
@@ -402,66 +414,29 @@ class MergingControlRegular:
         else:
             prc.print_message(
                 f"CASE 2: this leader can't arrive MS in {t:.2f} s (eg: no conflict), \n"
-                f"        max_travel_dis_in_t {dis_sum:.2f} m < current_dis_to_WS {dis:.2f} m"
-            )
+                f"        max_travel_dis_in_t {dis_sum:.2f} m < current_dis_to_WS {dis:.2f} m")
             ls_acc_profile = [None, self.amax]
             prc.print_message(f'action: apply_acc {self.amax}')
             return ls_acc_profile
 
-    def get_leader_action(self, step, gap=2):
+    def _get_action_params_upper_level(self, c_ts, r_leader,
+                                       m_leader, action_leader,
+                                       gap, original_eta):
         """
-        calls 'self.get_action_params()'
-        both R_LEADER and M_LEADER may take action.
-        Note: there may have special situation, one value with multiple keys
-        :param
-               gap:
-               self.dic_rm_leader_actor: # actor: selected r_leader or m_leader to take action,
-                                         # {(r_leader: m_leader): actor, ...}
-               dic_rm_leader_actor_filtered
-               self.dic_rm_leader_map
-
-        :return: self.dic_leader_action = {leader: [ls_r, c_ts]}
+        Calls self.get_action_params()
+        Params:
+            ls_acc_profile: (t1, a1, t3, a3, v_arrival)
         """
-        c_ts = round(step / 10 + 0.1, 1)
-
-        # m_leader and r_leader before merging
-        dic_vid_groups = self.data_recorder.dic_vid_groups
-        ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']
-        ls_r_leader_up_asc = dic_vid_groups['ls_r_leader_up_asc']
-
-        ls_action_leader = self.dic_rm_leader_actor.values()
-        # only keep action leaders in control area
-        ls_action_leader_filtered = [
-            v for v in ls_action_leader
-            if ('r' in v and v in ls_r_leader_up_asc) or ('m' in v and v in ls_m_leader_up_asc)]
-        dic_rm_leader_actor_filtered = {k: v for k, v in self.dic_rm_leader_actor.items()
-                                        if v in ls_action_leader_filtered}
-
-        for (r_leader, m_leader), action_leader in dic_rm_leader_actor_filtered.items():
-            if action_leader == r_leader and self.dic_ramp_followup.get(r_leader) == m_leader:
-                continue  # This mainline leader is already yielding to this ramp platoon.
-            if 'm' in action_leader:
-                ls_acc_profile = self._get_action_params_upper_level(c_ts, r_leader, m_leader, action_leader, gap)
-                if ls_acc_profile and ls_acc_profile[0] is None and (r_leader in ls_r_leader_up_asc):
-                    if self.dic_ramp_followup.get(r_leader) != m_leader:
-                        prc.print_message(f"m_leader {m_leader} action failed, trying R_leader {r_leader} instead")
-                        self._get_action_params_upper_level(c_ts, r_leader, m_leader, r_leader, gap)
-            else: # 'r' in action_leader
-                ls_acc_profile = self._get_action_params_upper_level(c_ts, r_leader, m_leader, action_leader, gap)
-
-        self.ls_action_leader = sorted(self.ls_action_leader, key=lambda x: int(''.join(filter(str.isdigit, x))), reverse=True)
-        # drop duplicate
-        self.ls_action_leader = list(dict.fromkeys(self.ls_action_leader))
-        return (self.dic_leader_action, self.ls_action_leader)
-
-    def _get_action_params_upper_level(self, c_ts, r_leader, m_leader, action_leader, gap):
-        # action leader info
-        if r_leader == 'ravh7310':
+        if action_leader == 'ravh5660':
             pass
+        # just a temp skip test
+        # if action_leader == 'ravh6310' and c_ts >= 648.1:
+        #     previous_action = self.dic_leader_action.get(action_leader)
+        #     if previous_action:
+        #         return previous_action
+
         action_leader_info = self.data_recorder.get_vid_states(action_leader)
         dis_action_leader = action_leader_info['dis']
-        if dis_action_leader is None:
-            pass
         v_action_leader = action_leader_info['v']
         # get adjusted time
         if 'r' in action_leader:
@@ -469,27 +444,43 @@ class MergingControlRegular:
         else:
             ts_tail = self.dic_rplatoon_et[r_leader][2]
         ts_head_adj = ts_tail + gap # ts_head_desired
-        # (t1, a1, t3, a3, v_arrival)
-        ls_acc_profile = self.get_action_params(ts_head_adj - c_ts, dis_action_leader, v_action_leader)  # acc strategy
+        ls_acc_profile = self.get_action_params(
+            ts_head_adj - c_ts, dis_action_leader, v_action_leader,
+            require_feasible=True)
+        if ls_acc_profile is None:
+            previous_action = self.dic_leader_action.get(action_leader)
+            return previous_action
+
+        eta_table = self.dic_mplatoon_et
+        if 'r' in action_leader:
+            eta_table = self.dic_rplatoon_et
         if ls_acc_profile and len(ls_acc_profile) > 2: # only take action then update info
             # update head/tail reaching time information
+            if action_leader == 'm_av4654':
+                pass
+            original_eta.setdefault(action_leader, eta_table[action_leader])
             self._update_info(action_leader, ts_head_adj)
+        elif ls_acc_profile and ls_acc_profile[0] is None and action_leader in original_eta:
+            eta_table[action_leader] = original_eta.pop(action_leader)
         ls_acc_profile.append(c_ts)  # ls_acc_profile  = [t1, a1, t3, a3, c_ts]
         self.dic_leader_action[action_leader] = ls_acc_profile
         self.ls_action_leader.append(action_leader)  # list of vid need to action
         return ls_acc_profile
 
-    def get_m_leader_followup_action(self, step, gap=2):
+    def get_m_leader_followup_action(self, step):
         """
-        when r_leader taking action, m_leader after cor m_leader may needs to take action to create space
+        calls 'self.get_action_params()'
+        when r_leader takes action, m_leader after cor m_leader may need to take action to create space
         for this act ramp platoon
-        :param gap:
+        :param
                m_leader_next: the next m_leader of this m_leader
-               self.ls_m_leaders_followup: m_leader need to take followup action for ramp action
+               self.ls_m_leaders_followup: m_leader needs to take followup action for ramp action
+               self.dic_ramp_followup: {r_leader: m_leader_next}
+                r_leader has a corresponding m_leader; the next m_leader of this m_leader
         :return:
         """
-        dic_vid_groups = self.data_recorder.dic_vid_groups
         c_ts = round(step / 10 + 0.1, 1)
+        dic_vid_groups = self.data_recorder.dic_vid_groups
         ls_m_leader_up_asc = dic_vid_groups['ls_m_leader_up_asc']
         ls_r_leader_up = dic_vid_groups['ls_r_leader_up']
         for r_leader in ls_r_leader_up:
@@ -524,7 +515,7 @@ class MergingControlRegular:
             tail_eta = self.dic_rplatoon_et[r_leader][2]
             if r_leader not in ls_r_leader_up and tail_id in dic_vid_groups['ls_r_veh_up']:
                 tail_eta = max(tail_eta, c_ts + tail['dis'] / max(tail['v'], 5.0))
-            targets[m_leader] = max(targets.get(m_leader, 0), tail_eta + gap)
+            targets[m_leader] = max(targets.get(m_leader, 0), tail_eta + self.t_buffer)
 
         actions = {}
         for m_leader, target in targets.items():
@@ -595,16 +586,19 @@ class MergingControlRegular:
                 elapsed = c_ts - action_start
                 if elapsed < t1: # ls_action[-1] => the action start time
                     dec_st = ls_action[-1] # dec start time
+                    dec_time = min(self.sim_step, t1 - elapsed)
+                    acc_time = min(self.sim_step - dec_time, t3)
+                    step_acc = (a1 * dec_time + a3 * acc_time) / self.sim_step
+                    self._apply_acceleration(leader, step_acc)
                     if c_ts % 1 == 0:
                         prc.print_message(f"{leader} in dec_phase!\n a1:{a1}, "
                                           f"start_time:{dec_st}, current_time:{c_ts}")
-                    self._apply_acceleration(leader, a1)
                 elif elapsed < t1 + t3:
                     acc_st = action_start + t1
+                    self._apply_acceleration(leader, a3)
                     if c_ts % 1 == 0:
                         prc.print_message(f"{leader} in acc_phase!\n a3:{a3}, "
                                           f"start_time:{acc_st}, current_time:{c_ts}") #\n => line break
-                    self._apply_acceleration(leader, a3)
                 else:
                     if c_ts % 1 == 0:
                         prc.print_message(f"{leader} action finished!\n a3:{a3}, "
@@ -669,25 +663,6 @@ class MergingControlRegular:
             travel_time = t_uni+t_acc
         return travel_time
 
-    def _get_tail_id_ori(self, dic_vid_groups, platoon_type, leader_id):
-        '''
-        get platoon tail id
-        Params:
-            ls_m_veh_up_asc:
-            ls_r_veh_up: desc
-
-            ls_r_veh_net: should be desc
-        '''
-        if leader_id.startswith('m'):
-            ls_veh_net = dic_vid_groups['ls_m_veh_net']
-        else:
-            ls_veh_net = dic_vid_groups['ls_r_veh_net']
-        idx_leader = ls_veh_net.index(leader_id)
-        dev_idx = len(platoon_type) - 1
-        idx_tail = idx_leader - dev_idx
-        tail_id = ls_veh_net[idx_tail] if idx_tail >= 0 else None
-        return tail_id
-
     def _get_tail_id(self, dic_vid_groups, platoon_type, leader_id):
         '''
         get platoon tail id
@@ -706,13 +681,6 @@ class MergingControlRegular:
         idx_tail = idx_leader + dev_idx
         tail_id = ls_vid[idx_tail] if 0 <= idx_tail < len(ls_vid) else None
         return tail_id
-
-    def _apply_acceleration_ori(self, vid, acc):
-        if acc is not None:
-            this_vel = self.traci.vehicle.getSpeed(vid)
-            next_vel = max([this_vel + acc * self.sim_step, 0])
-            # self.traci.vehicle.slowDown(vid, next_vel, self.sim_step)  # 1e-3: 0.001
-            self.traci.vehicle.setSpeed(vid, next_vel)
 
     def _apply_acceleration(self, vid, acc):
         '''
@@ -850,11 +818,11 @@ class MergingControlRegular:
                 ts_rp_tail = self.dic_rplatoon_et[r_leader][2] # tail time (tail_tr)
                 ts_mp_head= self.dic_mplatoon_et[m_leader][1] # head_tm
                 ts_mp_tail = self.dic_mplatoon_et[m_leader][2] # tail_tm
-                m_give = ts_rp_tail - ts_mp_head
-                r_give = ts_mp_tail - ts_rp_head
-                if m_give < 0: # no conflict, no need to take action
-                    pass
-                elif m_give >= r_give:
+                m_give = ts_rp_tail + self.t_buffer - ts_mp_head
+                r_give = ts_mp_tail + self.t_buffer - ts_rp_head
+                if m_give <= 0 or r_give <= 0:
+                    continue
+                if m_give >= r_give:
                     # r_leader take action
                     # dic_rm_leader_actor: # {(r_leader: m_leader): r_leader, ...}, which one as actor
                     self.dic_rm_leader_actor[(r_leader, m_leader)] = r_leader

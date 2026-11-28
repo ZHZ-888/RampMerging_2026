@@ -57,8 +57,8 @@ def fifo_main(av_p, r_fr, m_fr, seed,
                 # SSM output for TTC conflicts
                 "--device.ssm.probability", "1",
                 "--device.ssm.file", str(ssm_path),
-                "--device.ssm.measures", "TTC",
-                "--device.ssm.thresholds", "3",
+                "--device.ssm.measures", "TTC DRAC",
+                "--device.ssm.thresholds", "3 3",
                 "--device.ssm.trajectories", "true",
                 "--device.ssm.write-lane-positions", "true",
                 "--no-warnings"]  # , '-S' start auto, and quit auto

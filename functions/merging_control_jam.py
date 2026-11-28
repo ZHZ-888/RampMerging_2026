@@ -349,7 +349,6 @@ class MergingControlJam:
                     #     self.ls_skip_stop = []
                     return self.timing
 
-
         # S2: Most common situation without m_leader action
         if self.stop_state and len(ls_m_veh_up_asc) > 0 and m_leader and not action_for_ramp:
             pv_info = self.traci.vehicle.getLeader(m_leader, self.length_mcz)
@@ -357,13 +356,18 @@ class MergingControlJam:
                 pv_id = pv_info[0]
                 pv_lane_id = self.traci.vehicle.getRoadID(pv_id)
 
-                pv_tail_reach_ts = self._get_prev_platoon_tail_at_ts(c_ts, m_leader)
-                remain_time_pv = pv_tail_reach_ts - c_ts
+                m_est_ts = self.dic_mplatoon_et.get(m_leader)
+                if m_est_ts is None:
+                    self.ls_skip_stop = []
+                    return self.timing
 
-                diff = self.r_leader_acc_dur - remain_time_pv
+                pv_tail_reach_ts = self._get_prev_platoon_tail_at_ts(c_ts, m_leader)
+                r_head_ts = c_ts + self.r_leader_acc_dur
+                r_tail_ts = r_head_ts + rp_pass_time
+
                 if (pv_lane_id == 'inflow_highway'  # codition 7
-                        and remain_time_pv + self.buffer <= self.r_leader_acc_dur  # condition 8
-                        and max_interval - diff - self.buffer > rp_pass_time):  # condition 9
+                        and pv_tail_reach_ts + self.buffer <= r_head_ts  # condition 8
+                        and r_tail_ts + self.buffer <= m_est_ts[1]):  # condition 9
                     self.timing = True  # S2
                 else:
                     self.ls_skip_stop = []  # updated: 241203
@@ -719,7 +723,7 @@ class MergingControlJam:
             return self.dic_m_leader_action_params
 
         if (self.data_recorder.ms_exit_speed and
-                self.data_recorder.ms_exit_speed < 16.67): # 19.44
+                self.data_recorder.ms_exit_speed < 19.44): # 19.44
             # if latest veihcle's speed exit MS is too low, no action
             return self.dic_m_leader_action_params
 
@@ -732,12 +736,20 @@ class MergingControlJam:
         if not self.stop_state or pv_m_leader_lane != 'inflow_highway_0':
             return self.dic_m_leader_action_params
 
+        m_est_ts = self.dic_mplatoon_et.get(m_leader) # {leader: [type, ts_head, ts_tail, c_ts]}
+        if m_est_ts is None:
+            return self.dic_m_leader_action_params
         pv_tail_reach_ts = self._get_prev_platoon_tail_at_ts(c_ts, m_leader)
-        pv_tail_reach_dur = max(0, pv_tail_reach_ts - c_ts)
-        # dev_rleader_pmtail: time deviation between r_leader and previous m_tail
-        dev_rleader_pmtail = max(0, self.r_leader_acc_dur - pv_tail_reach_dur)
-        des_interval = dev_rleader_pmtail + rp_pass_dur + self.buffer * 2
-        interval_shortage = des_interval - max_interval
+        r_head_des_ts = max(pv_tail_reach_ts + self.buffer, c_ts + self.r_leader_acc_dur)
+        m_head_des_ts = r_head_des_ts + rp_pass_dur + self.buffer
+        interval_shortage = m_head_des_ts - m_est_ts[1] # m_est_ts[1] => m_head_est_ts
+
+        # pv_tail_reach_dur = max(0, pv_tail_reach_ts - c_ts)
+        # # dev_rleader_pmtail: time deviation between r_leader and previous m_tail
+        # dev_rleader_pmtail = max(0, self.r_leader_acc_dur - pv_tail_reach_dur)
+        # des_interval = dev_rleader_pmtail + rp_pass_dur + self.buffer * 2
+        # interval_shortage = des_interval - max_interval
+
         if interval_shortage <= 0:  # no need to take action
             self.dic_m_leader_action_params = {m_leader: []}
             return self.dic_m_leader_action_params
@@ -754,11 +766,11 @@ class MergingControlJam:
         # Case 1: If r_leader has been waiting too long, allow looser error margin to avoid long waiting
         if r_leader_waiting_dur > 30 and interval_shortage <= allowable_error + 10:
             # Looser threshold due to long waiting time
-            des_m_leader_reach_dur = des_interval + pv_tail_reach_dur
+            des_m_leader_reach_dur = m_head_des_ts - c_ts
         # Case 2: Otherwise, allow only if within strict allowable error
         elif interval_shortage <= allowable_error:
             # Strict error control
-            des_m_leader_reach_dur = des_interval + pv_tail_reach_dur
+            des_m_leader_reach_dur = m_head_des_ts - c_ts
         else:
             return self.dic_m_leader_action_params
 
@@ -782,8 +794,10 @@ class MergingControlJam:
             return {}
 
         # Keep both legacy buffers and budget enough time for the ramp to start moving.
-        desired = max(tail, c_ts + self.r_leader_acc_dur) + ramp_duration + 2 * self.buffer
+        r_head_des_ts = max(tail + self.buffer, c_ts + self.r_leader_acc_dur)
+        desired = r_head_des_ts + ramp_duration + self.buffer
         shortage = desired - arrival
+
         stop = self.stop_times.get(ramp)
         waiting = 0
         if stop is not None:
@@ -953,8 +967,8 @@ class MergingControlJam:
             update_queue.push(step, value)
         return update_queue.maybe_release(step)
 
-    def _jam_control_clean(self, step, dic_platoon_info, ls_m_leader_up_asc, ls_m_veh_up_asc,
-                           dic_vid_groups, ls_r_dep_times, mpc_interval):
+    def _jam_control_clean(self, step, dic_platoon_info, ls_m_leader_up_asc,
+                           ls_m_veh_up_asc, dic_vid_groups, ls_r_dep_times, mpc_interval):
         '''
         update 25.1.30
         :param step:
@@ -994,7 +1008,7 @@ class MergingControlJam:
         self._check_resume_state4(dic_platoon_info) # 241003update
         self._check_legacy_yield(step, ls_m_leader_up_asc)
         timing = False
-        if self.legacy_yield:
+        if self.legacy_yield: # ???
             plan = self.legacy_yield
             m_leader = plan["leader"]
             action_m_leader = self._apply_m_leader_control(step, self.dic_m_leader_action_params)

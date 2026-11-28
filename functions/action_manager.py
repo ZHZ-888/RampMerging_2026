@@ -68,7 +68,8 @@ class ActionManager:
         if step % interval == 0 or self.new_leader_flag:
             dic_rm_leader_map, dic_rm_leader_actor = self.merge_regular.find_rm_leader_map(step)
             dic_leader_action, ls_action_leader = self.merge_regular.get_leader_action(step)
-            dic_m_leader_followup_action, ls_m_leaders_followup = self.merge_regular.get_m_leader_followup_action(step)
+            dic_m_leader_followup_action, ls_m_leaders_followup = (
+                self.merge_regular.get_m_leader_followup_action(step))
             self._print_decision(dic_rm_leader_actor, ls_m_leaders_followup)
             leader_actions = {vid: action for vid, action in dic_leader_action.items()
                               if vid not in dic_m_leader_followup_action}
