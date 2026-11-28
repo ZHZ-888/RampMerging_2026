@@ -28,6 +28,9 @@ def standard_arg_parser(include_legacy_ramp=True):
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--gui", action="store_true")
     parser.add_argument("--out_csv", type=str, default=None)
+    parser.add_argument("--safety_out_csv", type=str, nargs="?", default=None,
+                        const="data/local/upstream_safety.csv",
+                        help="Append PFZ/MCZ safety counts to a separate CSV")
     parser.add_argument("--st", type=int, default=1500)
     parser.add_argument('--av_p', type=float, default=0.1, help='AV Penetration Rate')
     parser.add_argument(
@@ -337,6 +340,68 @@ def write_one_row_csv(path: str, row: dict):
         if not file_exists:
             w.writeheader()
         w.writerow(row)
+
+SAFETY_CSV_FIELDS = (
+    "algo", "seed", "mainline_demand", "ramp_demand", "av_p",
+    "pfz_vehicle_count", "pfz_ttc_risky_pair_count", "pfz_drac_risky_pair_count",
+    "pfz_lane_change_count", "pfz_risky_lane_change_count", "pfz_lipr_lane_change_count",
+    "pfz_lipr_risky_lane_change_count", "mcz_vehicle_count",
+    "mcz_ttc_risky_pair_count", "mcz_drac_risky_pair_count",
+)
+
+
+def validate_safety_csv_path(parser, args):
+    if not args.safety_out_csv or not args.out_csv:
+        return
+    safety_path = Path(args.safety_out_csv).resolve()
+    performance_path = Path(args.out_csv).resolve()
+    same_path = safety_path == performance_path
+    if not same_path and safety_path.exists() and performance_path.exists():
+        same_path = safety_path.samefile(performance_path)
+    if same_path:
+        parser.error("--safety_out_csv must be separate from --out_csv")
+
+
+def write_one_row_csv_locked(path, row):
+    """Append one safety row under an exclusive lock, including header creation."""
+    import fcntl
+
+    if row.keys() != set(SAFETY_CSV_FIELDS):
+        raise ValueError("Safety CSV row does not match the expected fields")
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+", encoding="utf-8", newline="") as output:
+        fcntl.flock(output, fcntl.LOCK_EX)
+        output.seek(0)
+        header = next(csv.reader(output), None)
+        if header is not None and tuple(header) != SAFETY_CSV_FIELDS:
+            raise ValueError(f"{path}: existing CSV header does not match the safety fields")
+        output.seek(0, 2)
+        writer = csv.DictWriter(output, fieldnames=SAFETY_CSV_FIELDS)
+        if header is None:
+            writer.writeheader()
+        writer.writerow(row)
+        output.flush()
+
+
+def write_safety_metrics(args, algo, paths):
+    safety_counts = calc_ttc_sd_exposure.calculate_safety_counts(
+        ssm_path=paths["ssm_path"],
+        fcd_path=paths["xml_path"],
+        lc_path=paths["lc_path"],
+        min_time=DEFAULT_WARMUP_TIME,
+        max_time=args.st,
+    )
+    row = {
+        "algo": algo,
+        "seed": args.seed,
+        "mainline_demand": args.m_fr,
+        "ramp_demand": args.r_fr,
+        "av_p": args.av_p,
+        **safety_counts,
+    }
+    write_one_row_csv_locked(args.safety_out_csv, row)
+
 
 def write_dataframe_csv(path: str, df):
     """

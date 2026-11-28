@@ -30,7 +30,8 @@ module load Python/3.11.3-gimkl-2022a
 source /nesi/project/uoa04480/myenv/bin/activate
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONHASHSEED="$SEED"
 
-RESULT_DIR=${COMPARISON_RESULT_DIR:-data/raw/ramp_platoon_comparison}
+RESULT_DIR=${COMPARISON_RESULT_DIR:-data/raw/main_res}
+SAFETY_DIR=data/raw/upstream_safety
 export TRAJ_DIR="${COMPARISON_TRAJ_ROOT:-/nesi/nobackup/uoa04480/traj/ramp_platoon_comparison}/mpgc"
 export COMP_DIR="$TRAJ_DIR/computation"
 export RUN_DIR="$TRAJ_DIR/rl_logs/task_${TASK_ID}"
@@ -44,15 +45,19 @@ for model in \
         exit 1
     fi
 done
-mkdir -p "$RESULT_DIR" "$TRAJ_DIR"
+mkdir -p "$RESULT_DIR" "$SAFETY_DIR" "$TRAJ_DIR"
 OUT_CSV="$RESULT_DIR/mpgc_task_${TASK_ID}.csv"
+SAFETY_CSV="$SAFETY_DIR/mpgc_task_${TASK_ID}_UPsafety.csv"
 TEMP_DIR=$(mktemp -d "$RESULT_DIR/.mpgc_${TASK_ID}.XXXXXX")
 TEMP_CSV="$TEMP_DIR/result.csv"
-trap 'rm -f -- "$TEMP_CSV"; rmdir -- "$TEMP_DIR"' EXIT
+TEMP_SAFETY_CSV="$TEMP_DIR/upstream_safety.csv"
+trap 'rm -f -- "$TEMP_CSV" "$TEMP_SAFETY_CSV"; rmdir -- "$TEMP_DIR"' EXIT
 
 echo "task=$TASK_ID av_p=$AV_P r_fr=$RAMP seed=$SEED"
 python run.py --algo mpgc_multi_lane --av_p "$AV_P" --r_fr "$RAMP" \
     --m_fr 1500 --seed "$SEED" --st 1500 \
     --out_csv "$TEMP_CSV" \
+    --safety_out_csv "$TEMP_SAFETY_CSV" \
     --fc_mode full --tsg_mode predict --max_team_size 12 --loss_rate 0 --lc
 mv -f -- "$TEMP_CSV" "$OUT_CSV"
+mv -f -- "$TEMP_SAFETY_CSV" "$SAFETY_CSV"

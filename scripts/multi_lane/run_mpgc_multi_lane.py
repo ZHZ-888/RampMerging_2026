@@ -161,7 +161,10 @@ def mpgc_main(av_p, r_fr, m_fr, seed, loss_rate=0, gui=False,
         ce_reward_sum = sum(ce_rewards)
         ce_reward_avg = ce_reward_sum / ce_counts if ce_counts else 0
         ce_result = [ce_counts, ce_reward_sum, ce_reward_avg]
-        output_file_path = {'xml_path': xml_path, 'ssm_path': ssm_path, 'tripinfo_path': tripinfo_path}
+        output_file_path = {
+            'xml_path': xml_path, 'lc_path': lc_path,
+            'ssm_path': ssm_path, 'tripinfo_path': tripinfo_path,
+        }
 
     finally:
         traci.close()
@@ -260,6 +263,7 @@ def main(args=None, root=None):
     parser.add_argument('--loss_rate', type=float, default=0.0,
                         help='Packet loss rate for MPGC communication')
     parsed_args = parser.parse_args(args=args)
+    hpc_utils.validate_safety_csv_path(parser, parsed_args)
 
     # 2. Run simulation
     start = time.time()
@@ -341,6 +345,9 @@ def main(args=None, root=None):
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
 
+    if parsed_args.safety_out_csv:
+        hpc_utils.write_safety_metrics(parsed_args, "mpgc_multi_lane", output_file_path)
+
 def set_global_seed(seed, enable=True):
     """Fix all sources of randomness globally
     (external traffic-environment constraints + internal neural-network constraints)"""
@@ -361,7 +368,7 @@ if __name__ == '__main__':
     prc.PRINT_ENABLED = False
     start = time.time()
     max_team_size = 12
-    st = 800 # 1500
+    st = 1500 # 1500
     (dic_follower_state, his_dic_platoon_size, dic_id_features,
      tp, speed_log, queue_log, output_file_path,
      se_result, ce_result, ts_first_jam, ts_first_back_to_regular) = mpgc_main(
@@ -371,7 +378,7 @@ if __name__ == '__main__':
         seed = 4, # 2 analysis
         ramp_spr = 0.7,
         loss_rate = 0, # 0.15
-        gui = False,
+        gui = True,
         lc = True, # if allow HV lane-changing; True
         fc_mode = 'full', # dla_only/dla_tsc/dla_tsc_lhr/dla_tsc_lhr_ce/full
         st = st, # 1200

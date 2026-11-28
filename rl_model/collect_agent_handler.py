@@ -451,6 +451,10 @@ class CollectAgentHandler:
             if any(entry['sparse_leader'] == sparse_leader for entry in self.insert_buffer):
                 # print(f"[FreeInsert] {sparse_leader} already being tracked, skipping insertion")
                 return
+
+            if selected_av in ['mb_av2208', 'mb_av2808', 'mb_av3497', 'mb_av5456', 'mb_av7264']:
+                pass
+
             self.traci.vehicle.changeLane(selected_av, self.target_lane, duration=100)
             print(f"[FreeInsert] {selected_av} selected with score {score:.3f}")
 

@@ -29,7 +29,8 @@ def cvmc_main(args):
     traj_dir = Path(os.environ.get('TRAJ_DIR', ROOT / 'data/multi_lane/cvmc'))
     traj_dir.mkdir(parents=True, exist_ok=True)
     paths = {name: traj_dir / f'{prefix}_{tag}.xml' for name, prefix in
-             [('xml_path', 'trj'), ('ssm_path', 'ssm'), ('tripinfo_path', 'tripinfo')]}
+             [('xml_path', 'trj'), ('lc_path', 'lc'), ('ssm_path', 'ssm'),
+              ('tripinfo_path', 'tripinfo')]}
     log_dir = Path(args.log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
     config = CVMCConfig(interval=args.update_steps, buffer=args.time_buffer, v_floor=args.v_floor,
@@ -39,9 +40,9 @@ def cvmc_main(args):
     cmd = [args.sumo_binary or ('sumo-gui' if args.gui else 'sumo'), '-c', str(sumo_config),
            '--seed', str(args.seed), '--step-length', '0.1', '--no-warnings',
            '--fcd-output', str(paths['xml_path']), '--tripinfo-output', str(paths['tripinfo_path']),
-           '--lanechange-output', str(traj_dir / f'lc_{tag}.xml'),
+           '--lanechange-output', str(paths['lc_path']),
            '--device.ssm.probability', '1', '--device.ssm.file', str(paths['ssm_path']),
-           '--device.ssm.measures', 'TTC', '--device.ssm.thresholds', '3',
+           '--device.ssm.measures', 'TTC DRAC', '--device.ssm.thresholds', '3 3',
            '--device.ssm.trajectories', 'true', '--device.ssm.write-lane-positions', 'true']
     traci.start(cmd)
     try:
@@ -96,6 +97,7 @@ def main(args=None, root=None, **local_settings):
     parser.add_argument('--log_dir', default='data/cvmc_logs')
     parser.set_defaults(**local_settings)
     parsed = parser.parse_args(args)
+    hpc_utils.validate_safety_csv_path(parser, parsed)
     if parsed.st <= hpc_utils.DEFAULT_WARMUP_TIME:
         parser.error('--st must exceed the 180 s warmup')
     if parsed.update_steps < 1 or parsed.v_floor <= 0 or parsed.time_buffer < 0:
@@ -120,6 +122,8 @@ def main(args=None, root=None, **local_settings):
                ramp_entry_count=entries, mrm_insertion_count=mrm, runtime=runtime)
     row.update({f'cvmc_{key}': value for key, value in stats.items()})
     hpc_utils.write_one_row_csv(parsed.out_csv, row)
+    if parsed.safety_out_csv:
+        hpc_utils.write_safety_metrics(parsed, "cvmc_multi_lane", paths)
     print('CVMC summary:', stats, '| runtime:', round(runtime, 2))
 
 

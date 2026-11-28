@@ -88,7 +88,10 @@ def fifo_main(av_p, r_fr, m_fr, seed,
         # ramp road veh depature schedule
         vgvg = vg.VehGen(traci, seed)  # function related to veh generation
         data_recorder = dr.DataRecording(traci)
-        output_file_path = {'xml_path': xml_path, 'ssm_path': ssm_path, 'tripinfo_path': tripinfo_path}
+        output_file_path = {
+            'xml_path': xml_path, 'lc_path': lc_path,
+            'ssm_path': ssm_path, 'tripinfo_path': tripinfo_path,
+        }
         # run loop
         speed_log, tp = \
             loop(traci, st, vgvg, data_recorder,
@@ -162,6 +165,7 @@ def main(args=None, root=None):
                         help='Target fraction of ramp platoons classified as Standard')
     # Parse arguments passed from run.py
     parsed_args = parser.parse_args(args=args)
+    hpc_utils.validate_safety_csv_path(parser, parsed_args)
 
     # 2. Run simulation
     start = time.time()
@@ -213,6 +217,9 @@ def main(args=None, root=None):
             "runtime": runtime
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
+
+    if parsed_args.safety_out_csv:
+        hpc_utils.write_safety_metrics(parsed_args, "fifo_multi_lane", output_file_path)
 
 if __name__ == '__main__':
     print(">>> Running Local FIFO Test (Direct Function Call)...")

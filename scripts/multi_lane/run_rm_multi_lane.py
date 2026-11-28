@@ -65,8 +65,8 @@ def rm_main(av_p, r_fr, m_fr, seed,
                 # SSM output for TTC conflicts
                 "--device.ssm.probability", "1",
                 "--device.ssm.file", str(ssm_path),
-                "--device.ssm.measures", "TTC",
-                "--device.ssm.thresholds", "3",
+                "--device.ssm.measures", "TTC DRAC",
+                "--device.ssm.thresholds", "3 3",
                 "--device.ssm.trajectories", "true",
                 "--device.ssm.write-lane-positions", "true",
                 "--no-warnings"]  # , '-S' start auto, and quit auto
@@ -97,7 +97,10 @@ def rm_main(av_p, r_fr, m_fr, seed,
         veh_gen = vg.VehGen(traci, seed)  # function related to veh generation
         rm_algo = rm.Func(traci)  # function related to ramp_metering algo
         data_recorder = dr.DataRecording(traci, sim_step)
-        output_file_path = {'xml_path': xml_path, 'ssm_path': ssm_path, 'tripinfo_path': tripinfo_path}
+        output_file_path = {
+            'xml_path': xml_path, 'lc_path': lc_path,
+            'ssm_path': ssm_path, 'tripinfo_path': tripinfo_path,
+        }
         speed_log, tp = \
             loop(traci, st, veh_gen, data_recorder, rm_algo, rm_debug_path,
                  m0_dpt_type, m1_dpt_type, ramp_departures)
@@ -211,6 +214,7 @@ def main(args=None, root=None):
                         help='Target fraction of ramp platoons classified as Standard')
     # Parse arguments passed from run.py
     parsed_args = parser.parse_args(args=args)
+    hpc_utils.validate_safety_csv_path(parser, parsed_args)
 
     # 2. Run simulation
     start = time.time()
@@ -263,6 +267,9 @@ def main(args=None, root=None):
             "runtime": runtime
         }
         hpc_utils.write_one_row_csv(parsed_args.out_csv, row)
+
+    if parsed_args.safety_out_csv:
+        hpc_utils.write_safety_metrics(parsed_args, "rm_multi_lane", output_file_path)
 
 if __name__ == '__main__':
     print(">>> Running Local RM Test (Direct Function Call)...")

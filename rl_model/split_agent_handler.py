@@ -502,6 +502,10 @@ class SplitAgentHandler:
         Execute the lane change for the selected AV and update tracking structures.
         """
         try:
+
+            if selected_av in ['mb_av2208', 'mb_av2808', 'mb_av3497', 'mb_av5456', 'mb_av7264']:
+                pass
+
             self.traci.vehicle.changeLane(selected_av, self.target_lane, duration=100)
             print(f"[SplitInsert] {selected_av} selected with score {score:.3f}")
             self.ls_splited_platoon.append(leader_id)
